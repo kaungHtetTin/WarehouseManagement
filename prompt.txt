@@ -1,0 +1,27 @@
+Permission မရှိတဲ့ UI တွေကို မပြနဲ့,
+Assign ပေးမထားတဲ့ warehouse တွေကို မပြနဲ့ ,trip ဆွဲတာမှာ destinated ‌ပေးမယ့် နေရာမျိုးဆို ပြလို့ရတယ်
+Super admin admin အတွက် warehouse အားလုံးကို ပြလို့ရတယ်
+ဘောင်ချာ detail မှာ payment total amount ပြတာ မှားနေတယ်
+voucher 1st line ရဲ့ amount ကိုပဲ ပြနေတယ်
+
+cargo trip slip မှာ loaded column အတွက် unit တန်ဖိုးကို လိုအပ်မှပဲ decimal နဲ့ ပြမယ်
+မလိုအပ်ရင် integer ပဲပြမယ်
+
+trip detparted status ကိုပြောင်းဖို့ UI UX ပြန်လုပ်မယ် ပြန်ထည့်ရမယ်ပြန်ထည့်ရမယ်
+
+Fullfillment မှာ warehouse အလိုက် filter ထည့်မယ်
+warehouse access permission အလိုက်ပဲ ပြမယ်
+
+quantity တွေကို လိုအပ်မှပဲ decimal တွေ ပြမယ်
+မလိုအပ်ရင် integer နဲ့ပဲပြ 
+
+trip list မှာ  warehouse တွေဟာ
+သူ့ကို target အနေနဲ့ ထားထားတာရယ်
+သူကိုယ်တိုင် source ဖြစ်နေတာတွေကိုပဲ မြင်ရမယ်
+
+
+organizastion မှာ warehouse A B C D ရှိတယ်
+ငါ က manager, ware A B ကို manage လုပ်တယ်
+tip အတွက်
+source warehouse A,B ငါ မြင်နိုင်တယ်
+target အတွက် , warehouse A B ကို ပြန်မြင်နိုင်တယ်,

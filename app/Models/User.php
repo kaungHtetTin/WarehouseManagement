@@ -2,8 +2,9 @@
 
 namespace App\Models;
 
-use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -12,15 +13,25 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
 
+    private const WAREHOUSE_ACCESS_RANK = [
+        'VIEW' => 1,
+        'OPERATE' => 2,
+        'MANAGE' => 3,
+    ];
+
     /**
      * The attributes that are mass assignable.
      *
      * @var array<int, string>
      */
     protected $fillable = [
+        'organization_id',
         'name',
         'email',
         'password',
+        'is_platform_admin',
+        'status',
+        'last_login_at',
     ];
 
     /**
@@ -40,5 +51,110 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'last_login_at' => 'datetime',
+        'is_platform_admin' => 'boolean',
     ];
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
+    }
+
+    public function roles(): BelongsToMany
+    {
+        return $this->belongsToMany(Role::class, 'user_roles');
+    }
+
+    public function directPermissions(): BelongsToMany
+    {
+        return $this->belongsToMany(Permission::class, 'user_permissions')->withPivot('effect');
+    }
+
+    public function warehouses(): BelongsToMany
+    {
+        return $this->belongsToMany(Warehouse::class, 'user_warehouse_access')->withPivot('access_level');
+    }
+
+    public function bypassesWarehouseScope(): bool
+    {
+        return $this->is_platform_admin || $this->hasPermission('warehouses.manage');
+    }
+
+    public function canAccessWarehouse(int|Warehouse $warehouse, string $minimumLevel = 'VIEW'): bool
+    {
+        $warehouseModel = $warehouse instanceof Warehouse
+            ? $warehouse
+            : Warehouse::query()->find($warehouse);
+
+        if (! $warehouseModel) {
+            return false;
+        }
+
+        if ($warehouseModel->organization_id !== $this->organization_id) {
+            return false;
+        }
+
+        if ($this->bypassesWarehouseScope()) {
+            return true;
+        }
+
+        $attached = $this->warehouses()->where('warehouses.id', $warehouseModel->id)->first();
+
+        if (! $attached) {
+            return false;
+        }
+
+        $required = self::WAREHOUSE_ACCESS_RANK[$minimumLevel] ?? 1;
+        $granted = self::WAREHOUSE_ACCESS_RANK[$attached->pivot->access_level] ?? 0;
+
+        return $granted >= $required;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function allPermissionCodes(): array
+    {
+        if ($this->is_platform_admin) {
+            return Permission::query()->pluck('code')->all();
+        }
+
+        $this->loadMissing(['roles.permissions', 'directPermissions']);
+
+        $codes = collect();
+        foreach ($this->roles as $role) {
+            $codes = $codes->merge($role->permissions->pluck('code'));
+        }
+
+        foreach ($this->directPermissions as $permission) {
+            if ($permission->pivot?->effect === 'DENY') {
+                $codes = $codes->reject(fn (string $code) => $code === $permission->code);
+            } else {
+                $codes->push($permission->code);
+            }
+        }
+
+        return $codes->unique()->values()->all();
+    }
+
+    public function hasPermission(string $permissionCode): bool
+    {
+        if ($this->is_platform_admin) {
+            return true;
+        }
+
+        if ($this->directPermissions->contains(function (Permission $permission) use ($permissionCode) {
+            return $permission->code === $permissionCode && $permission->pivot?->effect === 'DENY';
+        })) {
+            return false;
+        }
+
+        if ($this->directPermissions->contains('code', $permissionCode)) {
+            return true;
+        }
+
+        return $this->roles()->whereHas('permissions', function ($query) use ($permissionCode) {
+            $query->where('code', $permissionCode);
+        })->exists();
+    }
 }

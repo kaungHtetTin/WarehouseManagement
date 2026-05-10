@@ -1,302 +1,848 @@
 {
-  "_AdminLayout-05e6c920.js": {
-    "file": "assets/AdminLayout-05e6c920.js",
+  "_Add-3d36928b.js": {
+    "file": "assets/Add-3d36928b.js",
     "imports": [
       "resources/js/app.jsx",
-      "_Stack-65174c4a.js",
-      "_index-381e0e30.js",
-      "_List-ba4a21d7.js",
-      "_IconButton-5c9524a3.js",
-      "_Person-89c9fc7a.js"
+      "_Stack-ea33a61f.js"
     ]
   },
-  "_Alert-3fdf1e1b.js": {
-    "file": "assets/Alert-3fdf1e1b.js",
+  "_AdminLayout-030f4d91.js": {
+    "file": "assets/AdminLayout-030f4d91.js",
     "imports": [
       "resources/js/app.jsx",
-      "_Stack-65174c4a.js",
-      "_IconButton-5c9524a3.js"
+      "_Stack-ea33a61f.js",
+      "_AdminPanelSettings-5058491d.js",
+      "_Person-d2788704.js",
+      "_List-09b2d32a.js",
+      "_IconButton-faedc214.js"
     ]
   },
-  "_Button-6c4516d5.js": {
-    "file": "assets/Button-6c4516d5.js",
+  "_AdminPanelSettings-5058491d.js": {
+    "file": "assets/AdminPanelSettings-5058491d.js",
+    "imports": [
+      "_Stack-ea33a61f.js",
+      "resources/js/app.jsx"
+    ]
+  },
+  "_Alert-cdb15672.js": {
+    "file": "assets/Alert-cdb15672.js",
     "imports": [
       "resources/js/app.jsx",
-      "_Stack-65174c4a.js"
+      "_Stack-ea33a61f.js",
+      "_IconButton-faedc214.js"
     ]
   },
-  "_DialogTitle-7abc3e18.js": {
-    "file": "assets/DialogTitle-7abc3e18.js",
+  "_ArrowBack-85e43f95.js": {
+    "file": "assets/ArrowBack-85e43f95.js",
     "imports": [
       "resources/js/app.jsx",
-      "_Stack-65174c4a.js",
-      "_List-ba4a21d7.js"
+      "_Stack-ea33a61f.js"
     ]
   },
-  "_FormControlLabel-5e7679d5.js": {
-    "file": "assets/FormControlLabel-5e7679d5.js",
+  "_Autocomplete-05e57729.js": {
+    "file": "assets/Autocomplete-05e57729.js",
     "imports": [
       "resources/js/app.jsx",
-      "_Stack-65174c4a.js",
-      "_TextField-b44c3e67.js",
-      "_List-ba4a21d7.js"
+      "_Select-ef7c4978.js",
+      "_Alert-cdb15672.js",
+      "_Stack-ea33a61f.js",
+      "_IconButton-faedc214.js",
+      "_Popper-5913b55d.js",
+      "_usePreviousProps-0086177b.js",
+      "_List-09b2d32a.js",
+      "_Chip-2c82df95.js"
     ]
   },
-  "_IconButton-5c9524a3.js": {
-    "file": "assets/IconButton-5c9524a3.js",
+  "_Button-1e696aa5.js": {
+    "file": "assets/Button-1e696aa5.js",
     "imports": [
       "resources/js/app.jsx",
-      "_Stack-65174c4a.js"
+      "_Stack-ea33a61f.js"
     ]
   },
-  "_InputLabel-40ef70e9.js": {
-    "file": "assets/InputLabel-40ef70e9.js",
+  "_Checkbox-201302b6.js": {
+    "file": "assets/Checkbox-201302b6.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_Stack-ea33a61f.js",
+      "_FormControlLabel-c0bf7c8d.js",
+      "_List-09b2d32a.js"
+    ]
+  },
+  "_Chip-2c82df95.js": {
+    "file": "assets/Chip-2c82df95.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_Stack-ea33a61f.js"
+    ]
+  },
+  "_DeleteOutlineOutlined-0c02a892.js": {
+    "file": "assets/DeleteOutlineOutlined-0c02a892.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_Stack-ea33a61f.js"
+    ]
+  },
+  "_DialogTitle-29afcbce.js": {
+    "file": "assets/DialogTitle-29afcbce.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_Stack-ea33a61f.js",
+      "_List-09b2d32a.js"
+    ]
+  },
+  "_ExpandMore-994b933d.js": {
+    "file": "assets/ExpandMore-994b933d.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_Stack-ea33a61f.js",
+      "_List-09b2d32a.js"
+    ]
+  },
+  "_FormControlLabel-c0bf7c8d.js": {
+    "file": "assets/FormControlLabel-c0bf7c8d.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_Stack-ea33a61f.js",
+      "_Select-ef7c4978.js",
+      "_List-09b2d32a.js"
+    ]
+  },
+  "_IconButton-faedc214.js": {
+    "file": "assets/IconButton-faedc214.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_Stack-ea33a61f.js"
+    ]
+  },
+  "_InputLabel-27fdecd3.js": {
+    "file": "assets/InputLabel-27fdecd3.js",
     "imports": [
       "resources/js/app.jsx"
     ]
   },
-  "_List-ba4a21d7.js": {
-    "file": "assets/List-ba4a21d7.js",
+  "_List-09b2d32a.js": {
+    "file": "assets/List-09b2d32a.js",
     "imports": [
       "resources/js/app.jsx",
-      "_Stack-65174c4a.js"
+      "_Stack-ea33a61f.js"
     ]
   },
-  "_Person-89c9fc7a.js": {
-    "file": "assets/Person-89c9fc7a.js",
+  "_Menu-0d07ea5c.js": {
+    "file": "assets/Menu-0d07ea5c.js",
     "imports": [
       "resources/js/app.jsx",
-      "_Stack-65174c4a.js"
+      "_List-09b2d32a.js",
+      "_Stack-ea33a61f.js"
     ]
   },
-  "_PrimaryButton-7304e968.js": {
-    "file": "assets/PrimaryButton-7304e968.js",
-    "imports": [
-      "resources/js/app.jsx"
-    ]
-  },
-  "_Stack-65174c4a.js": {
-    "file": "assets/Stack-65174c4a.js",
-    "imports": [
-      "resources/js/app.jsx"
-    ]
-  },
-  "_TextField-b44c3e67.js": {
-    "file": "assets/TextField-b44c3e67.js",
+  "_MenuItem-a5e0f9e0.js": {
+    "file": "assets/MenuItem-a5e0f9e0.js",
     "imports": [
       "resources/js/app.jsx",
-      "_Stack-65174c4a.js",
-      "_List-ba4a21d7.js"
+      "_Stack-ea33a61f.js",
+      "_List-09b2d32a.js",
+      "_Menu-0d07ea5c.js",
+      "_AdminLayout-030f4d91.js"
     ]
   },
-  "_TextInput-a2f1e62a.js": {
-    "file": "assets/TextInput-a2f1e62a.js",
-    "imports": [
-      "resources/js/app.jsx"
-    ]
-  },
-  "_VisibilityOff-2ce61d26.js": {
-    "file": "assets/VisibilityOff-2ce61d26.js",
+  "_MoreVert-322b3814.js": {
+    "file": "assets/MoreVert-322b3814.js",
     "imports": [
       "resources/js/app.jsx",
-      "_Stack-65174c4a.js",
-      "_TextField-b44c3e67.js",
-      "_List-ba4a21d7.js"
+      "_Stack-ea33a61f.js"
     ]
   },
-  "_index-381e0e30.js": {
-    "file": "assets/index-381e0e30.js",
+  "_Person-d2788704.js": {
+    "file": "assets/Person-d2788704.js",
     "imports": [
-      "_Stack-65174c4a.js",
+      "resources/js/app.jsx",
+      "_Stack-ea33a61f.js"
+    ]
+  },
+  "_Popper-5913b55d.js": {
+    "file": "assets/Popper-5913b55d.js",
+    "imports": [
+      "_List-09b2d32a.js",
+      "resources/js/app.jsx",
+      "_Stack-ea33a61f.js",
+      "_Menu-0d07ea5c.js"
+    ]
+  },
+  "_PrimaryButton-f5d132aa.js": {
+    "file": "assets/PrimaryButton-f5d132aa.js",
+    "imports": [
       "resources/js/app.jsx"
     ]
   },
-  "_transition-3a0aa649.js": {
-    "file": "assets/transition-3a0aa649.js",
+  "_Select-ef7c4978.js": {
+    "file": "assets/Select-ef7c4978.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_Stack-ea33a61f.js",
+      "_Menu-0d07ea5c.js",
+      "_List-09b2d32a.js"
+    ]
+  },
+  "_Stack-ea33a61f.js": {
+    "file": "assets/Stack-ea33a61f.js",
     "imports": [
       "resources/js/app.jsx"
     ]
+  },
+  "_Switch-ea62bbc8.js": {
+    "file": "assets/Switch-ea62bbc8.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_Stack-ea33a61f.js",
+      "_FormControlLabel-c0bf7c8d.js",
+      "_List-09b2d32a.js"
+    ]
+  },
+  "_TableContainer-94613804.js": {
+    "file": "assets/TableContainer-94613804.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_Stack-ea33a61f.js"
+    ]
+  },
+  "_TableRow-bb6742d1.js": {
+    "file": "assets/TableRow-bb6742d1.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_Stack-ea33a61f.js"
+    ]
+  },
+  "_TextField-364406ea.js": {
+    "file": "assets/TextField-364406ea.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_Stack-ea33a61f.js",
+      "_Select-ef7c4978.js"
+    ]
+  },
+  "_TextInput-5285bc13.js": {
+    "file": "assets/TextInput-5285bc13.js",
+    "imports": [
+      "resources/js/app.jsx"
+    ]
+  },
+  "_Tooltip-8c10141d.js": {
+    "file": "assets/Tooltip-8c10141d.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_Stack-ea33a61f.js",
+      "_Popper-5913b55d.js",
+      "_Select-ef7c4978.js",
+      "_List-09b2d32a.js",
+      "_Menu-0d07ea5c.js"
+    ]
+  },
+  "_VisibilityOff-26086bdf.js": {
+    "file": "assets/VisibilityOff-26086bdf.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_Stack-ea33a61f.js",
+      "_Select-ef7c4978.js",
+      "_List-09b2d32a.js"
+    ]
+  },
+  "_transition-249d78e9.js": {
+    "file": "assets/transition-249d78e9.js",
+    "imports": [
+      "resources/js/app.jsx"
+    ]
+  },
+  "_usePreviousProps-0086177b.js": {
+    "file": "assets/usePreviousProps-0086177b.js",
+    "imports": [
+      "resources/js/app.jsx"
+    ]
+  },
+  "resources/js/Pages/Admin/Iam/RolesIndex.jsx": {
+    "file": "assets/RolesIndex-0418ebe6.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_AdminLayout-030f4d91.js",
+      "_Stack-ea33a61f.js",
+      "_AdminPanelSettings-5058491d.js",
+      "_Alert-cdb15672.js",
+      "_List-09b2d32a.js",
+      "_Tooltip-8c10141d.js",
+      "_Add-3d36928b.js",
+      "_Chip-2c82df95.js",
+      "_ExpandMore-994b933d.js",
+      "_IconButton-faedc214.js",
+      "_MoreVert-322b3814.js",
+      "_TableRow-bb6742d1.js",
+      "_Menu-0d07ea5c.js",
+      "_MenuItem-a5e0f9e0.js",
+      "_DialogTitle-29afcbce.js",
+      "_TextField-364406ea.js",
+      "_Select-ef7c4978.js",
+      "_FormControlLabel-c0bf7c8d.js",
+      "_Checkbox-201302b6.js",
+      "_Button-1e696aa5.js",
+      "_Person-d2788704.js",
+      "_Popper-5913b55d.js"
+    ],
+    "isDynamicEntry": true,
+    "src": "resources/js/Pages/Admin/Iam/RolesIndex.jsx"
+  },
+  "resources/js/Pages/Admin/Iam/UsersIndex.jsx": {
+    "file": "assets/UsersIndex-30aaf639.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_AdminLayout-030f4d91.js",
+      "_Stack-ea33a61f.js",
+      "_AdminPanelSettings-5058491d.js",
+      "_Alert-cdb15672.js",
+      "_List-09b2d32a.js",
+      "_Tooltip-8c10141d.js",
+      "_Add-3d36928b.js",
+      "_Chip-2c82df95.js",
+      "_IconButton-faedc214.js",
+      "_MoreVert-322b3814.js",
+      "_TableRow-bb6742d1.js",
+      "_Menu-0d07ea5c.js",
+      "_MenuItem-a5e0f9e0.js",
+      "_DialogTitle-29afcbce.js",
+      "_TextField-364406ea.js",
+      "_Select-ef7c4978.js",
+      "_Button-1e696aa5.js",
+      "_Person-d2788704.js",
+      "_Popper-5913b55d.js"
+    ],
+    "isDynamicEntry": true,
+    "src": "resources/js/Pages/Admin/Iam/UsersIndex.jsx"
+  },
+  "resources/js/Pages/Admin/Inventory/WarehouseStocksIndex.jsx": {
+    "file": "assets/WarehouseStocksIndex-aeca79a2.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_AdminLayout-030f4d91.js",
+      "_Stack-ea33a61f.js",
+      "_AdminPanelSettings-5058491d.js",
+      "_Alert-cdb15672.js",
+      "_List-09b2d32a.js",
+      "_Add-3d36928b.js",
+      "_Select-ef7c4978.js",
+      "_MenuItem-a5e0f9e0.js",
+      "_Chip-2c82df95.js",
+      "_TableRow-bb6742d1.js",
+      "_DialogTitle-29afcbce.js",
+      "_TextField-364406ea.js",
+      "_Button-1e696aa5.js",
+      "_Person-d2788704.js",
+      "_IconButton-faedc214.js",
+      "_Menu-0d07ea5c.js"
+    ],
+    "isDynamicEntry": true,
+    "src": "resources/js/Pages/Admin/Inventory/WarehouseStocksIndex.jsx"
+  },
+  "resources/js/Pages/Admin/Master/CategoriesIndex.jsx": {
+    "file": "assets/CategoriesIndex-169726e8.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_AdminLayout-030f4d91.js",
+      "_Stack-ea33a61f.js",
+      "_AdminPanelSettings-5058491d.js",
+      "_Alert-cdb15672.js",
+      "_List-09b2d32a.js",
+      "_Add-3d36928b.js",
+      "_IconButton-faedc214.js",
+      "_MoreVert-322b3814.js",
+      "_TableRow-bb6742d1.js",
+      "_Menu-0d07ea5c.js",
+      "_MenuItem-a5e0f9e0.js",
+      "_DialogTitle-29afcbce.js",
+      "_TextField-364406ea.js",
+      "_Select-ef7c4978.js",
+      "_Button-1e696aa5.js",
+      "_Person-d2788704.js"
+    ],
+    "isDynamicEntry": true,
+    "src": "resources/js/Pages/Admin/Master/CategoriesIndex.jsx"
+  },
+  "resources/js/Pages/Admin/Master/MerchantsIndex.jsx": {
+    "file": "assets/MerchantsIndex-7064a4ba.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_AdminLayout-030f4d91.js",
+      "_Stack-ea33a61f.js",
+      "_AdminPanelSettings-5058491d.js",
+      "_Alert-cdb15672.js",
+      "_List-09b2d32a.js",
+      "_Add-3d36928b.js",
+      "_IconButton-faedc214.js",
+      "_MoreVert-322b3814.js",
+      "_TableRow-bb6742d1.js",
+      "_Menu-0d07ea5c.js",
+      "_MenuItem-a5e0f9e0.js",
+      "_DialogTitle-29afcbce.js",
+      "_TextField-364406ea.js",
+      "_Button-1e696aa5.js",
+      "_Person-d2788704.js",
+      "_Select-ef7c4978.js"
+    ],
+    "isDynamicEntry": true,
+    "src": "resources/js/Pages/Admin/Master/MerchantsIndex.jsx"
+  },
+  "resources/js/Pages/Admin/Master/ProductsIndex.jsx": {
+    "file": "assets/ProductsIndex-1333663e.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_AdminLayout-030f4d91.js",
+      "_Stack-ea33a61f.js",
+      "_AdminPanelSettings-5058491d.js",
+      "_Alert-cdb15672.js",
+      "_List-09b2d32a.js",
+      "_Add-3d36928b.js",
+      "_Chip-2c82df95.js",
+      "_IconButton-faedc214.js",
+      "_MoreVert-322b3814.js",
+      "_TableRow-bb6742d1.js",
+      "_Menu-0d07ea5c.js",
+      "_MenuItem-a5e0f9e0.js",
+      "_DialogTitle-29afcbce.js",
+      "_TextField-364406ea.js",
+      "_Select-ef7c4978.js",
+      "_Button-1e696aa5.js",
+      "_Person-d2788704.js"
+    ],
+    "isDynamicEntry": true,
+    "src": "resources/js/Pages/Admin/Master/ProductsIndex.jsx"
+  },
+  "resources/js/Pages/Admin/Master/VehiclesIndex.jsx": {
+    "file": "assets/VehiclesIndex-5f1949c7.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_AdminLayout-030f4d91.js",
+      "_Stack-ea33a61f.js",
+      "_AdminPanelSettings-5058491d.js",
+      "_Alert-cdb15672.js",
+      "_List-09b2d32a.js",
+      "_Add-3d36928b.js",
+      "_Chip-2c82df95.js",
+      "_IconButton-faedc214.js",
+      "_MoreVert-322b3814.js",
+      "_TableRow-bb6742d1.js",
+      "_Menu-0d07ea5c.js",
+      "_MenuItem-a5e0f9e0.js",
+      "_DialogTitle-29afcbce.js",
+      "_TextField-364406ea.js",
+      "_Select-ef7c4978.js",
+      "_Button-1e696aa5.js",
+      "_Person-d2788704.js"
+    ],
+    "isDynamicEntry": true,
+    "src": "resources/js/Pages/Admin/Master/VehiclesIndex.jsx"
+  },
+  "resources/js/Pages/Admin/Master/WarehousesIndex.jsx": {
+    "file": "assets/WarehousesIndex-c63706c2.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_AdminLayout-030f4d91.js",
+      "_Stack-ea33a61f.js",
+      "_AdminPanelSettings-5058491d.js",
+      "_Alert-cdb15672.js",
+      "_List-09b2d32a.js",
+      "_Tooltip-8c10141d.js",
+      "_Add-3d36928b.js",
+      "_Chip-2c82df95.js",
+      "_IconButton-faedc214.js",
+      "_MoreVert-322b3814.js",
+      "_TableRow-bb6742d1.js",
+      "_Menu-0d07ea5c.js",
+      "_MenuItem-a5e0f9e0.js",
+      "_DialogTitle-29afcbce.js",
+      "_TextField-364406ea.js",
+      "_FormControlLabel-c0bf7c8d.js",
+      "_Switch-ea62bbc8.js",
+      "_Select-ef7c4978.js",
+      "_Button-1e696aa5.js",
+      "_Person-d2788704.js",
+      "_Popper-5913b55d.js"
+    ],
+    "isDynamicEntry": true,
+    "src": "resources/js/Pages/Admin/Master/WarehousesIndex.jsx"
+  },
+  "resources/js/Pages/Admin/Operations/TripCreate.jsx": {
+    "file": "assets/TripCreate-2fe79478.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_AdminLayout-030f4d91.js",
+      "_Stack-ea33a61f.js",
+      "_Alert-cdb15672.js",
+      "_Button-1e696aa5.js",
+      "_ArrowBack-85e43f95.js",
+      "_List-09b2d32a.js",
+      "_Autocomplete-05e57729.js",
+      "_TextField-364406ea.js",
+      "_Select-ef7c4978.js",
+      "_MenuItem-a5e0f9e0.js",
+      "_DeleteOutlineOutlined-0c02a892.js",
+      "_IconButton-faedc214.js",
+      "_AdminPanelSettings-5058491d.js",
+      "_Person-d2788704.js",
+      "_Popper-5913b55d.js",
+      "_Menu-0d07ea5c.js",
+      "_usePreviousProps-0086177b.js",
+      "_Chip-2c82df95.js"
+    ],
+    "isDynamicEntry": true,
+    "src": "resources/js/Pages/Admin/Operations/TripCreate.jsx"
+  },
+  "resources/js/Pages/Admin/Operations/TripDetail.jsx": {
+    "file": "assets/TripDetail-ce068dd7.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_AdminLayout-030f4d91.js",
+      "_Stack-ea33a61f.js",
+      "_AdminPanelSettings-5058491d.js",
+      "_List-09b2d32a.js",
+      "_Alert-cdb15672.js",
+      "_Button-1e696aa5.js",
+      "_ArrowBack-85e43f95.js",
+      "_Chip-2c82df95.js",
+      "_Select-ef7c4978.js",
+      "_Menu-0d07ea5c.js",
+      "_DeleteOutlineOutlined-0c02a892.js",
+      "_IconButton-faedc214.js",
+      "_MenuItem-a5e0f9e0.js",
+      "_TextField-364406ea.js",
+      "_TableRow-bb6742d1.js",
+      "_MoreVert-322b3814.js",
+      "_DialogTitle-29afcbce.js",
+      "_Person-d2788704.js"
+    ],
+    "isDynamicEntry": true,
+    "src": "resources/js/Pages/Admin/Operations/TripDetail.jsx"
+  },
+  "resources/js/Pages/Admin/Operations/TripsIndex.jsx": {
+    "file": "assets/TripsIndex-0e00473b.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_AdminLayout-030f4d91.js",
+      "_Stack-ea33a61f.js",
+      "_AdminPanelSettings-5058491d.js",
+      "_Alert-cdb15672.js",
+      "_List-09b2d32a.js",
+      "_Select-ef7c4978.js",
+      "_MenuItem-a5e0f9e0.js",
+      "_Add-3d36928b.js",
+      "_Button-1e696aa5.js",
+      "_TableRow-bb6742d1.js",
+      "_Chip-2c82df95.js",
+      "_Person-d2788704.js",
+      "_IconButton-faedc214.js",
+      "_Menu-0d07ea5c.js"
+    ],
+    "isDynamicEntry": true,
+    "src": "resources/js/Pages/Admin/Operations/TripsIndex.jsx"
+  },
+  "resources/js/Pages/Admin/Operations/VoucherDetail.jsx": {
+    "file": "assets/VoucherDetail-a5361d83.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_AdminLayout-030f4d91.js",
+      "_List-09b2d32a.js",
+      "_Stack-ea33a61f.js",
+      "_Alert-cdb15672.js",
+      "_Button-1e696aa5.js",
+      "_ArrowBack-85e43f95.js",
+      "_Chip-2c82df95.js",
+      "_TableContainer-94613804.js",
+      "_TableRow-bb6742d1.js",
+      "_DialogTitle-29afcbce.js",
+      "_TextField-364406ea.js",
+      "_Select-ef7c4978.js",
+      "_MenuItem-a5e0f9e0.js",
+      "_AdminPanelSettings-5058491d.js",
+      "_Person-d2788704.js",
+      "_IconButton-faedc214.js",
+      "_Menu-0d07ea5c.js"
+    ],
+    "isDynamicEntry": true,
+    "src": "resources/js/Pages/Admin/Operations/VoucherDetail.jsx"
+  },
+  "resources/js/Pages/Admin/Operations/VoucherWizard.jsx": {
+    "file": "assets/VoucherWizard-572caa49.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_AdminLayout-030f4d91.js",
+      "_Alert-cdb15672.js",
+      "_Button-1e696aa5.js",
+      "_Stack-ea33a61f.js",
+      "_List-09b2d32a.js",
+      "_Menu-0d07ea5c.js",
+      "_TextField-364406ea.js",
+      "_Select-ef7c4978.js",
+      "_MenuItem-a5e0f9e0.js",
+      "_Chip-2c82df95.js",
+      "_FormControlLabel-c0bf7c8d.js",
+      "_Checkbox-201302b6.js",
+      "_Autocomplete-05e57729.js",
+      "_ExpandMore-994b933d.js",
+      "_TableContainer-94613804.js",
+      "_TableRow-bb6742d1.js",
+      "_IconButton-faedc214.js",
+      "_DialogTitle-29afcbce.js",
+      "_AdminPanelSettings-5058491d.js",
+      "_Person-d2788704.js",
+      "_Popper-5913b55d.js",
+      "_usePreviousProps-0086177b.js"
+    ],
+    "isDynamicEntry": true,
+    "src": "resources/js/Pages/Admin/Operations/VoucherWizard.jsx"
+  },
+  "resources/js/Pages/Admin/Operations/VouchersIndex.jsx": {
+    "file": "assets/VouchersIndex-f92618b1.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_AdminLayout-030f4d91.js",
+      "_Stack-ea33a61f.js",
+      "_AdminPanelSettings-5058491d.js",
+      "_Alert-cdb15672.js",
+      "_List-09b2d32a.js",
+      "_Add-3d36928b.js",
+      "_Chip-2c82df95.js",
+      "_IconButton-faedc214.js",
+      "_MoreVert-322b3814.js",
+      "_TableRow-bb6742d1.js",
+      "_Menu-0d07ea5c.js",
+      "_MenuItem-a5e0f9e0.js",
+      "_Person-d2788704.js"
+    ],
+    "isDynamicEntry": true,
+    "src": "resources/js/Pages/Admin/Operations/VouchersIndex.jsx"
+  },
+  "resources/js/Pages/Admin/Operations/WarehouseFulfillmentInbox.jsx": {
+    "file": "assets/WarehouseFulfillmentInbox-fe40a772.js",
+    "imports": [
+      "resources/js/app.jsx",
+      "_AdminLayout-030f4d91.js",
+      "_Stack-ea33a61f.js",
+      "_AdminPanelSettings-5058491d.js",
+      "_Alert-cdb15672.js",
+      "_List-09b2d32a.js",
+      "_Select-ef7c4978.js",
+      "_MenuItem-a5e0f9e0.js",
+      "_TableContainer-94613804.js",
+      "_TableRow-bb6742d1.js",
+      "_Chip-2c82df95.js",
+      "_Button-1e696aa5.js",
+      "_DialogTitle-29afcbce.js",
+      "_TextField-364406ea.js",
+      "_Person-d2788704.js",
+      "_IconButton-faedc214.js",
+      "_Menu-0d07ea5c.js"
+    ],
+    "isDynamicEntry": true,
+    "src": "resources/js/Pages/Admin/Operations/WarehouseFulfillmentInbox.jsx"
   },
   "resources/js/Pages/Auth/ConfirmPassword.jsx": {
-    "file": "assets/ConfirmPassword-4d6a47cd.js",
+    "file": "assets/ConfirmPassword-9eb57a3a.js",
     "imports": [
       "resources/js/app.jsx",
-      "_PrimaryButton-7304e968.js",
-      "_TextInput-a2f1e62a.js",
-      "_InputLabel-40ef70e9.js"
+      "_PrimaryButton-f5d132aa.js",
+      "_TextInput-5285bc13.js",
+      "_InputLabel-27fdecd3.js"
     ],
     "isDynamicEntry": true,
     "src": "resources/js/Pages/Auth/ConfirmPassword.jsx"
   },
   "resources/js/Pages/Auth/ForgotPassword.jsx": {
-    "file": "assets/ForgotPassword-8a558421.js",
+    "file": "assets/ForgotPassword-dfc613dd.js",
     "imports": [
       "resources/js/app.jsx",
-      "_PrimaryButton-7304e968.js",
-      "_TextInput-a2f1e62a.js"
+      "_PrimaryButton-f5d132aa.js",
+      "_TextInput-5285bc13.js"
     ],
     "isDynamicEntry": true,
     "src": "resources/js/Pages/Auth/ForgotPassword.jsx"
   },
   "resources/js/Pages/Auth/Login.jsx": {
-    "file": "assets/Login-e99182a0.js",
+    "file": "assets/Login-512f9caa.js",
     "imports": [
       "resources/js/app.jsx",
-      "_Stack-65174c4a.js",
-      "_index-381e0e30.js",
-      "_List-ba4a21d7.js",
-      "_VisibilityOff-2ce61d26.js",
-      "_Alert-3fdf1e1b.js",
-      "_TextField-b44c3e67.js",
-      "_IconButton-5c9524a3.js",
-      "_FormControlLabel-5e7679d5.js",
-      "_Button-6c4516d5.js"
+      "_Stack-ea33a61f.js",
+      "_AdminPanelSettings-5058491d.js",
+      "_List-09b2d32a.js",
+      "_Alert-cdb15672.js",
+      "_TextField-364406ea.js",
+      "_VisibilityOff-26086bdf.js",
+      "_IconButton-faedc214.js",
+      "_FormControlLabel-c0bf7c8d.js",
+      "_Checkbox-201302b6.js",
+      "_Button-1e696aa5.js",
+      "_Select-ef7c4978.js",
+      "_Menu-0d07ea5c.js"
     ],
     "isDynamicEntry": true,
     "src": "resources/js/Pages/Auth/Login.jsx"
   },
   "resources/js/Pages/Auth/Register.jsx": {
-    "file": "assets/Register-2117d866.js",
+    "file": "assets/Register-746c1fe9.js",
     "imports": [
       "resources/js/app.jsx",
-      "_Stack-65174c4a.js",
-      "_index-381e0e30.js",
-      "_List-ba4a21d7.js",
-      "_VisibilityOff-2ce61d26.js",
-      "_Alert-3fdf1e1b.js",
-      "_TextField-b44c3e67.js",
-      "_IconButton-5c9524a3.js",
-      "_Person-89c9fc7a.js",
-      "_Button-6c4516d5.js"
+      "_Stack-ea33a61f.js",
+      "_AdminPanelSettings-5058491d.js",
+      "_List-09b2d32a.js",
+      "_Alert-cdb15672.js",
+      "_TextField-364406ea.js",
+      "_VisibilityOff-26086bdf.js",
+      "_IconButton-faedc214.js",
+      "_Person-d2788704.js",
+      "_Button-1e696aa5.js",
+      "_Select-ef7c4978.js",
+      "_Menu-0d07ea5c.js"
     ],
     "isDynamicEntry": true,
     "src": "resources/js/Pages/Auth/Register.jsx"
   },
   "resources/js/Pages/Auth/ResetPassword.jsx": {
-    "file": "assets/ResetPassword-b160752d.js",
+    "file": "assets/ResetPassword-c9e7f77a.js",
     "imports": [
       "resources/js/app.jsx",
-      "_PrimaryButton-7304e968.js",
-      "_TextInput-a2f1e62a.js",
-      "_InputLabel-40ef70e9.js"
+      "_PrimaryButton-f5d132aa.js",
+      "_TextInput-5285bc13.js",
+      "_InputLabel-27fdecd3.js"
     ],
     "isDynamicEntry": true,
     "src": "resources/js/Pages/Auth/ResetPassword.jsx"
   },
   "resources/js/Pages/Auth/VerifyEmail.jsx": {
-    "file": "assets/VerifyEmail-d5ecd388.js",
+    "file": "assets/VerifyEmail-a468e49f.js",
     "imports": [
       "resources/js/app.jsx",
-      "_PrimaryButton-7304e968.js"
+      "_PrimaryButton-f5d132aa.js"
     ],
     "isDynamicEntry": true,
     "src": "resources/js/Pages/Auth/VerifyEmail.jsx"
   },
   "resources/js/Pages/Dashboard.jsx": {
-    "file": "assets/Dashboard-174ae14c.js",
+    "file": "assets/Dashboard-c0714113.js",
     "imports": [
       "resources/js/app.jsx",
-      "_AdminLayout-05e6c920.js",
-      "_Stack-65174c4a.js",
-      "_List-ba4a21d7.js",
-      "_index-381e0e30.js",
-      "_IconButton-5c9524a3.js",
-      "_Person-89c9fc7a.js"
+      "_AdminLayout-030f4d91.js",
+      "_Stack-ea33a61f.js",
+      "_List-09b2d32a.js",
+      "_AdminPanelSettings-5058491d.js",
+      "_Person-d2788704.js",
+      "_IconButton-faedc214.js"
     ],
     "isDynamicEntry": true,
     "src": "resources/js/Pages/Dashboard.jsx"
   },
   "resources/js/Pages/Profile/Edit.jsx": {
-    "file": "assets/Edit-40407b3d.js",
+    "file": "assets/Edit-8ecf1d1e.js",
     "imports": [
       "resources/js/app.jsx",
-      "_AdminLayout-05e6c920.js",
+      "_AdminLayout-030f4d91.js",
       "resources/js/Pages/Profile/Partials/DeleteUserForm.jsx",
       "resources/js/Pages/Profile/Partials/UpdatePasswordForm.jsx",
       "resources/js/Pages/Profile/Partials/UpdateProfileInformationForm.jsx",
-      "_Stack-65174c4a.js",
-      "_index-381e0e30.js",
-      "_List-ba4a21d7.js",
-      "_IconButton-5c9524a3.js",
-      "_Person-89c9fc7a.js",
-      "_Button-6c4516d5.js",
-      "_DialogTitle-7abc3e18.js",
-      "_TextField-b44c3e67.js",
-      "_Alert-3fdf1e1b.js",
-      "_transition-3a0aa649.js"
+      "_Stack-ea33a61f.js",
+      "_AdminPanelSettings-5058491d.js",
+      "_Person-d2788704.js",
+      "_List-09b2d32a.js",
+      "_IconButton-faedc214.js",
+      "_Button-1e696aa5.js",
+      "_DialogTitle-29afcbce.js",
+      "_TextField-364406ea.js",
+      "_Select-ef7c4978.js",
+      "_Menu-0d07ea5c.js",
+      "_Alert-cdb15672.js",
+      "_transition-249d78e9.js"
     ],
     "isDynamicEntry": true,
     "src": "resources/js/Pages/Profile/Edit.jsx"
   },
   "resources/js/Pages/Profile/Partials/DeleteUserForm.jsx": {
-    "file": "assets/DeleteUserForm-47f61e45.js",
+    "file": "assets/DeleteUserForm-1eaa49ad.js",
     "imports": [
       "resources/js/app.jsx",
-      "_List-ba4a21d7.js",
-      "_Stack-65174c4a.js",
-      "_Button-6c4516d5.js",
-      "_DialogTitle-7abc3e18.js",
-      "_TextField-b44c3e67.js",
-      "_Alert-3fdf1e1b.js",
-      "_IconButton-5c9524a3.js"
+      "_List-09b2d32a.js",
+      "_Stack-ea33a61f.js",
+      "_Button-1e696aa5.js",
+      "_DialogTitle-29afcbce.js",
+      "_TextField-364406ea.js",
+      "_Alert-cdb15672.js",
+      "_Select-ef7c4978.js",
+      "_Menu-0d07ea5c.js",
+      "_IconButton-faedc214.js"
     ],
     "isDynamicEntry": true,
     "src": "resources/js/Pages/Profile/Partials/DeleteUserForm.jsx"
   },
   "resources/js/Pages/Profile/Partials/UpdatePasswordForm.jsx": {
-    "file": "assets/UpdatePasswordForm-f9eed835.js",
+    "file": "assets/UpdatePasswordForm-6803e316.js",
     "imports": [
       "resources/js/app.jsx",
-      "_List-ba4a21d7.js",
-      "_Stack-65174c4a.js",
-      "_TextField-b44c3e67.js",
-      "_Button-6c4516d5.js",
-      "_transition-3a0aa649.js"
+      "_List-09b2d32a.js",
+      "_Stack-ea33a61f.js",
+      "_TextField-364406ea.js",
+      "_Button-1e696aa5.js",
+      "_transition-249d78e9.js",
+      "_Select-ef7c4978.js",
+      "_Menu-0d07ea5c.js"
     ],
     "isDynamicEntry": true,
     "src": "resources/js/Pages/Profile/Partials/UpdatePasswordForm.jsx"
   },
   "resources/js/Pages/Profile/Partials/UpdateProfileInformationForm.jsx": {
-    "file": "assets/UpdateProfileInformationForm-80a16e2f.js",
+    "file": "assets/UpdateProfileInformationForm-600015a2.js",
     "imports": [
       "resources/js/app.jsx",
-      "_List-ba4a21d7.js",
-      "_Stack-65174c4a.js",
-      "_TextField-b44c3e67.js",
-      "_Alert-3fdf1e1b.js",
-      "_Button-6c4516d5.js",
-      "_transition-3a0aa649.js",
-      "_IconButton-5c9524a3.js"
+      "_List-09b2d32a.js",
+      "_Stack-ea33a61f.js",
+      "_TextField-364406ea.js",
+      "_Alert-cdb15672.js",
+      "_Button-1e696aa5.js",
+      "_transition-249d78e9.js",
+      "_Select-ef7c4978.js",
+      "_Menu-0d07ea5c.js",
+      "_IconButton-faedc214.js"
     ],
     "isDynamicEntry": true,
     "src": "resources/js/Pages/Profile/Partials/UpdateProfileInformationForm.jsx"
   },
   "resources/js/Pages/UiShowcase.jsx": {
-    "file": "assets/UiShowcase-f474514c.js",
+    "file": "assets/UiShowcase-307004b5.js",
     "imports": [
       "resources/js/app.jsx",
-      "_AdminLayout-05e6c920.js",
-      "_Stack-65174c4a.js",
-      "_index-381e0e30.js",
-      "_List-ba4a21d7.js",
-      "_IconButton-5c9524a3.js",
-      "_Button-6c4516d5.js",
-      "_TextField-b44c3e67.js",
-      "_FormControlLabel-5e7679d5.js",
-      "_DialogTitle-7abc3e18.js",
-      "_Person-89c9fc7a.js"
+      "_AdminLayout-030f4d91.js",
+      "_Stack-ea33a61f.js",
+      "_AdminPanelSettings-5058491d.js",
+      "_List-09b2d32a.js",
+      "_IconButton-faedc214.js",
+      "_Button-1e696aa5.js",
+      "_usePreviousProps-0086177b.js",
+      "_Select-ef7c4978.js",
+      "_Chip-2c82df95.js",
+      "_MoreVert-322b3814.js",
+      "_TextField-364406ea.js",
+      "_MenuItem-a5e0f9e0.js",
+      "_FormControlLabel-c0bf7c8d.js",
+      "_Switch-ea62bbc8.js",
+      "_Menu-0d07ea5c.js",
+      "_DialogTitle-29afcbce.js",
+      "_TableContainer-94613804.js",
+      "_TableRow-bb6742d1.js",
+      "_Person-d2788704.js"
     ],
     "isDynamicEntry": true,
     "src": "resources/js/Pages/UiShowcase.jsx"
   },
   "resources/js/Pages/Welcome.jsx": {
-    "file": "assets/Welcome-e7f6356e.js",
+    "file": "assets/Welcome-03c9f002.js",
     "imports": [
       "resources/js/app.jsx",
-      "_Stack-65174c4a.js",
-      "_Alert-3fdf1e1b.js",
-      "_Button-6c4516d5.js",
-      "_IconButton-5c9524a3.js"
+      "_Stack-ea33a61f.js",
+      "_Alert-cdb15672.js",
+      "_Button-1e696aa5.js",
+      "_IconButton-faedc214.js"
     ],
     "isDynamicEntry": true,
     "src": "resources/js/Pages/Welcome.jsx"
@@ -310,6 +856,21 @@
       "assets/app-590cf44e.css"
     ],
     "dynamicImports": [
+      "resources/js/Pages/Admin/Iam/RolesIndex.jsx",
+      "resources/js/Pages/Admin/Iam/UsersIndex.jsx",
+      "resources/js/Pages/Admin/Inventory/WarehouseStocksIndex.jsx",
+      "resources/js/Pages/Admin/Master/CategoriesIndex.jsx",
+      "resources/js/Pages/Admin/Master/MerchantsIndex.jsx",
+      "resources/js/Pages/Admin/Master/ProductsIndex.jsx",
+      "resources/js/Pages/Admin/Master/VehiclesIndex.jsx",
+      "resources/js/Pages/Admin/Master/WarehousesIndex.jsx",
+      "resources/js/Pages/Admin/Operations/TripCreate.jsx",
+      "resources/js/Pages/Admin/Operations/TripDetail.jsx",
+      "resources/js/Pages/Admin/Operations/TripsIndex.jsx",
+      "resources/js/Pages/Admin/Operations/VoucherDetail.jsx",
+      "resources/js/Pages/Admin/Operations/VoucherWizard.jsx",
+      "resources/js/Pages/Admin/Operations/VouchersIndex.jsx",
+      "resources/js/Pages/Admin/Operations/WarehouseFulfillmentInbox.jsx",
       "resources/js/Pages/Auth/ConfirmPassword.jsx",
       "resources/js/Pages/Auth/ForgotPassword.jsx",
       "resources/js/Pages/Auth/Login.jsx",
@@ -324,7 +885,7 @@
       "resources/js/Pages/UiShowcase.jsx",
       "resources/js/Pages/Welcome.jsx"
     ],
-    "file": "assets/app-11f10b25.js",
+    "file": "assets/app-ca889500.js",
     "isEntry": true,
     "src": "resources/js/app.jsx"
   }

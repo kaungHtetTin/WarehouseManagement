@@ -2,6 +2,18 @@
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\Admin\CategoryManagementController;
+use App\Http\Controllers\Admin\MerchantManagementController;
+use App\Http\Controllers\Admin\ProductManagementController;
+use App\Http\Controllers\Admin\VehicleManagementController;
+use App\Http\Controllers\Admin\TripManagementController;
+use App\Http\Controllers\Admin\VoucherManagementController;
+use App\Http\Controllers\Admin\VoucherWizardController;
+use App\Http\Controllers\Admin\WarehouseStockController;
+use App\Http\Controllers\Admin\RoleManagementController;
+use App\Http\Controllers\Admin\UserManagementController;
+use App\Http\Controllers\Admin\WarehouseManagementController;
+use App\Http\Controllers\Admin\WarehouseFulfillmentController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -44,6 +56,189 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
         Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+        Route::prefix('iam')->name('iam.')->group(function () {
+            Route::get('/users', [UserManagementController::class, 'index'])
+                ->middleware('permission:users.manage')
+                ->name('users.index');
+            Route::post('/users', [UserManagementController::class, 'store'])
+                ->middleware('permission:users.manage')
+                ->name('users.store');
+            Route::patch('/users/{user}', [UserManagementController::class, 'update'])
+                ->middleware('permission:users.manage')
+                ->name('users.update');
+            Route::delete('/users/{user}', [UserManagementController::class, 'destroy'])
+                ->middleware('permission:users.manage')
+                ->name('users.destroy');
+
+            Route::get('/roles', [RoleManagementController::class, 'index'])
+                ->middleware('permission:roles.manage')
+                ->name('roles.index');
+            Route::post('/roles', [RoleManagementController::class, 'store'])
+                ->middleware('permission:roles.manage')
+                ->name('roles.store');
+            Route::patch('/roles/{role}', [RoleManagementController::class, 'update'])
+                ->middleware('permission:roles.manage')
+                ->name('roles.update');
+            Route::delete('/roles/{role}', [RoleManagementController::class, 'destroy'])
+                ->middleware('permission:roles.manage')
+                ->name('roles.destroy');
+        });
+
+        Route::get('/master/warehouses', [WarehouseManagementController::class, 'index'])
+            ->middleware('permission:warehouses.view')
+            ->name('warehouses.index');
+        Route::post('/master/warehouses', [WarehouseManagementController::class, 'store'])
+            ->middleware('permission:warehouses.manage')
+            ->name('warehouses.store');
+        Route::patch('/master/warehouses/{warehouse}', [WarehouseManagementController::class, 'update'])
+            ->middleware('permission:warehouses.manage')
+            ->name('warehouses.update');
+        Route::delete('/master/warehouses/{warehouse}', [WarehouseManagementController::class, 'destroy'])
+            ->middleware('permission:warehouses.manage')
+            ->name('warehouses.destroy');
+
+        Route::get('/master/categories', [CategoryManagementController::class, 'index'])
+            ->middleware('permission:inventory.view')
+            ->name('categories.index');
+        Route::post('/master/categories', [CategoryManagementController::class, 'store'])
+            ->middleware('permission:inventory.manage')
+            ->name('categories.store');
+        Route::patch('/master/categories/{category}', [CategoryManagementController::class, 'update'])
+            ->middleware('permission:inventory.manage')
+            ->name('categories.update');
+        Route::delete('/master/categories/{category}', [CategoryManagementController::class, 'destroy'])
+            ->middleware('permission:inventory.manage')
+            ->name('categories.destroy');
+
+        Route::get('/master/products', [ProductManagementController::class, 'index'])
+            ->middleware('permission:inventory.view')
+            ->name('products.index');
+        Route::post('/master/products', [ProductManagementController::class, 'store'])
+            ->middleware('permission:inventory.manage')
+            ->name('products.store');
+        Route::patch('/master/products/{product}', [ProductManagementController::class, 'update'])
+            ->middleware('permission:inventory.manage')
+            ->name('products.update');
+        Route::delete('/master/products/{product}', [ProductManagementController::class, 'destroy'])
+            ->middleware('permission:inventory.manage')
+            ->name('products.destroy');
+
+        Route::get('/master/merchants', [MerchantManagementController::class, 'index'])
+            ->middleware('permission:inventory.view')
+            ->name('merchants.index');
+        Route::post('/master/merchants', [MerchantManagementController::class, 'store'])
+            ->middleware('permission:inventory.manage')
+            ->name('merchants.store');
+        Route::patch('/master/merchants/{merchant}', [MerchantManagementController::class, 'update'])
+            ->middleware('permission:inventory.manage')
+            ->name('merchants.update');
+        Route::delete('/master/merchants/{merchant}', [MerchantManagementController::class, 'destroy'])
+            ->middleware('permission:inventory.manage')
+            ->name('merchants.destroy');
+
+        Route::get('/master/vehicles', [VehicleManagementController::class, 'index'])
+            ->middleware('permission:inventory.view')
+            ->name('vehicles.index');
+        Route::post('/master/vehicles', [VehicleManagementController::class, 'store'])
+            ->middleware('permission:inventory.manage')
+            ->name('vehicles.store');
+        Route::patch('/master/vehicles/{vehicle}', [VehicleManagementController::class, 'update'])
+            ->middleware('permission:inventory.manage')
+            ->name('vehicles.update');
+        Route::delete('/master/vehicles/{vehicle}', [VehicleManagementController::class, 'destroy'])
+            ->middleware('permission:inventory.manage')
+            ->name('vehicles.destroy');
+
+        Route::get('/inventory/stocks', [WarehouseStockController::class, 'index'])
+            ->middleware('permission:inventory.view')
+            ->name('stocks.index');
+        Route::post('/inventory/stock-adjustments', [WarehouseStockController::class, 'adjust'])
+            ->middleware('permission:inventory.manage')
+            ->name('stocks.adjust');
+
+        Route::get('/operations/trips', [TripManagementController::class, 'index'])
+            ->middleware('permission:trips.view')
+            ->name('trips.index');
+        Route::get('/operations/trips/create', [TripManagementController::class, 'create'])
+            ->middleware('permission:trips.manage')
+            ->name('trips.create');
+        Route::get('/operations/trips/wizard/vehicle-search', [TripManagementController::class, 'vehicleSearch'])
+            ->middleware('permission:trips.manage')
+            ->name('trips.wizard.vehicle-search');
+        Route::post('/operations/trips', [TripManagementController::class, 'store'])
+            ->middleware('permission:trips.manage')
+            ->name('trips.store');
+        Route::get('/operations/trips/{trip}', [TripManagementController::class, 'show'])
+            ->middleware('permission:trips.view')
+            ->name('trips.show');
+        Route::get('/operations/trips/{trip}/manifest', [TripManagementController::class, 'manifest'])
+            ->middleware('permission:trips.view')
+            ->name('trips.manifest');
+        Route::post('/operations/trips/{trip}/manifest-printed', [TripManagementController::class, 'markManifestPrinted'])
+            ->middleware('permission:trips.manage')
+            ->name('trips.manifest-printed');
+        Route::patch('/operations/trips/{trip}/status', [TripManagementController::class, 'updateStatus'])
+            ->middleware('permission:trips.manage')
+            ->name('trips.status.update');
+        Route::put('/operations/trips/{trip}/stops', [TripManagementController::class, 'syncStops'])
+            ->middleware('permission:trips.manage')
+            ->name('trips.stops.sync');
+        Route::post('/operations/trips/{trip}/items', [TripManagementController::class, 'storeItem'])
+            ->middleware('permission:trips.manage')
+            ->name('trips.items.store');
+        Route::patch('/operations/trips/{trip}/items/{tripItem}', [TripManagementController::class, 'updateItem'])
+            ->middleware('permission:trips.manage')
+            ->name('trips.items.update');
+        Route::delete('/operations/trips/{trip}/items/{tripItem}', [TripManagementController::class, 'destroyItem'])
+            ->middleware('permission:trips.manage')
+            ->name('trips.items.destroy');
+        Route::post('/operations/trips/{trip}/items/{tripItem}/delivery-confirmations', [TripManagementController::class, 'storeDeliveryConfirmation'])
+            ->middleware('permission:trips.manage')
+            ->name('trips.items.delivery-confirmations.store');
+        Route::post('/operations/trips/{trip}/items/{tripItem}/destination-receipts', [TripManagementController::class, 'storeDestinationReceipt'])
+            ->middleware('permission:trips.manage')
+            ->name('trips.items.destination-receipts.store');
+        Route::post('/operations/trips/{trip}/delivery-confirmations', [TripManagementController::class, 'storeTripDeliveryConfirmations'])
+            ->middleware('permission:trips.manage')
+            ->name('trips.delivery-confirmations.store');
+        Route::get('/operations/fulfillment/inbox', [WarehouseFulfillmentController::class, 'index'])
+            ->middleware('permission:trips.manage')
+            ->name('fulfillment.inbox');
+        Route::post('/operations/fulfillment/instructions/{instruction}/dispatch', [WarehouseFulfillmentController::class, 'dispatchInstruction'])
+            ->middleware('permission:trips.manage')
+            ->name('fulfillment.instructions.dispatch');
+
+        Route::middleware(['permission:vouchers.manage', 'permission:inventory.manage'])->group(function () {
+            Route::get('/operations/vouchers/create', [VoucherWizardController::class, 'create'])->name('vouchers.wizard.create');
+            Route::get('/operations/vouchers/{voucher}/edit', [VoucherWizardController::class, 'edit'])->name('vouchers.wizard.edit');
+            Route::get('/operations/vouchers/wizard/merchant-matches', [VoucherWizardController::class, 'merchantMatches'])->name('vouchers.wizard.merchant-matches');
+            Route::get('/operations/vouchers/wizard/product-search', [VoucherWizardController::class, 'productSearch'])->name('vouchers.wizard.product-search');
+            Route::post('/operations/vouchers/wizard/step1', [VoucherWizardController::class, 'storeStep1'])->name('vouchers.wizard.step1');
+            Route::patch('/operations/vouchers/{voucher}/wizard/step1', [VoucherWizardController::class, 'updateStep1'])->name('vouchers.wizard.step1-update');
+            Route::post('/operations/vouchers/{voucher}/wizard/lines', [VoucherWizardController::class, 'storeLine'])->name('vouchers.wizard.lines.store');
+            Route::delete('/operations/vouchers/{voucher}/wizard/lines/{voucherItem}', [VoucherWizardController::class, 'destroyLine'])->name('vouchers.wizard.lines.destroy');
+            Route::post('/operations/vouchers/{voucher}/wizard/finish', [VoucherWizardController::class, 'finish'])->name('vouchers.wizard.finish');
+        });
+
+        Route::get('/operations/vouchers', [VoucherManagementController::class, 'index'])
+            ->middleware('permission:vouchers.view')
+            ->name('vouchers.index');
+        Route::get('/operations/vouchers/{voucher}', [VoucherManagementController::class, 'show'])
+            ->middleware('permission:vouchers.view')
+            ->name('vouchers.show');
+        Route::post('/operations/vouchers/{voucher}/payments', [VoucherManagementController::class, 'storePayment'])
+            ->middleware('permission:payments.manage')
+            ->name('vouchers.payments.store');
+        Route::post('/operations/vouchers', [VoucherManagementController::class, 'store'])
+            ->middleware('permission:vouchers.manage')
+            ->name('vouchers.store');
+        Route::patch('/operations/vouchers/{voucher}', [VoucherManagementController::class, 'update'])
+            ->middleware('permission:vouchers.manage')
+            ->name('vouchers.update');
+        Route::delete('/operations/vouchers/{voucher}', [VoucherManagementController::class, 'destroy'])
+            ->middleware('permission:vouchers.manage')
+            ->name('vouchers.destroy');
     });
 });
 

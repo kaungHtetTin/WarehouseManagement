@@ -21,13 +21,23 @@ import {
 } from '@mui/material';
 import {
     AccountCircle,
+    AdminPanelSettings as AdminPanelSettingsIcon,
     AutoAwesomeMosaic as UiShowcaseIcon,
+    Category as CategoryIcon,
     Dashboard as DashboardIcon,
     DarkMode as DarkModeIcon,
     LightMode as LightModeIcon,
     Logout as LogoutIcon,
     Menu as MenuIcon,
     Person as PersonIcon,
+    Inventory2 as ProductIcon,
+    LocalShipping as VehicleIcon,
+    Storefront as MerchantIcon,
+    Storage as StockIcon,
+    Warehouse as WarehouseIcon,
+    ReceiptLong as VoucherIcon,
+    AltRoute as TripRouteIcon,
+    MoveToInbox as FulfillmentInboxIcon,
 } from '@mui/icons-material';
 
 const drawerWidth = 220;
@@ -36,6 +46,7 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
     const { url, props } = usePage();
     const adminAppUrl = props.admin_app_url;
     const authUser = props.auth?.user;
+    const permissionCodes = props.auth?.permission_codes ?? [];
     const [desktopOpen, setDesktopOpen] = useState(true);
     const [mobileOpen, setMobileOpen] = useState(false);
     const [dark, setDark] = useState(() => {
@@ -131,14 +142,44 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
             items: [{ label: 'Dashboard', href: `${adminAppUrl}/dashboard`, icon: <DashboardIcon /> }],
         },
         {
+            title: 'Operations',
+            items: [
+                ...(permissionCodes.includes('warehouses.view') || permissionCodes.includes('warehouses.manage')
+                    ? [{ label: 'Warehouses', href: `${adminAppUrl}/master/warehouses`, icon: <WarehouseIcon /> }]
+                    : []),
+                ...(permissionCodes.includes('inventory.view') || permissionCodes.includes('inventory.manage')
+                    ? [
+                          { label: 'Categories', href: `${adminAppUrl}/master/categories`, icon: <CategoryIcon /> },
+                          { label: 'Products', href: `${adminAppUrl}/master/products`, icon: <ProductIcon /> },
+                          { label: 'Merchants', href: `${adminAppUrl}/master/merchants`, icon: <MerchantIcon /> },
+                          { label: 'Vehicles', href: `${adminAppUrl}/master/vehicles`, icon: <VehicleIcon /> },
+                          { label: 'Stock', href: `${adminAppUrl}/inventory/stocks`, icon: <StockIcon /> },
+                      ]
+                    : []),
+                ...(permissionCodes.includes('vouchers.view') || permissionCodes.includes('vouchers.manage')
+                    ? [{ label: 'Vouchers', href: `${adminAppUrl}/operations/vouchers`, icon: <VoucherIcon /> }]
+                    : []),
+                ...(permissionCodes.includes('trips.view') || permissionCodes.includes('trips.manage')
+                    ? [
+                          { label: 'Trips', href: `${adminAppUrl}/operations/trips`, icon: <TripRouteIcon /> },
+                          { label: 'Fulfillment Inbox', href: `${adminAppUrl}/operations/fulfillment/inbox`, icon: <FulfillmentInboxIcon /> },
+                      ]
+                    : []),
+            ],
+        },
+        {
             title: 'System',
-            items: [{ label: 'UI Showcase', href: `${adminAppUrl}/ui-showcase`, icon: <UiShowcaseIcon /> }],
+            items: [
+                { label: 'UI Showcase', href: `${adminAppUrl}/ui-showcase`, icon: <UiShowcaseIcon /> },
+                { label: 'Users', href: `${adminAppUrl}/iam/users`, icon: <AdminPanelSettingsIcon /> },
+                { label: 'Roles', href: `${adminAppUrl}/iam/roles`, icon: <AdminPanelSettingsIcon /> },
+            ],
         },
         {
             title: 'Account',
             items: [{ label: 'Profile', href: `${adminAppUrl}/profile`, icon: <PersonIcon /> }],
         },
-    ];
+    ].filter((group) => group.items.length > 0);
 
     const currentPath = url.split('?')[0];
     const isActive = (href) => {

@@ -36,6 +36,11 @@ class HandleInertiaRequests extends Middleware
             'app_base' => $path,
             'auth' => [
                 'user' => $request->user(),
+                'permission_codes' => fn () => $request->user()?->allPermissionCodes() ?? [],
+            ],
+            'flash' => [
+                'success' => fn () => $request->session()->get('success'),
+                'error' => fn () => $request->session()->get('error'),
             ],
         ]);
     }

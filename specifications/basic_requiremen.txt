@@ -1,0 +1,51 @@
+Warehouse Management System
+Software Requirement Specifications
+Admin Management System
+  Admin Authentication and Login
+  Admin Access level permission 
+  Admin Create/ Edit/ Update/ Delete System
+Warehouse Management System
+  Unlimited Warehouse 
+  Warehouse Managed by authorized admin
+  Warehouse Create/Edit/ Delete System
+  သက်ဆိုင်ရာ ဂိုထောင်အလိုက် ကျန်ဝယ်ပစ္စည်းစာရင်းအားလုံးကို သက်ဆိုင်ရာ admin မှ အချိန်နှင့်တပြေးညီ ကြည့်ရှုစစ်ဆေးနိုင်မယ်
+Inventory Management System
+  Organized Inventory by Category
+  Auto Record In Voucher creation
+  Inventory Create/ Edit/ Delete System
+Vehicle Management System
+  Auto Record / Update in Voucher Creation
+  Vehicle Create/ Edit/ Delete System
+Main Core Ledger System
+  ကုန်ပစ္စည်းစာရင်းသွင်းမယ် (Create/ Edit/ Delete)
+  ကုန်ပစ္စည်းကို ကားတင်မယ်
+  ဘောက်ချာစာရွက်ထုတ်မယ်
+  သက်ဆိုင်ရာမြိုကလည်း ကုန်ပစ္စည်းစာရင်းကိုသိမယ်/ ဘောက်ချာထုတ်နိုင်မယ်
+  ဘောက်ချာတွင် တန်ဆာခ ရှင်းတမ်းပါဝင်မယ်
+Other Specification
+  Mobile/ Computer/ Tablet/ ipad များအားလုံးမှ ဝင်ရောက်သုံးပြုနိုင်မယ်
+  ဘောက်ချာကို Computer နဲ့ပဲ Print ထုတ်မယ်
+
+
+
+===================
+လုပ်ငန်းလည်ပတ်ပုံ
+
+အဆင့် ၁ ကုန်သည် က ဂိုထောင်မှာ ပစ္စည်းလာအပ်တယ်
+ဘယ်ပစ္စည်း/ ဘယ်ကိုပို့မယ်/ ဘယ်အချိန်ပို့ပေးနိုင်မလဲ / ပို့ခ ပေး/ မပေး 
+အဆင့် ၂, ကုန်သည်ကို လက်ခံဘောင်ချာထုတ်ပေးမယ်
+အဆင့် ၃, သက်ဆိုင်ရာ ကုန်ပစ္စည်းတွေကို ကားပေါ်တင်မယ်
+ကားသမားကို ဘယ်ပစ္စည်းဘယ်မြို့မှာချ ဘယ်ဂိုထောင်ကိုပို့ဆိုပြီး List နဲ့ ပေးလိုက်မယ်
+အဲ့ဒါကို Print ထုတ်ပြီးပေးမယ်
+အဆင့် ၄, ကားထွက်သွားမယ်, ကားသမားက တခြား ဂိုထောင်ကိုမောင်းပြီး
+သွားပို့မယ်, လမ်းမှာလည်း တခြားနေရာတွေကို သီးခြား ပစ္စည်းချထားတာရှိမယ်
+ကားသမားသွားတဲ့ ဂိုထောင်မှာလည်း လက်ရှိ Software စနစ်ရှိမယ်
+အဲ့ဂိုထောင်ကလည်း သူ့ဆီကို ဘယ်ကားဘယ်နေတယ် ဘာပစ္စည်းပါမယ် ဆိုတာသိတယ်
+ပစ္စည်းအလိုက် ပို့ခ ရှင်းပြီး/ မပြီး သိနေမယ်
+
+အဆင့် ၅ , ကားက သက်ဆိုင်ရာ ဂိုထောင်ကိုရောက်ပြီ, ဂိုထောင်က ပစ္စည်းလက်ခံလိုက်ပြီ
+
+မှတ်ချက်များ
+ကားတစ်ခါထွက်ရင် ဂိုထောင် ၂ခု ၃ ဆီကိုလည်း သွားနိုင်မယ်
+ကားတစ်ခါထွက်ရင် ပစ္စည်းစတင်တဲ့ ဂိုထောင်က ပစ္စည်းအားလုံးပါချင်မှ ပါမယ်, ကားသယ်နိုင်တာ limit ရှိလို့
+ဒီ app ကို mobile ရော table , laptop မှာပါ သုံးမှာမို့ UI ကို သတိထားပါ.

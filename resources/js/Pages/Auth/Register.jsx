@@ -16,6 +16,7 @@ import {
 import {
     AdminPanelSettings as AdminIcon,
     Badge as BadgeIcon,
+    Business as BusinessIcon,
     Email as EmailIcon,
     Lock as LockIcon,
     Person as PersonIcon,
@@ -31,6 +32,7 @@ export default function Register() {
     const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
 
     const { data, setData, post, processing, errors, reset } = useForm({
+        organization_name: '',
         name: '',
         email: '',
         password: '',
@@ -154,14 +156,31 @@ export default function Register() {
                                 </Typography>
                             </Stack>
 
-                            {(errors.name || errors.email || errors.password) && (
+                            {(errors.organization_name || errors.name || errors.email || errors.password) && (
                                 <Alert severity="error" sx={{ mb: 2 }}>
-                                    {errors.name || errors.email || errors.password}
+                                    {errors.organization_name || errors.name || errors.email || errors.password}
                                 </Alert>
                             )}
 
                             <Box component="form" onSubmit={submit}>
                                 <Stack spacing={2}>
+                                    <TextField
+                                        fullWidth
+                                        size="small"
+                                        label="Organization Name"
+                                        value={data.organization_name}
+                                        onChange={(e) => setData('organization_name', e.target.value)}
+                                        error={!!errors.organization_name}
+                                        required
+                                        InputProps={{
+                                            startAdornment: (
+                                                <InputAdornment position="start">
+                                                    <BusinessIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                                                </InputAdornment>
+                                            ),
+                                        }}
+                                    />
+
                                     <TextField
                                         fullWidth
                                         size="small"
