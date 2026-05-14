@@ -16,15 +16,12 @@ return new class extends Migration
             $table->foreignId('product_id')->constrained('products');
             $table->string('description')->nullable();
             $table->foreignId('from_warehouse_id')->constrained('warehouses');
-            $table->foreignId('to_warehouse_id')->nullable()->constrained('warehouses')->nullOnDelete();
-            $table->string('to_city')->nullable();
             $table->decimal('qty', 14, 3);
             $table->decimal('loaded_qty', 14, 3)->default(0);
             $table->decimal('delivered_qty', 14, 3)->default(0);
             $table->string('unit', 32);
             $table->decimal('freight_rate', 14, 2)->nullable();
             $table->decimal('freight_amount', 14, 2)->nullable();
-            $table->enum('payment_status', ['UNPAID', 'PARTIAL', 'PAID', 'WAIVED'])->default('UNPAID');
             $table->boolean('is_fragile')->default(false);
             $table->timestamps();
             $table->index(['organization_id', 'voucher_id'], 'vi_org_voucher_idx');

@@ -34,6 +34,12 @@ class TripManagementTest extends TestCase
             'organization_id' => $user->organization_id,
             'status' => 'ACTIVE',
         ]);
+        $user->warehouses()->syncWithoutDetaching([
+            $stopWh->id => ['access_level' => 'VIEW'],
+        ]);
+        $user->warehouses()->syncWithoutDetaching([
+            $stopWh->id => ['access_level' => 'VIEW'],
+        ]);
 
         $response = $this->actingAs($user)->post(route('admin.trips.store'), [
             'vehicle_id' => $vehicle->id,
@@ -96,6 +102,9 @@ class TripManagementTest extends TestCase
         $stopWh = Warehouse::factory()->create([
             'organization_id' => $user->organization_id,
             'status' => 'ACTIVE',
+        ]);
+        $user->warehouses()->syncWithoutDetaching([
+            $stopWh->id => ['access_level' => 'VIEW'],
         ]);
 
         $countBefore = Vehicle::query()->where('organization_id', $user->organization_id)->count();
@@ -423,10 +432,6 @@ class TripManagementTest extends TestCase
     {
         [$user, $sourceWh, $vehicle] = $this->tripActorFixtures();
         [$trip, $stop] = $this->plannedTripWithStop($user, $sourceWh, $vehicle);
-        $stopWh = Warehouse::factory()->create([
-            'organization_id' => $user->organization_id,
-            'status' => 'ACTIVE',
-        ]);
 
         $response = $this->actingAs($user)->put(route('admin.trips.stops.sync', $trip), [
             'stops' => [
@@ -438,7 +443,7 @@ class TripManagementTest extends TestCase
                     'address' => $stop->address,
                 ],
                 [
-                    'warehouse_id' => $stopWh->id,
+                    'warehouse_id' => $sourceWh->id,
                     'location_name' => null,
                     'city' => null,
                     'address' => null,
@@ -451,7 +456,7 @@ class TripManagementTest extends TestCase
         $this->assertCount(2, $rows);
         $this->assertSame(1, (int) $rows[0]->stop_order);
         $this->assertSame(2, (int) $rows[1]->stop_order);
-        $this->assertSame($stopWh->id, (int) $rows[1]->warehouse_id);
+        $this->assertSame($sourceWh->id, (int) $rows[1]->warehouse_id);
     }
 
     public function test_sync_stops_rejects_removing_stop_with_cargo(): void
@@ -467,6 +472,9 @@ class TripManagementTest extends TestCase
         $wh = Warehouse::factory()->create([
             'organization_id' => $user->organization_id,
             'status' => 'ACTIVE',
+        ]);
+        $user->warehouses()->syncWithoutDetaching([
+            $wh->id => ['access_level' => 'VIEW'],
         ]);
         $response = $this->actingAs($user)->put(route('admin.trips.stops.sync', $trip), [
             'stops' => [
@@ -624,7 +632,7 @@ class TripManagementTest extends TestCase
             'status' => 'ACTIVE',
         ]);
         [$trip, $stop] = $this->plannedTripWithStop($user, $sourceWh, $vehicle);
-        $line = $this->confirmedVoucherLine($user, $sourceWh, qty: '10.000', voucherStatus: 'CONFIRMED', toWarehouse: $destWh);
+        $line = $this->confirmedVoucherLine($user, $sourceWh, qty: '10.000', voucherStatus: 'CONFIRMED', destinationWarehouse: $destWh);
 
         $this->actingAs($user)->post(route('admin.trips.items.store', $trip), [
             'voucher_item_id' => $line->id,
@@ -665,7 +673,7 @@ class TripManagementTest extends TestCase
         [$trip, $stop] = $this->plannedTripWithStop($user, $sourceWh, $vehicle);
         $stop->update(['warehouse_id' => $stopWh->id]);
 
-        $line = $this->confirmedVoucherLine($user, $sourceWh, qty: '10.000', voucherStatus: 'CONFIRMED', toWarehouse: null);
+        $line = $this->confirmedVoucherLine($user, $sourceWh, qty: '10.000', voucherStatus: 'CONFIRMED', destinationWarehouse: null);
 
         $this->actingAs($user)->post(route('admin.trips.items.store', $trip), [
             'voucher_item_id' => $line->id,
@@ -706,7 +714,7 @@ class TripManagementTest extends TestCase
         [$trip, $stop] = $this->plannedTripWithStop($user, $sourceWh, $vehicle);
         $stop->update(['warehouse_id' => $stopWh->id]);
 
-        $line = $this->confirmedVoucherLine($user, $sourceWh, qty: '10.000', voucherStatus: 'CONFIRMED', toWarehouse: $voucherDestWh);
+        $line = $this->confirmedVoucherLine($user, $sourceWh, qty: '10.000', voucherStatus: 'CONFIRMED', destinationWarehouse: $voucherDestWh);
 
         $this->actingAs($user)->post(route('admin.trips.items.store', $trip), [
             'voucher_item_id' => $line->id,
@@ -748,7 +756,7 @@ class TripManagementTest extends TestCase
             $nextWh->id => ['access_level' => 'OPERATE'],
         ]);
         [$trip, $stop] = $this->plannedTripWithStop($user, $sourceWh, $vehicle);
-        $line = $this->confirmedVoucherLine($user, $sourceWh, qty: '10.000', voucherStatus: 'CONFIRMED', toWarehouse: $destWh);
+        $line = $this->confirmedVoucherLine($user, $sourceWh, qty: '10.000', voucherStatus: 'CONFIRMED', destinationWarehouse: $destWh);
 
         $this->actingAs($user)->post(route('admin.trips.items.store', $trip), [
             'voucher_item_id' => $line->id,
@@ -766,7 +774,7 @@ class TripManagementTest extends TestCase
 
         $response = $this->actingAs($user)->post(route('admin.fulfillment.instructions.dispatch', $instruction), [
             'action_type' => 'FORWARD_TO_WAREHOUSE',
-            'qty' => 4,
+            'qty' => 10,
             'next_warehouse_id' => $nextWh->id,
         ]);
         $response->assertSessionHasNoErrors();
@@ -776,18 +784,18 @@ class TripManagementTest extends TestCase
             ->where('warehouse_id', $destWh->id)
             ->where('product_id', $line->product_id)
             ->firstOrFail();
-        $this->assertSame('6.000', (string) $destStock->qty_on_hand);
+        $this->assertSame('0.000', (string) $destStock->qty_on_hand);
 
         $nextStock = WarehouseStock::query()
             ->where('organization_id', $user->organization_id)
             ->where('warehouse_id', $nextWh->id)
             ->where('product_id', $line->product_id)
             ->firstOrFail();
-        $this->assertSame('4.000', (string) $nextStock->qty_on_hand);
+        $this->assertSame('10.000', (string) $nextStock->qty_on_hand);
 
         $instruction->refresh();
-        $this->assertSame('4.000', (string) $instruction->qty_dispatched);
-        $this->assertSame('PENDING_ACTION', $instruction->status);
+        $this->assertSame('10.000', (string) $instruction->qty_dispatched);
+        $this->assertSame('COMPLETED', $instruction->status);
 
         $nextInstruction = WarehouseFulfillmentInstruction::query()
             ->where('organization_id', $user->organization_id)
@@ -795,7 +803,7 @@ class TripManagementTest extends TestCase
             ->where('warehouse_id', $nextWh->id)
             ->first();
         $this->assertNotNull($nextInstruction);
-        $this->assertSame('4.000', (string) $nextInstruction->qty_received);
+        $this->assertSame('10.000', (string) $nextInstruction->qty_received);
         $this->assertSame('PENDING_ACTION', $nextInstruction->status);
     }
 
@@ -863,7 +871,7 @@ class TripManagementTest extends TestCase
         return [$trip, $stop];
     }
 
-    private function confirmedVoucherLine(User $user, Warehouse $fromWarehouse, string $qty = '10.000', string $voucherStatus = 'CONFIRMED', ?Warehouse $toWarehouse = null): VoucherItem
+    private function confirmedVoucherLine(User $user, Warehouse $fromWarehouse, string $qty = '10.000', string $voucherStatus = 'CONFIRMED', ?Warehouse $destinationWarehouse = null): VoucherItem
     {
         $merchant = Merchant::query()->create([
             'organization_id' => $user->organization_id,
@@ -881,6 +889,9 @@ class TripManagementTest extends TestCase
             'status' => $voucherStatus,
             'payment_status' => 'UNPAID',
             'total_qty' => $qty,
+            'default_to_warehouse_id' => $destinationWarehouse?->id,
+            'default_to_city' => 'Test City',
+            'default_to_address_line1' => 'Test Address',
             'total_amount' => null,
             'created_by' => $user->id,
         ]);
@@ -892,8 +903,6 @@ class TripManagementTest extends TestCase
             'product_id' => $product->id,
             'description' => null,
             'from_warehouse_id' => $fromWarehouse->id,
-            'to_warehouse_id' => $toWarehouse !== null ? $toWarehouse->id : null,
-            'to_city' => null,
             'qty' => $qty,
             'loaded_qty' => 0,
             'delivered_qty' => 0,

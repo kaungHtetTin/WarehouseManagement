@@ -92,14 +92,14 @@ class StockLedgerService
     }
 
     /**
-     * Receiver warehouse inbound when a destination warehouse is set on the voucher line.
+     * Receiver warehouse inbound when a destination warehouse is resolved (e.g. trip stop or voucher default destination).
      *
-     * @param  int|null  $receivingWarehouseId  Resolved warehouse (e.g. trip stop); falls back to voucher line {@see VoucherItem::$to_warehouse_id}.
+     * @param  int|null  $receivingWarehouseId  Resolved warehouse.
      */
     public function applyInboundDelivery(VoucherItem $vi, float $receivedQty, int $deliveryConfirmationId, User $actor, ?string $note = null, ?int $receivingWarehouseId = null): void
     {
         $receivedQty = round($receivedQty, 3);
-        $warehouseId = $receivingWarehouseId ?? ($vi->to_warehouse_id !== null ? (int) $vi->to_warehouse_id : null);
+        $warehouseId = $receivingWarehouseId;
         if ($receivedQty < 0.0001 || $warehouseId === null) {
             return;
         }
@@ -122,12 +122,12 @@ class StockLedgerService
     /**
      * Destination-warehouse receipt step: post TRANSFER_IN exactly once per delivery confirmation.
      *
-     * @param  int|null  $receivingWarehouseId  Resolved warehouse (trip stop first, else voucher line).
+     * @param  int|null  $receivingWarehouseId  Resolved warehouse.
      */
     public function applyInboundForDeliveryConfirmation(DeliveryConfirmation $confirmation, VoucherItem $vi, User $actor, ?string $note = null, ?int $receivingWarehouseId = null): bool
     {
         $receivedQty = round((float) $confirmation->received_qty, 3);
-        $warehouseId = $receivingWarehouseId ?? ($vi->to_warehouse_id !== null ? (int) $vi->to_warehouse_id : null);
+        $warehouseId = $receivingWarehouseId;
         if ($receivedQty < 0.0001 || $warehouseId === null) {
             return false;
         }

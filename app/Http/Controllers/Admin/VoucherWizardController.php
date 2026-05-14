@@ -166,7 +166,7 @@ class VoucherWizardController extends Controller
             'merchant.nrc_or_id' => ['nullable', 'string', 'max:128'],
             'merchant.address' => ['nullable', 'string', 'max:500'],
             'payment_status' => ['sometimes', Rule::in(['UNPAID', 'PARTIAL', 'PAID', 'WAIVED'])],
-        ], $this->rulesWizardDefaultDestination($organizationId)));
+        ], $this->rulesWizardDefaultDestination($organizationId), $this->rulesWizardMeta()));
 
         $voucher = DB::transaction(function () use ($actor, $organizationId, $validated) {
             $merchantId = $validated['merchant_id'] ?? null;
@@ -207,7 +207,9 @@ class VoucherWizardController extends Controller
                 'total_amount' => null,
                 'remark' => $validated['remark'] ?? null,
                 'created_by' => $actor->id,
-            ], $this->payloadWizardDefaultDestination($validated)));
+            ], $this->payloadWizardDefaultDestination($validated), $this->payloadWizardMeta($validated)));
+
+            $this->recalculateTotals($voucher);
 
             AuditLogger::record($actor, 'voucher.create', $voucher, [
                 'voucher_no' => $voucher->voucher_no,
@@ -246,7 +248,7 @@ class VoucherWizardController extends Controller
             'merchant.nrc_or_id' => ['nullable', 'string', 'max:128'],
             'merchant.address' => ['nullable', 'string', 'max:500'],
             'payment_status' => ['sometimes', Rule::in(['UNPAID', 'PARTIAL', 'PAID', 'WAIVED'])],
-        ], $this->rulesWizardDefaultDestination($organizationId)));
+        ], $this->rulesWizardDefaultDestination($organizationId), $this->rulesWizardMeta()));
 
         DB::transaction(function () use ($actor, $voucherModel, $organizationId, $validated) {
             $merchant = Merchant::query()
@@ -269,8 +271,10 @@ class VoucherWizardController extends Controller
                 'merchant_id' => $merchant->id,
                 'remark' => $validated['remark'] ?? null,
                 'payment_status' => $validated['payment_status'] ?? $voucherModel->payment_status,
-            ], $this->payloadWizardDefaultDestination($validated)));
+            ], $this->payloadWizardDefaultDestination($validated), $this->payloadWizardMeta($validated)));
             $voucherModel->save();
+
+            $this->recalculateTotals($voucherModel);
 
             AuditLogger::record($actor, 'voucher.update', $voucherModel, [
                 'voucher_no' => $voucherModel->voucher_no,
@@ -303,28 +307,11 @@ class VoucherWizardController extends Controller
                 'nullable',
                 Rule::exists('categories', 'id')->where(fn ($q) => $q->where('organization_id', $organizationId)),
             ],
-            'from_warehouse_id' => [
-                'required',
-                Rule::exists('warehouses', 'id')->where(fn ($q) => $q->where('organization_id', $organizationId)),
-            ],
-            'to_warehouse_id' => [
-                'nullable',
-                Rule::exists('warehouses', 'id')->where(fn ($q) => $q->where('organization_id', $organizationId)),
-            ],
-            'to_city' => ['required', 'string', 'max:128'],
-            'to_address_line1' => ['required', 'string', 'max:500'],
-            'to_address_line2' => ['nullable', 'string', 'max:500'],
-            'to_township' => ['nullable', 'string', 'max:128'],
-            'to_region' => ['nullable', 'string', 'max:128'],
-            'to_postal_code' => ['nullable', 'string', 'max:32'],
-            'recipient_name' => ['nullable', 'string', 'max:255'],
-            'recipient_phone' => ['nullable', 'string', 'max:64'],
             'qty' => ['required', 'numeric', 'min:0.001'],
             'unit' => ['required', 'string', 'max:32'],
             'description' => ['nullable', 'string', 'max:500'],
             'freight_rate' => ['nullable', 'numeric', 'min:0'],
             'freight_amount' => ['nullable', 'numeric', 'min:0'],
-            'payment_status' => ['sometimes', Rule::in(['UNPAID', 'PARTIAL', 'PAID', 'WAIVED'])],
             'is_fragile' => ['sometimes', 'boolean'],
         ]);
 
@@ -374,29 +361,15 @@ class VoucherWizardController extends Controller
                 'line_no' => $nextLine,
                 'product_id' => $productId,
                 'description' => $validated['description'] ?? null,
-                'from_warehouse_id' => $validated['from_warehouse_id'],
-                'to_warehouse_id' => $validated['to_warehouse_id'] ?? null,
-                'to_city' => $validated['to_city'],
-                'to_address_line1' => $validated['to_address_line1'],
-                'to_address_line2' => $validated['to_address_line2'] ?? null,
-                'to_township' => $validated['to_township'] ?? null,
-                'to_region' => $validated['to_region'] ?? null,
-                'to_postal_code' => $validated['to_postal_code'] ?? null,
-                'recipient_name' => $validated['recipient_name'] ?? null,
-                'recipient_phone' => $validated['recipient_phone'] ?? null,
+                'from_warehouse_id' => $voucherModel->source_warehouse_id,
                 'qty' => $validated['qty'],
                 'loaded_qty' => 0,
                 'delivered_qty' => 0,
                 'unit' => $validated['unit'],
                 'freight_rate' => $validated['freight_rate'] ?? null,
                 'freight_amount' => $freightAmount,
-                'payment_status' => $validated['payment_status'] ?? 'UNPAID',
                 'is_fragile' => (bool) ($validated['is_fragile'] ?? false),
             ]);
-
-            if (array_key_exists('payment_status', $validated)) {
-                $voucherModel->payment_status = $validated['payment_status'];
-            }
 
             $this->recalculateTotals($voucherModel);
             AuditLogger::record($actor, 'voucher_item.create', $voucherModel, [
@@ -444,13 +417,43 @@ class VoucherWizardController extends Controller
             return Redirect::back()->with('error', 'Add at least one line before confirming.');
         }
 
-        DB::transaction(function () use ($voucherModel, $actor) {
+        $validated = $request->validate([
+            'payment_status' => ['nullable', Rule::in(['UNPAID', 'PARTIAL', 'PAID', 'WAIVED'])],
+            'remark' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        DB::transaction(function () use ($voucherModel, $actor, $validated) {
             $voucherModel->refresh();
             abort_unless($voucherModel->isDraft(), 403);
+            if (array_key_exists('payment_status', $validated) && $validated['payment_status'] !== null) {
+                $voucherModel->payment_status = $validated['payment_status'];
+            }
+            if (array_key_exists('remark', $validated)) {
+                $voucherModel->remark = $validated['remark'] ?? null;
+            }
+            $voucherModel->save();
+            $this->recalculateTotals($voucherModel);
             $voucherModel->forceFill(['status' => 'CONFIRMED'])->save();
             $voucherModel->load('items');
             foreach ($voucherModel->items as $line) {
                 $this->stockLedger->recordIntakeForVoucherItem($line, $actor);
+            }
+
+            if ($voucherModel->payment_status === 'PAID' && $voucherModel->total_amount !== null) {
+                $total = round((float) $voucherModel->total_amount, 2);
+                if ($total > 0) {
+                    \App\Models\VoucherPayment::query()->create([
+                        'organization_id' => $voucherModel->organization_id,
+                        'voucher_id' => $voucherModel->id,
+                        'amount' => $total,
+                        'currency' => 'MMK',
+                        'payment_method' => 'CASH',
+                        'paid_at' => now(),
+                        'reference_no' => null,
+                        'note' => 'Auto-recorded upon voucher confirmation.',
+                        'received_by' => $actor->id,
+                    ]);
+                }
             }
         });
 
@@ -515,15 +518,86 @@ class VoucherWizardController extends Controller
         ];
     }
 
+    private function rulesWizardMeta(): array
+    {
+        return [
+            'total_weight' => ['nullable', 'numeric', 'min:0'],
+            'additional_costs' => ['nullable', 'array', 'max:50'],
+            'additional_costs.*.label' => ['required_with:additional_costs.*.amount', 'string', 'max:255'],
+            'additional_costs.*.amount' => ['required_with:additional_costs.*.label', 'numeric', 'min:0'],
+        ];
+    }
+
+    private function payloadWizardMeta(array $validated): array
+    {
+        $raw = $validated['additional_costs'] ?? null;
+        $normalized = [];
+        if (is_array($raw)) {
+            foreach ($raw as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+                $label = trim((string) ($row['label'] ?? ''));
+                $amountRaw = $row['amount'] ?? null;
+
+                $hasAmount = $amountRaw !== null && $amountRaw !== '';
+                $amount = $hasAmount ? (float) $amountRaw : null;
+
+                if ($label === '' && $amount === null) {
+                    continue;
+                }
+                if ($label === '' || $amount === null) {
+                    continue;
+                }
+
+                $normalized[] = [
+                    'label' => $label,
+                    'amount' => round((float) $amount, 2),
+                ];
+            }
+        }
+
+        return [
+            'total_weight' => $validated['total_weight'] ?? null,
+            'additional_costs' => $normalized === [] ? null : $normalized,
+        ];
+    }
+
     private function normalizePhoneDigits(?string $phone): string
     {
         return preg_replace('/\D+/', '', (string) $phone);
     }
 
+    private function base36(int $value): string
+    {
+        if ($value <= 0) {
+            return '0';
+        }
+
+        $alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        $out = '';
+        while ($value > 0) {
+            $out = $alphabet[$value % 36].$out;
+            $value = intdiv($value, 36);
+        }
+
+        return $out;
+    }
+
+    private function shortNoSuffix(): string
+    {
+        $ms = (int) floor(microtime(true) * 1000);
+        $time = $this->base36($ms);
+        $time = str_pad($time, 8, '0', STR_PAD_LEFT);
+        $time = substr($time, -8);
+
+        return $time.strtoupper(Str::random(3));
+    }
+
     private function nextVoucherNo(int $organizationId): string
     {
         do {
-            $no = 'V-'.strtoupper(Str::ulid());
+            $no = 'V-'.$this->shortNoSuffix();
         } while (Voucher::query()->where('organization_id', $organizationId)->where('voucher_no', $no)->exists());
 
         return $no;
@@ -534,10 +608,45 @@ class VoucherWizardController extends Controller
         $voucher->load('items');
         $totalQty = $voucher->items->sum(fn (VoucherItem $i) => (float) $i->qty);
         $freightSum = $voucher->items->sum(fn (VoucherItem $i) => (float) ($i->freight_amount ?? 0));
-        $voucher->total_qty = $totalQty;
-        if ($voucher->total_amount === null && $freightSum > 0) {
-            $voucher->total_amount = $freightSum;
+
+        $productWeights = Product::query()
+            ->where('organization_id', $voucher->organization_id)
+            ->whereIn('id', $voucher->items->pluck('product_id')->all())
+            ->pluck('default_weight', 'id');
+
+        $totalWeight = $voucher->items->sum(function (VoucherItem $i) use ($productWeights) {
+            $w = $productWeights->get($i->product_id);
+            if ($w === null) {
+                return 0;
+            }
+            return (float) $i->qty * (float) $w;
+        });
+
+        $costSum = 0.0;
+        $costs = $voucher->additional_costs;
+        if (is_array($costs)) {
+            foreach ($costs as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+                $a = $row['amount'] ?? null;
+                if ($a === null || $a === '') {
+                    continue;
+                }
+                $n = (float) $a;
+                if ($n > 0) {
+                    $costSum += $n;
+                }
+            }
         }
+
+        $voucher->total_qty = $totalQty;
+        if ($voucher->total_weight === null) {
+            $voucher->total_weight = round((float) $totalWeight, 3);
+        }
+
+        $computedTotal = round((float) $freightSum + (float) $costSum, 2);
+        $voucher->total_amount = $computedTotal > 0.0001 ? $computedTotal : null;
         $voucher->save();
     }
 

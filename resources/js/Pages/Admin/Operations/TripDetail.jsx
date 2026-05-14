@@ -1,6 +1,6 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import {
     AddCircleOutlineOutlined as AddCircleOutlineIcon,
     ArrowBack as ArrowBackIcon,
@@ -13,12 +13,15 @@ import {
     LocalShippingOutlined as LocalShippingIcon,
     MoreVert as MoreVertIcon,
     Undo as UndoIcon,
+    ExpandLessOutlined as ExpandLessIcon,
+    ExpandMoreOutlined as ExpandMoreIcon,
 } from '@mui/icons-material';
 import {
     Alert,
     Box,
     Button,
     Chip,
+    Collapse,
     Dialog,
     DialogActions,
     DialogContent,
@@ -34,6 +37,7 @@ import {
     Paper,
     Select,
     Stack,
+    Grid,
     Step,
     StepLabel,
     Stepper,
@@ -91,6 +95,29 @@ function formatTripDateTime(iso) {
     } catch {
         return iso;
     }
+}
+
+function formatFixed(value, digits) {
+    if (value == null || value === '') {
+        return '—';
+    }
+    const n = Number(value);
+    if (!Number.isFinite(n)) {
+        return '—';
+    }
+    return new Intl.NumberFormat(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
+}
+
+function formatInt(value) {
+    if (value == null || value === '') {
+        return '—';
+    }
+    const n = Number(value);
+    if (!Number.isFinite(n)) {
+        return '—';
+    }
+    const rounded = Math.round(n);
+    return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(rounded);
 }
 
 /** One-line label for the closed Select; full detail in menu + native tooltip */
@@ -156,23 +183,26 @@ function hasPendingDestinationReceipt(row) {
     return Number.isFinite(pending) && pending > 0.0001 && row?.voucher_item?.to_warehouse;
 }
 
-/** Destination / recipient from voucher line (shown on trip items; no re-entry at confirmation). */
 function formatVoucherDestination(vi) {
     if (!vi) {
         return '—';
     }
+    const v = vi.voucher;
+    if (!v) {
+        return '—';
+    }
     const bits = [];
-    if (vi.recipient_name) {
-        bits.push(vi.recipient_name);
+    if (v.default_recipient_name) {
+        bits.push(v.default_recipient_name);
     }
-    if (vi.recipient_phone) {
-        bits.push(vi.recipient_phone);
+    if (v.default_recipient_phone) {
+        bits.push(v.default_recipient_phone);
     }
-    const wh = vi.to_warehouse;
+    const wh = v.default_to_warehouse;
     if (wh && (wh.code || wh.name)) {
         bits.push([wh.code, wh.name].filter(Boolean).join(' · '));
     }
-    const addrParts = [vi.to_address_line1, vi.to_address_line2, vi.to_township, vi.to_city, vi.to_region, vi.to_postal_code].filter(
+    const addrParts = [v.default_to_address_line1, v.default_to_address_line2, v.default_to_township, v.default_to_city, v.default_to_region, v.default_to_postal_code].filter(
         (x) => x != null && String(x).trim() !== '',
     );
     if (addrParts.length) {
@@ -195,20 +225,21 @@ export default function TripDetail() {
     const canRecordDelivery = pageProps.can_record_delivery ?? false;
     const canMarkDeparted = pageProps.can_mark_departed ?? false;
     const canUndoDepart = pageProps.can_undo_depart ?? false;
-    const loadableVoucherItems = pageProps.loadable_voucher_items ?? [];
+    const loadableVouchers = pageProps.loadable_vouchers ?? [];
     const warehouses = pageProps.warehouses ?? [];
+    const tripTotalWeight = pageProps.trip_total_weight;
+    const tripLaborCost = pageProps.trip_labor_cost;
 
     const loadForm = useForm({
-        voucher_item_id: '',
-        loaded_qty: '',
+        voucher_id: '',
         trip_stop_id: '',
     });
 
     const loadableById = useMemo(() => {
         const m = new Map();
-        (loadableVoucherItems || []).forEach((r) => m.set(r.id, r));
+        (loadableVouchers || []).forEach((r) => m.set(r.id, r));
         return m;
-    }, [loadableVoucherItems]);
+    }, [loadableVouchers]);
 
     const pendingDeliveryRows = useMemo(
         () => (trip?.items || []).filter((row) => remainingDeliverQty(row) > 0.0001),
@@ -243,8 +274,92 @@ export default function TripDetail() {
     const [itemRowMenu, setItemRowMenu] = useState(null);
     const [itemDeliveryDialog, setItemDeliveryDialog] = useState(null);
     const [itemDeliverySaving, setItemDeliverySaving] = useState(false);
+    const [voucherRowMenu, setVoucherRowMenu] = useState(null);
+    const [voucherStopDialog, setVoucherStopDialog] = useState(null);
+    const [voucherExpanded, setVoucherExpanded] = useState(() => ({}));
 
     const showCargoActionsColumn = canLoadCargo || canRecordDelivery;
+
+    const voucherCargoRows = useMemo(() => {
+        const eps = 0.0001;
+        const m = new Map();
+
+        for (const row of trip?.items || []) {
+            const vi = row?.voucher_item;
+            const v = vi?.voucher;
+            if (!v?.id) {
+                continue;
+            }
+
+            const voucherId = Number(v.id);
+            if (!m.has(voucherId)) {
+                m.set(voucherId, {
+                    voucher_id: voucherId,
+                    voucher_no: v.voucher_no ?? '—',
+                    merchant_name: v.merchant?.name ?? '',
+                    destination: formatVoucherDestination(vi),
+                    lines: 0,
+                    loaded_sum: 0,
+                    delivered_sum: 0,
+                    stop_ids: new Set(),
+                    line_rows: [],
+                });
+            }
+
+            const agg = m.get(voucherId);
+            agg.lines += 1;
+            agg.loaded_sum += Number(row?.loaded_qty ?? 0);
+            agg.delivered_sum += Number(row?.delivered_qty ?? 0);
+            agg.stop_ids.add(row?.trip_stop?.id ?? null);
+            agg.line_rows.push({
+                id: row?.id,
+                line_no: vi?.line_no ?? null,
+                product_name: vi?.product?.name ?? '—',
+                unit: vi?.product?.unit ?? vi?.unit ?? '',
+                loaded_qty: Number(row?.loaded_qty ?? 0),
+                delivered_qty: Number(row?.delivered_qty ?? 0),
+                status: row?.status ?? 'LOADED',
+                stop: row?.trip_stop?.stop_order != null ? `Stop ${row.trip_stop.stop_order}` : '—',
+            });
+        }
+
+        const out = Array.from(m.values()).map((r) => {
+            const remaining = Math.max(0, r.loaded_sum - r.delivered_sum);
+            let status = 'LOADED';
+            if (remaining <= eps) {
+                status = 'DELIVERED';
+            } else if (r.delivered_sum > eps) {
+                status = 'PARTIALLY_DELIVERED';
+            }
+
+            let stop = { mode: 'NONE', id: null, label: '—' };
+            if (r.stop_ids.size === 1) {
+                const only = Array.from(r.stop_ids)[0];
+                if (only != null) {
+                    const s = (trip?.stops || []).find((x) => Number(x.id) === Number(only));
+                    stop = {
+                        mode: 'SINGLE',
+                        id: Number(only),
+                        label: s?.stop_order != null ? `Stop ${s.stop_order}` : `Stop ${only}`,
+                    };
+                }
+            } else if (r.stop_ids.size > 1) {
+                stop = { mode: 'MIXED', id: null, label: 'Mixed' };
+            }
+
+            r.line_rows.sort((a, b) => Number(a.line_no ?? 0) - Number(b.line_no ?? 0));
+
+            return {
+                ...r,
+                remaining_sum: remaining,
+                status,
+                stop,
+            };
+        });
+
+        out.sort((a, b) => String(b.voucher_no).localeCompare(String(a.voucher_no)));
+        return out;
+    }, [trip?.items, trip?.stops]);
 
     const stopsServerSig = useMemo(
         () =>
@@ -365,7 +480,7 @@ export default function TripDetail() {
             const unit = row?.voucher_item?.product?.unit ?? row?.voucher_item?.unit ?? '';
             const wh = row?.voucher_item?.to_warehouse;
             const target = wh ? [wh.code, wh.name].filter(Boolean).join(' · ') : 'destination warehouse';
-            if (!window.confirm(`Receive ${pending.toFixed(3)}${unit ? ` ${unit}` : ''} into ${target}?`)) {
+            if (!window.confirm(`Receive ${formatInt(pending)}${unit ? ` ${unit}` : ''} into ${target}?`)) {
                 return;
             }
             router.post(
@@ -441,7 +556,7 @@ export default function TripDetail() {
 
     const submitLoad = (e) => {
         e.preventDefault();
-        loadForm.post(`${adminAppUrl}/operations/trips/${trip.id}/items`, {
+        loadForm.post(`${adminAppUrl}/operations/trips/${trip.id}/vouchers/load`, {
             preserveScroll: true,
             onSuccess: () => loadForm.reset(),
         });
@@ -509,17 +624,17 @@ export default function TripDetail() {
                 <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
                     <Stack spacing={2}>
                         <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
-                            <Stack direction="row" alignItems="center" flexWrap="wrap" gap={1} sx={{ flex: '1 1 auto', minWidth: 0 }}>
+                            <Stack spacing={0.5} sx={{ flex: '1 1 auto', minWidth: 0 }}>
                                 <Typography variant="h6" sx={{ fontWeight: 700, flex: '1 1 auto', minWidth: 0, fontSize: { xs: '1.05rem', sm: undefined } }}>
                                     {trip.trip_no}
                                 </Typography>
-                                <Chip
-                                    size="small"
-                                    label={trip.status}
-                                    color={TRIP_STATUS_COLOR[trip.status] ?? 'default'}
-                                    variant="outlined"
-                                />
                             </Stack>
+                            <Chip
+                                size="small"
+                                label={trip.status}
+                                color={TRIP_STATUS_COLOR[trip.status] ?? 'default'}
+                                variant="outlined"
+                            />
                             <Button
                                 component="a"
                                 href={`${adminAppUrl}/operations/trips/${trip.id}/manifest`}
@@ -528,9 +643,16 @@ export default function TripDetail() {
                                 variant="outlined"
                                 size="small"
                                 startIcon={<ArticleOutlinedIcon />}
-                                sx={{ flexShrink: 0 }}
+                                sx={{
+                                    flexShrink: 0,
+                                    minWidth: { xs: 40, sm: 'auto' },
+                                    px: { xs: 1, sm: 1.5 },
+                                    '& .MuiButton-startIcon': { mr: { xs: 0, sm: 1 } },
+                                }}
                             >
-                                Driver manifest
+                                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
+                                    Driver manifest
+                                </Box>
                             </Button>
                         </Stack>
                         <Typography variant="body2" color="text.secondary">
@@ -538,42 +660,58 @@ export default function TripDetail() {
                             cannot exceed each line&apos;s ordered quantity across non-cancelled trips.
                         </Typography>
                         <Divider />
-                        <Stack direction="row" flexWrap="wrap" sx={{ gap: 2.5 }}>
-                            <Box sx={{ flex: '1 1 160px', minWidth: 0 }}>
+                        <Grid container spacing={2.5}>
+                            <Grid item xs={12} sm={6} md={4}>
                                 <Typography variant="caption" color="text.secondary">
                                     Vehicle
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
                                     {trip.vehicle ? `${trip.vehicle.vehicle_no} (${trip.vehicle.vehicle_type})` : '—'}
                                 </Typography>
-                            </Box>
-                            <Box sx={{ flex: '1 1 160px', minWidth: 0 }}>
+                            </Grid>
+                            <Grid item xs={12} sm={6} md={4}>
                                 <Typography variant="caption" color="text.secondary">
                                     Source warehouse
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
                                     {trip.source_warehouse?.name ?? '—'}
                                 </Typography>
-                            </Box>
-                            <Box sx={{ flex: '1 1 160px', minWidth: 0 }}>
+                            </Grid>
+                            <Grid item xs={12} sm={6} md={4}>
                                 <Typography variant="caption" color="text.secondary">
                                     Driver
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
                                     {[trip.driver_name, trip.driver_phone].filter(Boolean).join(' · ') || '—'}
                                 </Typography>
-                            </Box>
+                            </Grid>
+                            <Grid item xs={12} sm={6} md={4}>
+                                <Typography variant="caption" color="text.secondary">
+                                    Total weight
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
+                                    {formatFixed(tripTotalWeight, 3)}
+                                </Typography>
+                            </Grid>
+                            <Grid item xs={12} sm={6} md={4}>
+                                <Typography variant="caption" color="text.secondary">
+                                    Labor cost
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
+                                    {formatFixed(tripLaborCost, 2)}
+                                </Typography>
+                            </Grid>
                             {trip.creator?.name ? (
-                                <Box sx={{ flex: '1 1 160px', minWidth: 0 }}>
+                                <Grid item xs={12} sm={6} md={4}>
                                     <Typography variant="caption" color="text.secondary">
                                         Created by
                                     </Typography>
                                     <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
                                         {trip.creator.name}
                                     </Typography>
-                                </Box>
+                                </Grid>
                             ) : null}
-                        </Stack>
+                        </Grid>
                     </Stack>
                 </Paper>
 
@@ -932,8 +1070,8 @@ export default function TripDetail() {
                     </Stack>
                     {canRecordDelivery ? (
                         <Alert severity="info" sx={{ mb: 1.5 }}>
-                            Destination and recipient come from each voucher line (shown below). Use one <strong>Confirm trip delivery</strong> action to record the full remaining
-                            quantity on every cargo line at once. For lines with a destination warehouse, stock is received there and then processed from the
+                            Destination and recipient come from each voucher (shown below). Use one <strong>Confirm trip delivery</strong> action to record the full remaining
+                            quantity on every cargo line at once. For vouchers with a destination warehouse, stock is received there and then processed from the
                             Warehouse Fulfillment Inbox (owner pickup/direct delivery/forward).
                         </Alert>
                     ) : null}
@@ -941,18 +1079,18 @@ export default function TripDetail() {
                     {canLoadCargo && (
                         <Box component="form" onSubmit={submitLoad} sx={{ mb: 2.5 }}>
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'flex-end' }} flexWrap="wrap">
-                                <FormControl sx={{ minWidth: { xs: '100%', sm: 280 }, maxWidth: '100%' }} size="small" error={Boolean(loadForm.errors.voucher_item_id)}>
+                                <FormControl sx={{ minWidth: { xs: '100%', sm: 280 }, maxWidth: '100%' }} size="small" error={Boolean(loadForm.errors.voucher_id)}>
                                     {/* shrink: required with displayEmpty + renderValue so notch + label stay in sync (MUI) */}
                                     <InputLabel id="load-line-label" shrink>
-                                        Voucher line
+                                        Voucher
                                     </InputLabel>
                                     <Select
                                         labelId="load-line-label"
-                                        label="Voucher line"
+                                        label="Voucher"
                                         displayEmpty
-                                        value={loadForm.data.voucher_item_id === '' ? '' : String(loadForm.data.voucher_item_id)}
+                                        value={loadForm.data.voucher_id === '' ? '' : String(loadForm.data.voucher_id)}
                                         onChange={(ev) =>
-                                            loadForm.setData('voucher_item_id', ev.target.value === '' ? '' : Number(ev.target.value))
+                                            loadForm.setData('voucher_id', ev.target.value === '' ? '' : Number(ev.target.value))
                                         }
                                         renderValue={(selected) => {
                                             if (selected === '') {
@@ -966,22 +1104,44 @@ export default function TripDetail() {
                                             if (!row) {
                                                 return selected;
                                             }
-                                            const title = voucherLineDetailTitle(row);
+                                            const primary = row.merchant_name || row.voucher_no;
+                                            const secondary = row.merchant_name ? row.voucher_no : '';
                                             return (
-                                                <Box
-                                                    component="span"
-                                                    title={title}
-                                                    sx={{
-                                                        display: 'block',
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                        whiteSpace: 'nowrap',
-                                                        width: '100%',
-                                                        maxWidth: '100%',
-                                                        textAlign: 'left',
-                                                    }}
-                                                >
-                                                    {voucherLineFieldLabel(row)}
+                                                <Box component="span" sx={{ display: 'block', width: '100%', maxWidth: '100%', minWidth: 0 }}>
+                                                    <Typography
+                                                        component="span"
+                                                        variant="body2"
+                                                        title={secondary ? `${primary} · ${secondary}` : primary}
+                                                        sx={{
+                                                            display: 'block',
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis',
+                                                            whiteSpace: 'nowrap',
+                                                            width: '100%',
+                                                            maxWidth: '100%',
+                                                            textAlign: 'left',
+                                                            fontWeight: 700,
+                                                        }}
+                                                    >
+                                                        {primary}
+                                                    </Typography>
+                                                    {secondary ? (
+                                                        <Typography
+                                                            component="span"
+                                                            variant="caption"
+                                                            color="text.secondary"
+                                                            sx={{
+                                                                display: 'block',
+                                                                overflow: 'hidden',
+                                                                textOverflow: 'ellipsis',
+                                                                whiteSpace: 'nowrap',
+                                                                width: '100%',
+                                                                maxWidth: '100%',
+                                                            }}
+                                                        >
+                                                            {secondary}
+                                                        </Typography>
+                                                    ) : null}
                                                 </Box>
                                             );
                                         }}
@@ -998,47 +1158,34 @@ export default function TripDetail() {
                                                 Select…
                                             </Typography>
                                         </MenuItem>
-                                        {(loadableVoucherItems || []).map((row) => (
+                                        {(loadableVouchers || []).map((row) => (
                                             <MenuItem
                                                 key={row.id}
                                                 value={String(row.id)}
                                                 sx={{ alignItems: 'flex-start', whiteSpace: 'normal', py: 1 }}
                                             >
                                                 <Stack spacing={0.35} sx={{ width: '100%', minWidth: 0 }}>
-                                                    <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.3 }}>
-                                                        {row.voucher_no}
-                                                        <Box component="span" sx={{ fontWeight: 500, color: 'text.secondary' }}>
-                                                            {' '}
-                                                            · Line {row.line_no}
-                                                        </Box>
-                                                    </Typography>
-                                                    <Typography variant="body2" sx={{ wordBreak: 'break-word', lineHeight: 1.35 }}>
-                                                        {row.product_name}
-                                                    </Typography>
+                                                    <Stack direction="row" alignItems="baseline" justifyContent="space-between" spacing={1} sx={{ width: '100%', minWidth: 0 }}>
+                                                        <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.3, minWidth: 0, flex: '1 1 auto' }} noWrap>
+                                                            {row.merchant_name || '—'}
+                                                        </Typography>
+                                                        <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
+                                                            {row.voucher_no}
+                                                        </Typography>
+                                                    </Stack>
                                                     <Typography variant="caption" color="text.secondary">
-                                                        Max load {row.remaining_qty} {row.unit}
+                                                        Loads all remaining lines ({row.lines})
                                                     </Typography>
                                                 </Stack>
                                             </MenuItem>
                                         ))}
                                     </Select>
-                                    {loadForm.errors.voucher_item_id ? (
+                                    {loadForm.errors.voucher_id ? (
                                         <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
-                                            {loadForm.errors.voucher_item_id}
+                                            {loadForm.errors.voucher_id}
                                         </Typography>
                                     ) : null}
                                 </FormControl>
-                                <TextField
-                                    size="small"
-                                    label="Quantity to load"
-                                    type="number"
-                                    inputProps={{ step: '0.001', min: '0.001' }}
-                                    sx={{ width: { xs: '100%', sm: 160 } }}
-                                    value={loadForm.data.loaded_qty}
-                                    onChange={(ev) => loadForm.setData('loaded_qty', ev.target.value)}
-                                    error={Boolean(loadForm.errors.loaded_qty)}
-                                    helperText={loadForm.errors.loaded_qty}
-                                />
                                 <FormControl sx={{ minWidth: { xs: '100%', sm: 200 }, maxWidth: '100%' }} size="small" error={Boolean(loadForm.errors.trip_stop_id)}>
                                     <InputLabel id="load-stop-label" shrink>
                                         Drop stop (optional)
@@ -1137,9 +1284,9 @@ export default function TripDetail() {
                                     Add to trip
                                 </Button>
                             </Stack>
-                            {(loadableVoucherItems || []).length === 0 ? (
+                            {(loadableVouchers || []).length === 0 ? (
                                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-                                    No lines available: need confirmed vouchers with remaining quantity from this trip&apos;s source warehouse.
+                                    No vouchers available: need confirmed vouchers with remaining quantity from this trip&apos;s source warehouse.
                                 </Typography>
                             ) : null}
                         </Box>
@@ -1151,82 +1298,149 @@ export default function TripDetail() {
                         </Typography>
                     ) : isSmUp ? (
                         <Box sx={{ overflowX: 'auto' }}>
-                            <Table size="small" sx={{ minWidth: showCargoActionsColumn || canManageCargo ? 920 : 560 }}>
+                            <Table size="small" sx={{ minWidth: showCargoActionsColumn || canManageCargo ? 760 : 520 }}>
                                 <TableHead>
                                     <TableRow sx={{ bgcolor: (th) => (th.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>
-                                        <TableCell>Voucher</TableCell>
-                                        <TableCell width={72}>Line</TableCell>
-                                        <TableCell>Product</TableCell>
-                                        <TableCell sx={{ minWidth: 140, maxWidth: 280 }}>Destination</TableCell>
-                                        <TableCell align="right">Loaded</TableCell>
-                                        <TableCell align="right">Delivered</TableCell>
-                                        <TableCell width={72} align="center">
-                                            Receipts
+                                        <TableCell sx={{ width: 520 }}>Voucher</TableCell>
+                                        <TableCell sx={{ width: 120 }}>Stop</TableCell>
+                                        <TableCell width={64} align="right">
+                                            Lines
                                         </TableCell>
-                                        <TableCell>Stop</TableCell>
-                                        <TableCell>Status</TableCell>
+                                        <TableCell sx={{ width: 140 }}>Status</TableCell>
                                         {showCargoActionsColumn ? <TableCell align="right" width={56} /> : null}
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                    {(trip.items || []).map((row) => {
-                                        const vi = row.voucher_item;
-                                        const unit = vi?.product?.unit ?? vi?.unit ?? '';
-                                        const dest = formatVoucherDestination(vi);
-                                        const nConf = (row.delivery_confirmations || []).length;
+                                    {voucherCargoRows.map((row) => {
+                                        const merchantName = row.merchant_name || '';
+                                        const voucherNo = row.voucher_no ?? '—';
+                                        const dest = row.destination ?? '—';
+                                        const isOpen = Boolean(voucherExpanded[row.voucher_id]);
                                         return (
-                                            <TableRow key={row.id}>
-                                                <TableCell>{vi?.voucher?.voucher_no ?? '—'}</TableCell>
-                                                <TableCell>{vi?.line_no ?? '—'}</TableCell>
-                                                <TableCell>{vi?.product?.name ?? '—'}</TableCell>
-                                                <TableCell
-                                                    sx={{
-                                                        maxWidth: 280,
-                                                        verticalAlign: 'top',
-                                                        whiteSpace: 'normal',
-                                                        wordBreak: 'break-word',
-                                                        fontSize: '0.8125rem',
-                                                        color: 'text.secondary',
-                                                        lineHeight: 1.35,
-                                                    }}
-                                                    title={dest !== '—' ? dest : undefined}
-                                                >
-                                                    {dest}
-                                                </TableCell>
-                                                <TableCell align="right">
-                                                    {row.loaded_qty}
-                                                    {unit ? ` ${unit}` : ''}
-                                                </TableCell>
-                                                <TableCell align="right">
-                                                    {row.delivered_qty ?? '0'}
-                                                    {unit ? ` ${unit}` : ''}
-                                                </TableCell>
-                                                <TableCell align="center">{nConf}</TableCell>
-                                                <TableCell>
-                                                    {row.trip_stop?.stop_order != null ? `Stop ${row.trip_stop.stop_order}` : '—'}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Chip
-                                                        size="small"
-                                                        label={row.status}
-                                                        color={TRIP_ITEM_STATUS_COLOR[row.status] ?? 'default'}
-                                                        variant="outlined"
-                                                    />
-                                                </TableCell>
-                                                {showCargoActionsColumn ? (
-                                                    <TableCell align="right">
-                                                        {rowHasCargoActions(row) ? (
+                                            <Fragment key={row.voucher_id}>
+                                                <TableRow hover>
+                                                    <TableCell sx={{ py: 0.75, minWidth: 0 }}>
+                                                        <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ minWidth: 0 }}>
                                                             <IconButton
                                                                 size="small"
-                                                                aria-label="Cargo row actions"
-                                                                onClick={(e) => setItemRowMenu({ anchorEl: e.currentTarget, row })}
+                                                                disableRipple
+                                                                onClick={() =>
+                                                                    setVoucherExpanded((p) => ({ ...p, [row.voucher_id]: !Boolean(p[row.voucher_id]) }))
+                                                                }
+                                                                aria-label={isOpen ? 'Collapse lines' : 'Expand lines'}
+                                                                sx={{
+                                                                    mt: 0.1,
+                                                                    width: 28,
+                                                                    height: 28,
+                                                                    flex: '0 0 28px',
+                                                                    borderRadius: 1,
+                                                                    '&:hover': { bgcolor: 'action.hover' },
+                                                                }}
+                                                            >
+                                                                {isOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                                                            </IconButton>
+                                                            <Stack spacing={0.35} sx={{ minWidth: 0, flex: '1 1 auto' }}>
+                                                                <Stack direction="row" spacing={1} alignItems="baseline" sx={{ minWidth: 0 }}>
+                                                                    <Typography
+                                                                        variant="body2"
+                                                                        sx={{
+                                                                            fontWeight: 800,
+                                                                            lineHeight: 1.2,
+                                                                            minWidth: 0,
+                                                                        }}
+                                                                        noWrap
+                                                                        title={merchantName || undefined}
+                                                                    >
+                                                                        {merchantName || '—'}
+                                                                    </Typography>
+                                                                    <Typography
+                                                                        variant="caption"
+                                                                        color="text.secondary"
+                                                                        sx={{ flexShrink: 0 }}
+                                                                        title={voucherNo !== '—' ? voucherNo : undefined}
+                                                                    >
+                                                                        {voucherNo}
+                                                                    </Typography>
+                                                                </Stack>
+                                                                {dest !== '—' ? (
+                                                                    <Typography
+                                                                        variant="caption"
+                                                                        color="text.secondary"
+                                                                        sx={{
+                                                                            display: 'block',
+                                                                            overflow: 'hidden',
+                                                                            textOverflow: 'ellipsis',
+                                                                            whiteSpace: 'nowrap',
+                                                                            minWidth: 0,
+                                                                        }}
+                                                                        title={dest}
+                                                                    >
+                                                                        {dest}
+                                                                    </Typography>
+                                                                ) : null}
+                                                            </Stack>
+                                                        </Stack>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {row.stop?.label && row.stop.label !== '—' ? (
+                                                            <Chip size="small" label={row.stop.label} variant="outlined" sx={{ height: 20 }} />
+                                                        ) : (
+                                                            '—'
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell align="right">{row.lines}</TableCell>
+                                                    <TableCell>
+                                                        <Chip
+                                                            size="small"
+                                                            label={row.status}
+                                                            color={TRIP_ITEM_STATUS_COLOR[row.status] ?? 'default'}
+                                                            variant="outlined"
+                                                        />
+                                                    </TableCell>
+                                                    {showCargoActionsColumn ? (
+                                                        <TableCell align="right">
+                                                            <IconButton
+                                                                size="small"
+                                                                aria-label="Voucher cargo actions"
+                                                                onClick={(e) => setVoucherRowMenu({ anchorEl: e.currentTarget, row })}
                                                             >
                                                                 <MoreVertIcon fontSize="small" />
                                                             </IconButton>
-                                                        ) : null}
+                                                        </TableCell>
+                                                    ) : null}
+                                                </TableRow>
+                                                <TableRow>
+                                                    <TableCell colSpan={showCargoActionsColumn ? 5 : 4} sx={{ py: 0, borderBottom: isOpen ? undefined : 0 }}>
+                                                        <Collapse in={isOpen} timeout="auto" unmountOnExit>
+                                                            <Box sx={{ py: 1.25, pl: 5, pr: 1 }}>
+                                                                <Stack spacing={0.5} sx={{ minWidth: 0 }}>
+                                                                    {row.line_rows.map((ln, idx) => (
+                                                                        <Fragment key={ln.id}>
+                                                                            <Grid container columnSpacing={2} rowSpacing={0.75} alignItems="center">
+                                                                                <Grid item xs={1.5}>
+                                                                                    <Chip size="small" label={ln.line_no != null ? `L${ln.line_no}` : '—'} variant="outlined" />
+                                                                                </Grid>
+                                                                                <Grid item xs={7.5} sx={{ minWidth: 0 }}>
+                                                                                    <Typography variant="body2" sx={{ fontWeight: 800 }} noWrap title={ln.product_name !== '—' ? ln.product_name : undefined}>
+                                                                                        {ln.product_name}
+                                                                                    </Typography>
+                                                                                </Grid>
+                                                                                <Grid item xs={3} sx={{ textAlign: 'right' }}>
+                                                                                    <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                                                                                        {formatInt(ln.loaded_qty)}
+                                                                                        {ln.unit ? ` ${ln.unit}` : ''}
+                                                                                    </Typography>
+                                                                                </Grid>
+                                                                            </Grid>
+                                                                            {idx !== row.line_rows.length - 1 ? <Divider /> : null}
+                                                                        </Fragment>
+                                                                    ))}
+                                                                </Stack>
+                                                            </Box>
+                                                        </Collapse>
                                                     </TableCell>
-                                                ) : null}
-                                            </TableRow>
+                                                </TableRow>
+                                            </Fragment>
                                         );
                                     })}
                                 </TableBody>
@@ -1234,17 +1448,15 @@ export default function TripDetail() {
                         </Box>
                     ) : (
                         <Stack spacing={1.5}>
-                            {(trip.items || []).map((row) => {
-                                const vi = row.voucher_item;
-                                const unit = vi?.product?.unit ?? vi?.unit ?? '';
-                                const dest = formatVoucherDestination(vi);
-                                const nConf = (row.delivery_confirmations || []).length;
+                            {voucherCargoRows.map((row) => {
+                                const dest = row.destination ?? '—';
+                                const isOpen = Boolean(voucherExpanded[row.voucher_id]);
                                 return (
-                                    <Paper key={row.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                                    <Paper key={row.voucher_id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
                                         <Stack spacing={1.25}>
                                             <Stack direction="row" alignItems="flex-start" justifyContent="space-between" gap={1}>
                                                 <Typography variant="subtitle2" sx={{ fontWeight: 700, wordBreak: 'break-word', flex: '1 1 auto', minWidth: 0 }}>
-                                                    {vi?.product?.name ?? '—'}
+                                                    {row.merchant_name || '—'}
                                                 </Typography>
                                                 <Stack direction="row" spacing={0.5} alignItems="center" flexShrink={0}>
                                                     <Chip
@@ -1253,11 +1465,28 @@ export default function TripDetail() {
                                                         color={TRIP_ITEM_STATUS_COLOR[row.status] ?? 'default'}
                                                         variant="outlined"
                                                     />
-                                                    {showCargoActionsColumn && rowHasCargoActions(row) ? (
+                                                    <IconButton
+                                                        size="small"
+                                                        disableRipple
+                                                        aria-label={isOpen ? 'Collapse lines' : 'Expand lines'}
+                                                        onClick={() =>
+                                                            setVoucherExpanded((p) => ({ ...p, [row.voucher_id]: !Boolean(p[row.voucher_id]) }))
+                                                        }
+                                                        sx={{
+                                                            width: 28,
+                                                            height: 28,
+                                                            flex: '0 0 28px',
+                                                            borderRadius: 1,
+                                                            '&:hover': { bgcolor: 'action.hover' },
+                                                        }}
+                                                    >
+                                                        {isOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                                                    </IconButton>
+                                                    {showCargoActionsColumn ? (
                                                         <IconButton
                                                             size="small"
-                                                            aria-label="Cargo row actions"
-                                                            onClick={(e) => setItemRowMenu({ anchorEl: e.currentTarget, row })}
+                                                            aria-label="Voucher cargo actions"
+                                                            onClick={(e) => setVoucherRowMenu({ anchorEl: e.currentTarget, row })}
                                                         >
                                                             <MoreVertIcon fontSize="small" />
                                                         </IconButton>
@@ -1265,41 +1494,42 @@ export default function TripDetail() {
                                                 </Stack>
                                             </Stack>
                                             <Typography variant="body2" color="text.secondary">
-                                                {vi?.voucher?.voucher_no ?? '—'} · line {vi?.line_no ?? '—'}
+                                                {row.voucher_no ?? '—'} · {row.lines} line{row.lines === 1 ? '' : 's'}
                                             </Typography>
-                                            <Box>
-                                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: 0.02 }}>
-                                                    Destination
-                                                </Typography>
-                                                <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word', lineHeight: 1.45, mt: 0.25 }}>
+                                            {dest !== '—' ? (
+                                                <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word', lineHeight: 1.45 }}>
                                                     {dest}
                                                 </Typography>
-                                            </Box>
-                                            <Typography variant="body2">
-                                                <Box component="span" sx={{ fontWeight: 600 }}>
-                                                    Loaded
-                                                </Box>{' '}
-                                                {row.loaded_qty}
-                                                {unit ? ` ${unit}` : ''}
-                                            </Typography>
-                                            <Typography variant="body2">
-                                                <Box component="span" sx={{ fontWeight: 600 }}>
-                                                    Delivered
-                                                </Box>{' '}
-                                                {row.delivered_qty ?? '0'}
-                                                {unit ? ` ${unit}` : ''}
-                                                {nConf > 0 ? (
-                                                    <Box component="span" color="text.secondary" sx={{ ml: 0.5 }}>
-                                                        · {nConf} receipt{nConf === 1 ? '' : 's'}
-                                                    </Box>
-                                                ) : null}
-                                            </Typography>
-                                            <Typography variant="body2" color="text.secondary">
-                                                <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                                                    Stop
-                                                </Box>{' '}
-                                                {row.trip_stop?.stop_order != null ? row.trip_stop.stop_order : '—'}
-                                            </Typography>
+                                            ) : null}
+                                            {row.stop?.label && row.stop.label !== '—' ? (
+                                                <Typography variant="body2" color="text.secondary">
+                                                    <Box component="span" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                                                        Stop
+                                                    </Box>{' '}
+                                                    · {row.stop.label}
+                                                </Typography>
+                                            ) : null}
+                                            <Collapse in={isOpen} timeout="auto" unmountOnExit>
+                                                <Divider sx={{ my: 0.5 }} />
+                                                <Stack spacing={0.75} sx={{ pt: 0.5 }}>
+                                                    {row.line_rows.map((ln) => (
+                                                        <Stack key={ln.id} direction="row" justifyContent="space-between" alignItems="flex-start" gap={1.5}>
+                                                            <Box sx={{ minWidth: 0 }}>
+                                                                <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
+                                                                    <Chip size="small" label={ln.line_no != null ? `L${ln.line_no}` : '—'} variant="outlined" />
+                                                                    <Typography variant="body2" sx={{ fontWeight: 800, minWidth: 0 }} noWrap title={ln.product_name !== '—' ? ln.product_name : undefined}>
+                                                                        {ln.product_name}
+                                                                    </Typography>
+                                                                </Stack>
+                                                            </Box>
+                                                            <Typography variant="body2" sx={{ fontWeight: 800, flexShrink: 0 }}>
+                                                                {formatInt(ln.loaded_qty)}
+                                                                {ln.unit ? ` ${ln.unit}` : ''}
+                                                            </Typography>
+                                                        </Stack>
+                                                    ))}
+                                                </Stack>
+                                            </Collapse>
                                         </Stack>
                                     </Paper>
                                 );
@@ -1307,6 +1537,114 @@ export default function TripDetail() {
                         </Stack>
                     )}
                 </Paper>
+
+                <Menu
+                    open={Boolean(voucherRowMenu?.anchorEl)}
+                    anchorEl={voucherRowMenu?.anchorEl || null}
+                    onClose={() => setVoucherRowMenu(null)}
+                    anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                    transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                >
+                    <MenuItem
+                        disabled={!canRecordDelivery || !(voucherRowMenu?.row?.remaining_sum > 0.0001)}
+                        onClick={() => {
+                            const r = voucherRowMenu?.row;
+                            setVoucherRowMenu(null);
+                            if (!r) return;
+                            if (!window.confirm(`Confirm delivery for voucher ${r.voucher_no}?`)) return;
+                            router.post(
+                                `${adminAppUrl}/operations/trips/${trip.id}/vouchers/${r.voucher_id}/delivery-confirmations`,
+                                { note: null },
+                                { preserveScroll: true },
+                            );
+                        }}
+                    >
+                        Confirm delivery
+                    </MenuItem>
+                    <MenuItem
+                        disabled={!canLoadCargo}
+                        onClick={() => {
+                            const r = voucherRowMenu?.row;
+                            setVoucherRowMenu(null);
+                            if (!r) return;
+                            setVoucherStopDialog({
+                                row: r,
+                                trip_stop_id: r.stop.mode === 'SINGLE' && r.stop.id != null ? String(r.stop.id) : '',
+                            });
+                        }}
+                    >
+                        Edit stop
+                    </MenuItem>
+                    <MenuItem
+                        disabled={!canLoadCargo}
+                        onClick={() => {
+                            const r = voucherRowMenu?.row;
+                            setVoucherRowMenu(null);
+                            if (!r) return;
+                            if (!window.confirm(`Remove voucher ${r.voucher_no} from the trip?`)) return;
+                            router.delete(`${adminAppUrl}/operations/trips/${trip.id}/vouchers/${r.voucher_id}`, { preserveScroll: true });
+                        }}
+                    >
+                        Remove from trip
+                    </MenuItem>
+                </Menu>
+
+                <Dialog open={Boolean(voucherStopDialog)} onClose={() => setVoucherStopDialog(null)} fullWidth maxWidth="xs">
+                    <DialogTitle>Edit voucher stop</DialogTitle>
+                    <DialogContent>
+                        {voucherStopDialog?.row ? (
+                            <Stack spacing={2} sx={{ mt: 1 }}>
+                                <Typography variant="body2" color="text.secondary">
+                                    {voucherStopDialog.row.voucher_no}
+                                    {voucherStopDialog.row.merchant_name ? ` · ${voucherStopDialog.row.merchant_name}` : ''}
+                                </Typography>
+                                <FormControl fullWidth size="small">
+                                    <InputLabel id="voucher-stop-label">Drop stop</InputLabel>
+                                    <Select
+                                        labelId="voucher-stop-label"
+                                        label="Drop stop"
+                                        value={voucherStopDialog.trip_stop_id}
+                                        onChange={(e) => setVoucherStopDialog((p) => ({ ...p, trip_stop_id: e.target.value }))}
+                                    >
+                                        <MenuItem value="">
+                                            <Typography variant="body2" color="text.secondary">
+                                                Not set
+                                            </Typography>
+                                        </MenuItem>
+                                        {(trip.stops || []).map((s) => (
+                                            <MenuItem key={s.id} value={String(s.id)}>
+                                                Stop {s.stop_order}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                                {voucherStopDialog.row.stop.mode === 'MIXED' ? (
+                                    <Typography variant="caption" color="text.secondary">
+                                        Current stop is mixed across lines. Saving will set one stop for all lines.
+                                    </Typography>
+                                ) : null}
+                            </Stack>
+                        ) : null}
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setVoucherStopDialog(null)}>Cancel</Button>
+                        <Button
+                            variant="contained"
+                            onClick={() => {
+                                const r = voucherStopDialog?.row;
+                                if (!r) return;
+                                const val = voucherStopDialog.trip_stop_id;
+                                router.patch(
+                                    `${adminAppUrl}/operations/trips/${trip.id}/vouchers/${r.voucher_id}/stop`,
+                                    { trip_stop_id: val === '' ? null : Number(val) },
+                                    { preserveScroll: true, onSuccess: () => setVoucherStopDialog(null) },
+                                );
+                            }}
+                        >
+                            Save
+                        </Button>
+                    </DialogActions>
+                </Dialog>
 
                 <Dialog open={Boolean(itemDialog)} onClose={() => !itemDialogSaving && setItemDialog(null)} fullWidth maxWidth="xs">
                     <DialogTitle>Edit cargo</DialogTitle>
@@ -1334,7 +1672,7 @@ export default function TripDetail() {
                                         (typeof errors.loaded_qty === 'string'
                                             ? errors.loaded_qty
                                             : errors.loaded_qty?.[0]) ||
-                                        `Max for this line on this trip: ${maxLoadedQtyForTripItem(itemDialog.row, trip.items || []).toFixed(3)} ${itemDialog.row.voucher_item?.product?.unit ?? itemDialog.row.voucher_item?.unit ?? ''}`
+                                        `Max for this line on this trip: ${formatInt(maxLoadedQtyForTripItem(itemDialog.row, trip.items || []))} ${itemDialog.row.voucher_item?.product?.unit ?? itemDialog.row.voucher_item?.unit ?? ''}`
                                     }
                                 />
                                 <FormControl fullWidth size="small" error={Boolean(errors.trip_stop_id)}>
@@ -1458,7 +1796,7 @@ export default function TripDetail() {
                                 <Typography variant="body2">
                                     Remaining on this cargo line:{' '}
                                     <Box component="span" sx={{ fontWeight: 700 }}>
-                                        {remainingDeliverQty(itemDeliveryDialog.row).toFixed(3)}{' '}
+                                        {formatInt(remainingDeliverQty(itemDeliveryDialog.row))}{' '}
                                         {itemDeliveryDialog.row.voucher_item?.product?.unit ?? itemDeliveryDialog.row.voucher_item?.unit ?? ''}
                                     </Box>
                                 </Typography>
@@ -1614,7 +1952,7 @@ export default function TripDetail() {
                                                         {formatVoucherDestination(vi)}
                                                     </TableCell>
                                                     <TableCell align="right">
-                                                        {rem.toFixed(3)}
+                                                        {formatInt(rem)}
                                                         {unit ? ` ${unit}` : ''}
                                                     </TableCell>
                                                 </TableRow>
@@ -1672,7 +2010,7 @@ export default function TripDetail() {
                                 <br />
                                 Total loaded quantity (sum of lines):{' '}
                                 <Box component="span" sx={{ fontWeight: 700 }}>
-                                    {loadedCargoSummary.totalLoaded.toFixed(3)}
+                                    {formatInt(loadedCargoSummary.totalLoaded)}
                                 </Box>
                             </Typography>
                         </Stack>

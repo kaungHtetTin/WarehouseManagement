@@ -12,7 +12,6 @@ return new class extends Migration
             $table->id();
             $table->foreignId('organization_id')->constrained('organizations')->cascadeOnDelete();
             $table->foreignId('voucher_id')->constrained('vouchers')->cascadeOnDelete();
-            $table->foreignId('voucher_item_id')->nullable()->constrained('voucher_items')->nullOnDelete();
             $table->decimal('amount', 14, 2);
             $table->string('currency', 8)->default('MMK');
             $table->enum('payment_method', ['CASH', 'TRANSFER', 'OTHER']);

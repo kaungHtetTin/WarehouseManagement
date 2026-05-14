@@ -2,9 +2,6 @@ import AdminLayout from '@/Layouts/AdminLayout';
 import axios from 'axios';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
-    Accordion,
-    AccordionDetails,
-    AccordionSummary,
     Alert,
     Autocomplete,
     Box,
@@ -40,7 +37,7 @@ import {
     TextField,
     Typography,
 } from '@mui/material';
-import { DeleteOutlined as DeleteOutlinedIcon, ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
+import { DeleteOutlined as DeleteOutlinedIcon, ExpandLess as ExpandLessIcon, ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const PAYMENT_LABELS = {
@@ -117,34 +114,22 @@ const initialStep1 = () => ({
     source_warehouse_id: '',
     remark: '',
     payment_status: 'UNPAID',
+    total_weight: '',
+    additional_costs: [],
     merchant_id: null,
     merchant: emptyMerchant(),
     default_to_warehouse_id: '',
     default_to_city: '',
     default_to_address_line1: '',
-    default_to_address_line2: '',
-    default_to_township: '',
-    default_to_region: '',
-    default_to_postal_code: '',
     default_recipient_name: '',
     default_recipient_phone: '',
 });
 
-const emptyLineForm = (defaultFromWarehouseId) => ({
+const emptyLineForm = () => ({
     product_id: null,
     product_label: '',
     create_new: false,
     new_product: { name: '', unit: '', sku: '', category_id: '' },
-    from_warehouse_id: defaultFromWarehouseId || '',
-    to_warehouse_id: '',
-    to_city: '',
-    to_address_line1: '',
-    to_address_line2: '',
-    to_township: '',
-    to_region: '',
-    to_postal_code: '',
-    recipient_name: '',
-    recipient_phone: '',
     qty: '1',
     unit: '',
     description: '',
@@ -219,28 +204,6 @@ const destinationMobileLineSx = {
     minWidth: 0,
 };
 
-function destinationFieldsFromStep1(step1) {
-    return {
-        to_warehouse_id: step1.default_to_warehouse_id ? String(step1.default_to_warehouse_id) : '',
-        to_city: step1.default_to_city ?? '',
-        to_address_line1: step1.default_to_address_line1 ?? '',
-        to_address_line2: step1.default_to_address_line2 ?? '',
-        to_township: step1.default_to_township ?? '',
-        to_region: step1.default_to_region ?? '',
-        to_postal_code: step1.default_to_postal_code ?? '',
-        recipient_name: step1.default_recipient_name ?? '',
-        recipient_phone: step1.default_recipient_phone ?? '',
-    };
-}
-
-function buildLineFormForNextLine(step1, fromWarehouseId) {
-    return {
-        ...emptyLineForm(fromWarehouseId),
-        from_warehouse_id: fromWarehouseId || '',
-        ...destinationFieldsFromStep1(step1),
-    };
-}
-
 function formatDefaultDestinationPreview(v) {
     if (!v) return '—';
     return formatLineDestination({
@@ -274,24 +237,14 @@ function WizardLineCard({ item, onRemove }) {
                         </Box>{' '}
                         · {item.qty} {item.unit}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={destinationMobileLineSx}>
-                        <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                            From
-                        </Box>{' '}
-                        · {item.from_warehouse?.code ?? item.from_warehouse?.name ?? '—'}
-                    </Typography>
-                    <Box sx={{ maxWidth: '100%', minWidth: 0 }}>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                            Destination
+                    {item.description ? (
+                        <Typography variant="body2" color="text.secondary" sx={{ ...destinationMobileLineSx, whiteSpace: 'pre-wrap' }}>
+                            <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                                Remark
+                            </Box>{' '}
+                            · {item.description}
                         </Typography>
-                        <Stack spacing={0.5} sx={{ mt: 0.25, maxWidth: '100%', minWidth: 0 }}>
-                            {destinationLinesForMobile(item).map((line, i) => (
-                                <Typography key={i} variant="body2" sx={{ ...destinationMobileLineSx }}>
-                                    {line}
-                                </Typography>
-                            ))}
-                        </Stack>
-                    </Box>
+                    ) : null}
                 </Stack>
             </Stack>
         </Paper>
@@ -314,18 +267,11 @@ function ReviewLineCard({ item, lineNo }) {
                         {item.unit}
                     </Box>
                 </Typography>
-                <Box sx={{ maxWidth: '100%', minWidth: 0 }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        Destination
+                {item.description ? (
+                    <Typography variant="body2" color="text.secondary" sx={{ ...destinationMobileLineSx, whiteSpace: 'pre-wrap' }}>
+                        {item.description}
                     </Typography>
-                    <Stack spacing={0.5} sx={{ mt: 0.25, maxWidth: '100%', minWidth: 0 }}>
-                        {destinationLinesForMobile(item).map((line, i) => (
-                            <Typography key={i} variant="body2" sx={{ ...destinationMobileLineSx, color: 'text.secondary' }}>
-                                {line}
-                            </Typography>
-                        ))}
-                    </Stack>
-                </Box>
+                ) : null}
             </Stack>
         </Paper>
     );
@@ -342,17 +288,13 @@ export default function VoucherWizard() {
     const [pickerOpen, setPickerOpen] = useState(false);
     const [productSearch, setProductSearch] = useState('');
     const [productOptions, setProductOptions] = useState([]);
-    const [lineForm, setLineForm] = useState(() => emptyLineForm(''));
+    const [lineForm, setLineForm] = useState(() => emptyLineForm());
+    const [reviewCostsOpen, setReviewCostsOpen] = useState(false);
     const [freightAmountManual, setFreightAmountManual] = useState(false);
     const [lineError, setLineError] = useState('');
     const [step1Error, setStep1Error] = useState('');
     const [processing, setProcessing] = useState(false);
     const prevTabRef = useRef(-1);
-
-    const defaultFromWh = useMemo(() => {
-        if (voucher?.source_warehouse_id != null) return String(voucher.source_warehouse_id);
-        return step1.source_warehouse_id || '';
-    }, [voucher?.source_warehouse_id, step1.source_warehouse_id]);
 
     const computedFreightAmount = useMemo(() => {
         const qty = parseFloat(lineForm.qty);
@@ -385,12 +327,18 @@ export default function VoucherWizard() {
         const vd = v.voucher_date;
         const dateStr = typeof vd === 'string' ? vd.slice(0, 10) : vd;
         const m = v.merchant || {};
-        const fromWh = String(v.source_warehouse_id ?? '');
         setStep1({
             voucher_date: dateStr || todayStr(),
             source_warehouse_id: v.source_warehouse_id != null ? String(v.source_warehouse_id) : '',
             remark: v.remark ?? '',
             payment_status: v.payment_status ?? 'UNPAID',
+            total_weight: v.total_weight != null && v.total_weight !== '' ? String(v.total_weight) : '',
+            additional_costs: Array.isArray(v.additional_costs)
+                ? v.additional_costs.map((c) => ({
+                      label: c?.label ?? '',
+                      amount: c?.amount != null && c?.amount !== '' ? String(c.amount) : '',
+                  }))
+                : [],
             merchant_id: v.merchant_id ?? null,
             merchant: {
                 name: m.name ?? '',
@@ -401,29 +349,10 @@ export default function VoucherWizard() {
             default_to_warehouse_id: v.default_to_warehouse_id != null ? String(v.default_to_warehouse_id) : '',
             default_to_city: v.default_to_city ?? '',
             default_to_address_line1: v.default_to_address_line1 ?? '',
-            default_to_address_line2: v.default_to_address_line2 ?? '',
-            default_to_township: v.default_to_township ?? '',
-            default_to_region: v.default_to_region ?? '',
-            default_to_postal_code: v.default_to_postal_code ?? '',
             default_recipient_name: v.default_recipient_name ?? '',
             default_recipient_phone: v.default_recipient_phone ?? '',
         });
-        setLineForm(
-            buildLineFormForNextLine(
-                {
-                    default_to_warehouse_id: v.default_to_warehouse_id != null ? String(v.default_to_warehouse_id) : '',
-                    default_to_city: v.default_to_city ?? '',
-                    default_to_address_line1: v.default_to_address_line1 ?? '',
-                    default_to_address_line2: v.default_to_address_line2 ?? '',
-                    default_to_township: v.default_to_township ?? '',
-                    default_to_region: v.default_to_region ?? '',
-                    default_to_postal_code: v.default_to_postal_code ?? '',
-                    default_recipient_name: v.default_recipient_name ?? '',
-                    default_recipient_phone: v.default_recipient_phone ?? '',
-                },
-                fromWh,
-            ),
-        );
+        setLineForm(emptyLineForm());
     }, []);
 
     useEffect(() => {
@@ -433,7 +362,7 @@ export default function VoucherWizard() {
         } else {
             setStep1(initialStep1());
             setTab(0);
-            setLineForm(emptyLineForm(''));
+            setLineForm(emptyLineForm());
             setFreightAmountManual(false);
             setStep1Error('');
         }
@@ -447,42 +376,32 @@ export default function VoucherWizard() {
     }, [voucher?.id]);
 
     useEffect(() => {
-        setLineForm((prev) => ({ ...prev, from_warehouse_id: defaultFromWh || prev.from_warehouse_id }));
-    }, [defaultFromWh]);
-
-    useEffect(() => {
-        const prev = prevTabRef.current;
         prevTabRef.current = tab;
-        if (prev === 0 && tab === 1 && voucher) {
-            setLineForm((p) => ({
-                ...p,
-                ...destinationFieldsFromStep1(step1),
-                from_warehouse_id: defaultFromWh || p.from_warehouse_id,
-            }));
-        }
-    }, [tab, voucher, step1, defaultFromWh]);
+    }, [tab]);
 
     const layoutTitle = voucher?.voucher_no ? `Edit ${voucher.voucher_no}` : 'New voucher';
     const layoutSubtitle = voucher?.voucher_no
         ? 'Same steps as create — changes save when you continue each step.'
         : 'Three steps. Your draft saves when you continue.';
 
+    const additionalCostsTotal = useMemo(() => {
+        let sum = 0;
+        for (const row of step1.additional_costs || []) {
+            const n = Number(row?.amount);
+            if (Number.isFinite(n)) {
+                sum += n;
+            }
+        }
+        return Math.round(sum * 100) / 100;
+    }, [step1.additional_costs]);
+
     const reviewTotalAmount = useMemo(() => {
         if (!voucher) {
             return null;
         }
-        const raw = voucher.total_amount;
-        if (raw != null && raw !== '') {
-            const n = Number(raw);
-            if (Number.isFinite(n)) {
-                return n;
-            }
-        }
-        if (!voucher.items?.length) {
-            return null;
-        }
-        return freightTotalFromItems(voucher.items) ?? 0;
-    }, [voucher?.total_amount, voucher?.items]);
+        const freight = freightTotalFromItems(voucher.items) ?? 0;
+        return Math.round((freight + additionalCostsTotal) * 100) / 100;
+    }, [voucher, additionalCostsTotal]);
 
     const pickMerchant = (row) => {
         setStep1((p) => ({
@@ -557,29 +476,40 @@ export default function VoucherWizard() {
     }, [productSearch, adminAppUrl, canWizard, lineForm.create_new]);
 
     const buildStep1Payload = useCallback(
-        (overrides = {}) => ({
-            voucher_date: step1.voucher_date,
-            source_warehouse_id: Number(step1.source_warehouse_id),
-            remark: step1.remark?.trim() || null,
-            payment_status: step1.payment_status,
-            merchant_id: step1.merchant_id ?? voucher?.merchant_id ?? null,
-            merchant: {
-                name: step1.merchant.name,
-                phone: step1.merchant.phone || null,
-                nrc_or_id: step1.merchant.nrc_or_id || null,
-                address: step1.merchant.address || null,
-            },
-            default_to_warehouse_id: step1.default_to_warehouse_id ? Number(step1.default_to_warehouse_id) : null,
-            default_to_city: step1.default_to_city.trim(),
-            default_to_address_line1: step1.default_to_address_line1.trim(),
-            default_to_address_line2: step1.default_to_address_line2?.trim() || null,
-            default_to_township: step1.default_to_township?.trim() || null,
-            default_to_region: step1.default_to_region?.trim() || null,
-            default_to_postal_code: step1.default_to_postal_code?.trim() || null,
-            default_recipient_name: step1.default_recipient_name?.trim() || null,
-            default_recipient_phone: step1.default_recipient_phone?.trim() || null,
-            ...overrides,
-        }),
+        (overrides = {}) => {
+            const totalWeightRaw = step1.total_weight;
+            const totalWeightNum = totalWeightRaw === '' || totalWeightRaw == null ? null : Number(totalWeightRaw);
+            const total_weight = Number.isFinite(totalWeightNum) ? totalWeightNum : null;
+
+            const additional_costs = (step1.additional_costs || [])
+                .map((r) => ({
+                    label: (r?.label ?? '').trim(),
+                    amount: r?.amount === '' || r?.amount == null ? null : Number(r.amount),
+                }))
+                .filter((r) => r.label !== '' || r.amount != null)
+                .filter((r) => r.label !== '' && r.amount != null && Number.isFinite(r.amount) && r.amount >= 0)
+                .map((r) => ({ ...r, amount: Math.round(r.amount * 100) / 100 }));
+
+            return {
+                voucher_date: step1.voucher_date,
+                source_warehouse_id: Number(step1.source_warehouse_id),
+                total_weight,
+                additional_costs,
+                merchant_id: step1.merchant_id ?? voucher?.merchant_id ?? null,
+                merchant: {
+                    name: step1.merchant.name,
+                    phone: step1.merchant.phone || null,
+                    nrc_or_id: step1.merchant.nrc_or_id || null,
+                    address: step1.merchant.address || null,
+                },
+                default_to_warehouse_id: step1.default_to_warehouse_id ? Number(step1.default_to_warehouse_id) : null,
+                default_to_city: step1.default_to_city.trim(),
+                default_to_address_line1: step1.default_to_address_line1.trim(),
+                default_recipient_name: step1.default_recipient_name?.trim() || null,
+                default_recipient_phone: step1.default_recipient_phone?.trim() || null,
+                ...overrides,
+            };
+        },
         [step1, voucher?.merchant_id],
     );
 
@@ -587,7 +517,7 @@ export default function VoucherWizard() {
         if (!canWizard) return;
         setStep1Error('');
         if (!step1.default_to_address_line1?.trim() || !step1.default_to_city?.trim()) {
-            setStep1Error('Enter the default delivery street / building and city (used for each new line).');
+            setStep1Error('Enter shipping address and city.');
             return;
         }
         setProcessing(true);
@@ -613,11 +543,6 @@ export default function VoucherWizard() {
         }
         if (!lineForm.unit?.trim()) return;
 
-        if (!lineForm.to_address_line1?.trim() || !lineForm.to_city?.trim()) {
-            setLineError('Enter destination street / building and city (required).');
-            return;
-        }
-
         const parseOpt = (v) => {
             if (v === '' || v == null) return null;
             const n = Number.parseFloat(String(v));
@@ -625,22 +550,11 @@ export default function VoucherWizard() {
         };
 
         const base = {
-            from_warehouse_id: Number(lineForm.from_warehouse_id),
-            to_warehouse_id: lineForm.to_warehouse_id ? Number(lineForm.to_warehouse_id) : null,
-            to_city: lineForm.to_city.trim(),
-            to_address_line1: lineForm.to_address_line1.trim(),
-            to_address_line2: lineForm.to_address_line2?.trim() || null,
-            to_township: lineForm.to_township?.trim() || null,
-            to_region: lineForm.to_region?.trim() || null,
-            to_postal_code: lineForm.to_postal_code?.trim() || null,
-            recipient_name: lineForm.recipient_name?.trim() || null,
-            recipient_phone: lineForm.recipient_phone?.trim() || null,
             qty,
             unit: lineForm.unit,
             description: lineForm.description?.trim() || null,
             freight_rate: parseOpt(lineForm.freight_rate),
             freight_amount: parseOpt(lineForm.freight_amount),
-            payment_status: step1.payment_status,
             is_fragile: lineForm.is_fragile,
         };
 
@@ -665,7 +579,7 @@ export default function VoucherWizard() {
                 setProductOptions([]);
                 setLineError('');
                 setFreightAmountManual(false);
-                setLineForm(buildLineFormForNextLine(step1, String(voucher.source_warehouse_id ?? '')));
+                setLineForm(emptyLineForm());
             },
         });
     };
@@ -681,9 +595,33 @@ export default function VoucherWizard() {
         setProcessing(true);
         router.post(
             `${adminAppUrl}/operations/vouchers/${voucher.id}/wizard/finish`,
-            {},
+            {
+                payment_status: step1.payment_status,
+                remark: step1.remark?.trim() || null,
+            },
             { preserveScroll: true, onFinish: () => setProcessing(false) },
         );
+    };
+
+    const addCostRow = () => {
+        setStep1((p) => ({
+            ...p,
+            additional_costs: [...(p.additional_costs || []), { label: '', amount: '' }],
+        }));
+    };
+
+    const removeCostRow = (idx) => {
+        setStep1((p) => ({
+            ...p,
+            additional_costs: (p.additional_costs || []).filter((_, i) => i !== idx),
+        }));
+    };
+
+    const updateCostRow = (idx, patch) => {
+        setStep1((p) => ({
+            ...p,
+            additional_costs: (p.additional_costs || []).map((r, i) => (i === idx ? { ...r, ...patch } : r)),
+        }));
     };
 
     const tabDisabled = (idx) => {
@@ -783,22 +721,6 @@ export default function VoucherWizard() {
                                                 ))}
                                             </Select>
                                         </FormControl>
-                                        <FormControl fullWidth size="small" sx={{ width: { xs: '100%', sm: 200 } }}>
-                                            <InputLabel id="pay-label">Payment</InputLabel>
-                                            <Select
-                                                labelId="pay-label"
-                                                label="Payment"
-                                                value={step1.payment_status}
-                                                onChange={(e) => setStep1((p) => ({ ...p, payment_status: e.target.value }))}
-                                            >
-                                                {Object.entries(PAYMENT_LABELS).map(([value, label]) => (
-                                                    <MenuItem key={value} value={value}>
-                                                        {label}
-                                                    </MenuItem>
-                                                ))}
-                                            </Select>
-                                            <FormHelperText sx={{ mx: 0, mt: 0.5 }}>Voucher payment status</FormHelperText>
-                                        </FormControl>
                                     </Stack>
                                 </WizardSection>
 
@@ -854,7 +776,7 @@ export default function VoucherWizard() {
 
                                 <WizardSection title="Default delivery destination">
                                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: 640 }}>
-                                        Required for this voucher. Tab 2 prefills each new line with this address; change there only when a line goes somewhere else.
+                                        Required for this voucher.
                                     </Typography>
                                     <Stack spacing={2}>
                                         <FormControl fullWidth size="small">
@@ -888,26 +810,7 @@ export default function VoucherWizard() {
                                             onChange={(e) => setStep1((p) => ({ ...p, default_to_address_line1: e.target.value }))}
                                             placeholder="No., street, ward, landmark… (multiple lines OK)"
                                         />
-                                        <TextField
-                                            label="Address line 2 (optional)"
-                                            size="small"
-                                            fullWidth
-                                            multiline
-                                            minRows={2}
-                                            maxRows={8}
-                                            inputProps={{ maxLength: 500 }}
-                                            value={step1.default_to_address_line2}
-                                            onChange={(e) => setStep1((p) => ({ ...p, default_to_address_line2: e.target.value }))}
-                                            placeholder="Floor, unit, extra directions…"
-                                        />
                                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                                            <TextField
-                                                label="Township / district"
-                                                size="small"
-                                                fullWidth
-                                                value={step1.default_to_township}
-                                                onChange={(e) => setStep1((p) => ({ ...p, default_to_township: e.target.value }))}
-                                            />
                                             <TextField
                                                 label="City / town (required)"
                                                 size="small"
@@ -919,31 +822,14 @@ export default function VoucherWizard() {
                                         </Stack>
                                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                                             <TextField
-                                                label="Region / state"
-                                                size="small"
-                                                fullWidth
-                                                value={step1.default_to_region}
-                                                onChange={(e) => setStep1((p) => ({ ...p, default_to_region: e.target.value }))}
-                                            />
-                                            <TextField
-                                                label="Postal code"
-                                                size="small"
-                                                fullWidth
-                                                sx={{ maxWidth: { sm: 200 } }}
-                                                value={step1.default_to_postal_code}
-                                                onChange={(e) => setStep1((p) => ({ ...p, default_to_postal_code: e.target.value }))}
-                                            />
-                                        </Stack>
-                                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                                            <TextField
-                                                label="Recipient name (optional)"
+                                                label="Recipient name"
                                                 size="small"
                                                 fullWidth
                                                 value={step1.default_recipient_name}
                                                 onChange={(e) => setStep1((p) => ({ ...p, default_recipient_name: e.target.value }))}
                                             />
                                             <TextField
-                                                label="Recipient phone (optional)"
+                                                label="Recipient phone"
                                                 size="small"
                                                 fullWidth
                                                 value={step1.default_recipient_phone}
@@ -953,16 +839,85 @@ export default function VoucherWizard() {
                                     </Stack>
                                 </WizardSection>
 
-                                <WizardSection title="Notes">
-                                    <TextField
-                                        label="Remark"
-                                        size="small"
-                                        fullWidth
-                                        multiline
-                                        minRows={2}
-                                        value={step1.remark}
-                                        onChange={(e) => setStep1((p) => ({ ...p, remark: e.target.value }))}
-                                    />
+                                <WizardSection title="Weight & additional costs">
+                                    <Stack spacing={2}>
+                                        <TextField
+                                            size="small"
+                                            label="Voucher weight"
+                                            type="number"
+                                            inputProps={{ step: '0.001', min: '0' }}
+                                            sx={{ width: { xs: '100%', sm: 220 } }}
+                                            value={step1.total_weight}
+                                            onChange={(e) => setStep1((p) => ({ ...p, total_weight: e.target.value }))}
+                                            helperText="Optional (manual)."
+                                        />
+
+                                        <Divider />
+
+                                        <Stack spacing={1.25}>
+                                            <Stack
+                                                direction="row"
+                                                alignItems="center"
+                                                justifyContent="flex-start"
+                                                flexWrap="nowrap"
+                                                gap={1}
+                                                sx={{ width: '100%', overflowX: 'auto' }}
+                                            >
+                                                <Typography variant="subtitle2" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                                    Additional costs
+                                                </Typography>
+                                                <Button variant="outlined" size="small" onClick={addCostRow} sx={{ ml: 'auto', flexShrink: 0 }}>
+                                                    Add cost
+                                                </Button>
+                                            </Stack>
+
+                                            {(step1.additional_costs || []).length === 0 ? (
+                                                <Typography variant="body2" color="text.secondary">
+                                                    No additional costs.
+                                                </Typography>
+                                            ) : (
+                                                <Stack spacing={1}>
+                                                    {(step1.additional_costs || []).map((row, idx) => (
+                                                        <Box
+                                                            key={idx}
+                                                            sx={{
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: 1,
+                                                                flexWrap: 'nowrap',
+                                                                overflowX: 'auto',
+                                                                py: 0.25,
+                                                            }}
+                                                        >
+                                                            <TextField
+                                                                size="small"
+                                                                label="Label"
+                                                                sx={{ flex: 1, minWidth: 180 }}
+                                                                value={row.label}
+                                                                onChange={(e) => updateCostRow(idx, { label: e.target.value })}
+                                                            />
+                                                            <TextField
+                                                                size="small"
+                                                                label="Amount"
+                                                                type="number"
+                                                                inputProps={{ step: '0.01', min: '0' }}
+                                                                sx={{ width: 140, flexShrink: 0 }}
+                                                                value={row.amount}
+                                                                onChange={(e) => updateCostRow(idx, { amount: e.target.value })}
+                                                            />
+                                                            <IconButton size="small" color="error" aria-label="Remove cost" onClick={() => removeCostRow(idx)}>
+                                                                <DeleteOutlinedIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </Box>
+                                                    ))}
+                                                </Stack>
+                                            )}
+
+                                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                                Additional costs total: {formatMoneyAmount(additionalCostsTotal)}
+                                            </Typography>
+                                        </Stack>
+                                    </Stack>
                                 </WizardSection>
 
                                 <Divider />
@@ -986,43 +941,7 @@ export default function VoucherWizard() {
                                         Draft
                                     </Typography>
                                     <Chip size="small" label={voucher.voucher_no} variant="outlined" sx={{ fontWeight: 600 }} />
-                                    <Chip size="small" label={PAYMENT_LABELS[voucher.payment_status] ?? voucher.payment_status} variant="outlined" />
                                 </Stack>
-
-                                <Alert severity="info" sx={{ py: 0.75 }}>
-                                    <Typography variant="body2">
-                                        Delivery fields below use the <strong>default address from Details</strong>. Edit them only when this line ships elsewhere.
-                                    </Typography>
-                                </Alert>
-
-                                <WizardSection title="Payment">
-                                    <FormControl fullWidth size="small" sx={{ maxWidth: { sm: 360 } }}>
-                                        <InputLabel id="pay-label-lines">Payment status</InputLabel>
-                                        <Select
-                                            labelId="pay-label-lines"
-                                            label="Payment status"
-                                            value={step1.payment_status}
-                                            onChange={(e) => {
-                                                const payment_status = e.target.value;
-                                                setStep1((p) => ({ ...p, payment_status }));
-                                                router.patch(
-                                                    `${adminAppUrl}/operations/vouchers/${voucher.id}/wizard/step1`,
-                                                    buildStep1Payload({ payment_status }),
-                                                    { preserveScroll: true },
-                                                );
-                                            }}
-                                        >
-                                            {Object.entries(PAYMENT_LABELS).map(([value, label]) => (
-                                                <MenuItem key={value} value={value}>
-                                                    {label}
-                                                </MenuItem>
-                                            ))}
-                                        </Select>
-                                        <FormHelperText sx={{ mx: 0, mt: 0.5 }}>
-                                            One choice for this voucher; saved immediately. New lines use this status.
-                                        </FormHelperText>
-                                    </FormControl>
-                                </WizardSection>
 
                                 <Paper
                                     variant="outlined"
@@ -1153,183 +1072,12 @@ export default function VoucherWizard() {
                                             </Stack>
                                         )}
 
-                                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                                            <FormControl fullWidth size="small" sx={{ flex: 1 }}>
-                                                <InputLabel id="from-wh">From warehouse</InputLabel>
-                                                <Select
-                                                    labelId="from-wh"
-                                                    label="From warehouse"
-                                                    value={lineForm.from_warehouse_id}
-                                                    onChange={(e) => setLineForm((p) => ({ ...p, from_warehouse_id: e.target.value }))}
-                                                >
-                                                    {warehouses.map((w) => (
-                                                        <MenuItem key={w.id} value={String(w.id)}>
-                                                            {w.code} · {w.name}
-                                                        </MenuItem>
-                                                    ))}
-                                                </Select>
-                                            </FormControl>
-                                            <FormControl fullWidth size="small" sx={{ flex: 1 }}>
-                                                <InputLabel id="to-wh">To warehouse</InputLabel>
-                                                <Select
-                                                    labelId="to-wh"
-                                                    label="To warehouse"
-                                                    value={lineForm.to_warehouse_id}
-                                                    onChange={(e) => setLineForm((p) => ({ ...p, to_warehouse_id: e.target.value }))}
-                                                >
-                                                    <MenuItem value="">
-                                                        <em>—</em>
-                                                    </MenuItem>
-                                                    {warehouses.map((w) => (
-                                                        <MenuItem key={w.id} value={String(w.id)}>
-                                                            {w.code}
-                                                        </MenuItem>
-                                                    ))}
-                                                </Select>
-                                            </FormControl>
-                                        </Stack>
-
                                         {lineError ? (
                                             <Alert severity="warning" sx={{ py: 0.5 }} onClose={() => setLineError('')}>
                                                 {lineError}
                                             </Alert>
                                         ) : null}
 
-                                        <Accordion
-                                            defaultExpanded={false}
-                                            disableGutters
-                                            elevation={0}
-                                            sx={{
-                                                border: 1,
-                                                borderColor: 'divider',
-                                                borderRadius: 2,
-                                                '&:before': { display: 'none' },
-                                                overflow: 'hidden',
-                                            }}
-                                        >
-                                            <AccordionSummary
-                                                expandIcon={<ExpandMoreIcon />}
-                                                sx={{
-                                                    px: 2,
-                                                    py: 1,
-                                                    minHeight: 56,
-                                                    alignItems: 'flex-start',
-                                                    '& .MuiAccordionSummary-content': {
-                                                        my: 0.5,
-                                                        flexDirection: 'column',
-                                                        alignItems: 'stretch',
-                                                        gap: 0.75,
-                                                        overflow: 'hidden',
-                                                        width: '100%',
-                                                        maxWidth: '100%',
-                                                    },
-                                                    '& .MuiAccordionSummary-expandIconWrapper': {
-                                                        alignSelf: 'flex-start',
-                                                        pt: 0.25,
-                                                    },
-                                                }}
-                                            >
-                                                <Typography
-                                                    variant="caption"
-                                                    color="text.secondary"
-                                                    sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}
-                                                >
-                                                    Delivery destination
-                                                </Typography>
-                                                <Typography
-                                                    variant="body2"
-                                                    color="text.secondary"
-                                                    sx={{
-                                                        whiteSpace: 'pre-wrap',
-                                                        overflowWrap: 'anywhere',
-                                                        wordBreak: 'break-word',
-                                                        maxWidth: '100%',
-                                                        lineHeight: 1.45,
-                                                    }}
-                                                >
-                                                    {destinationLinesForMobile(lineForm).join('\n')}
-                                                </Typography>
-                                            </AccordionSummary>
-                                            <AccordionDetails sx={{ px: 2, pt: 0, pb: 2 }}>
-                                                <Stack spacing={2}>
-                                                    <TextField
-                                                        label="Street / building (required)"
-                                                        size="small"
-                                                        fullWidth
-                                                        required
-                                                        multiline
-                                                        minRows={2}
-                                                        maxRows={8}
-                                                        inputProps={{ maxLength: 500 }}
-                                                        value={lineForm.to_address_line1}
-                                                        onChange={(e) => setLineForm((p) => ({ ...p, to_address_line1: e.target.value }))}
-                                                        placeholder="No., street, ward, landmark… (multiple lines OK)"
-                                                    />
-                                                    <TextField
-                                                        label="Address line 2 (optional)"
-                                                        size="small"
-                                                        fullWidth
-                                                        multiline
-                                                        minRows={2}
-                                                        maxRows={8}
-                                                        inputProps={{ maxLength: 500 }}
-                                                        value={lineForm.to_address_line2}
-                                                        onChange={(e) => setLineForm((p) => ({ ...p, to_address_line2: e.target.value }))}
-                                                        placeholder="Floor, unit, extra directions…"
-                                                    />
-                                                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                                                        <TextField
-                                                            label="Township / district"
-                                                            size="small"
-                                                            fullWidth
-                                                            value={lineForm.to_township}
-                                                            onChange={(e) => setLineForm((p) => ({ ...p, to_township: e.target.value }))}
-                                                        />
-                                                        <TextField
-                                                            label="City / town (required)"
-                                                            size="small"
-                                                            fullWidth
-                                                            required
-                                                            value={lineForm.to_city}
-                                                            onChange={(e) => setLineForm((p) => ({ ...p, to_city: e.target.value }))}
-                                                        />
-                                                    </Stack>
-                                                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                                                        <TextField
-                                                            label="Region / state"
-                                                            size="small"
-                                                            fullWidth
-                                                            value={lineForm.to_region}
-                                                            onChange={(e) => setLineForm((p) => ({ ...p, to_region: e.target.value }))}
-                                                        />
-                                                        <TextField
-                                                            label="Postal code"
-                                                            size="small"
-                                                            fullWidth
-                                                            sx={{ maxWidth: { sm: 200 } }}
-                                                            value={lineForm.to_postal_code}
-                                                            onChange={(e) => setLineForm((p) => ({ ...p, to_postal_code: e.target.value }))}
-                                                        />
-                                                    </Stack>
-                                                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                                                        <TextField
-                                                            label="Recipient name"
-                                                            size="small"
-                                                            fullWidth
-                                                            value={lineForm.recipient_name}
-                                                            onChange={(e) => setLineForm((p) => ({ ...p, recipient_name: e.target.value }))}
-                                                        />
-                                                        <TextField
-                                                            label="Recipient phone"
-                                                            size="small"
-                                                            fullWidth
-                                                            value={lineForm.recipient_phone}
-                                                            onChange={(e) => setLineForm((p) => ({ ...p, recipient_phone: e.target.value }))}
-                                                        />
-                                                    </Stack>
-                                                </Stack>
-                                            </AccordionDetails>
-                                        </Accordion>
                                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                                             <TextField
                                                 label="Qty"
@@ -1347,13 +1095,6 @@ export default function VoucherWizard() {
                                                 onChange={(e) => setLineForm((p) => ({ ...p, unit: e.target.value }))}
                                             />
                                         </Stack>
-                                        <TextField
-                                            label="Description"
-                                            size="small"
-                                            fullWidth
-                                            value={lineForm.description}
-                                            onChange={(e) => setLineForm((p) => ({ ...p, description: e.target.value }))}
-                                        />
                                         <Stack spacing={0.75}>
                                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                                                 <TextField
@@ -1396,6 +1137,15 @@ export default function VoucherWizard() {
                                                 ) : null}
                                             </Stack>
                                         </Stack>
+                                        <TextField
+                                            label="Remark"
+                                            size="small"
+                                            fullWidth
+                                            multiline
+                                            minRows={2}
+                                            value={lineForm.description}
+                                            onChange={(e) => setLineForm((p) => ({ ...p, description: e.target.value }))}
+                                        />
                                         <FormControlLabel
                                             control={
                                                 <Checkbox
@@ -1424,26 +1174,28 @@ export default function VoucherWizard() {
                                             <Table size="small" sx={{ minWidth: 520 }}>
                                                 <TableHead>
                                                     <TableRow sx={{ bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>
+                                                        <TableCell width={48}>No</TableCell>
                                                         <TableCell>Product</TableCell>
                                                         <TableCell>Qty</TableCell>
-                                                        <TableCell sx={{ minWidth: 200, maxWidth: 280 }}>Destination</TableCell>
-                                                        <TableCell>From</TableCell>
+                                                        <TableCell>Unit</TableCell>
+                                                        <TableCell>Remark</TableCell>
                                                         <TableCell align="right" width={56} />
                                                     </TableRow>
                                                 </TableHead>
                                                 <TableBody>
-                                                    {(voucher.items || []).map((it) => (
+                                                    {(voucher.items || []).map((it, idx) => (
                                                         <TableRow key={it.id} hover>
+                                                            <TableCell>{idx + 1}</TableCell>
                                                             <TableCell sx={{ fontWeight: 500 }}>{it.product?.name ?? '—'}</TableCell>
                                                             <TableCell>
-                                                                {it.qty} {it.unit}
+                                                                {it.qty}
                                                             </TableCell>
+                                                            <TableCell>{it.unit}</TableCell>
                                                             <TableCell>
-                                                                <Typography variant="body2" noWrap title={formatLineDestination(it)}>
-                                                                    {formatLineDestination(it)}
+                                                                <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                                                    {it.description || '—'}
                                                                 </Typography>
                                                             </TableCell>
-                                                            <TableCell>{it.from_warehouse?.code ?? it.from_warehouse?.name ?? '—'}</TableCell>
                                                             <TableCell align="right">
                                                                 <IconButton size="small" color="error" aria-label="Remove line" onClick={() => removeLine(it)}>
                                                                     <DeleteOutlinedIcon fontSize="small" />
@@ -1453,7 +1205,7 @@ export default function VoucherWizard() {
                                                     ))}
                                                     {(!voucher.items || voucher.items.length === 0) && (
                                                         <TableRow>
-                                                            <TableCell colSpan={5}>
+                                                            <TableCell colSpan={6}>
                                                                 <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
                                                                     No lines yet.
                                                                 </Typography>
@@ -1498,72 +1250,255 @@ export default function VoucherWizard() {
                                 </Typography>
                                 <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
                                     <Stack spacing={2.5}>
-                                        <Box sx={{ width: '100%', minWidth: 0 }}>
-                                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                                                Voucher
-                                            </Typography>
-                                            <Typography
-                                                variant="body2"
-                                                sx={{
-                                                    fontWeight: 600,
-                                                    mt: 0.25,
-                                                    wordBreak: 'break-all',
-                                                    overflowWrap: 'anywhere',
-                                                    lineHeight: 1.45,
-                                                }}
-                                            >
-                                                {voucher.voucher_no ?? '—'}
-                                            </Typography>
-                                        </Box>
-                                        <Stack direction="row" flexWrap="wrap" sx={{ gap: 2.5 }}>
-                                            <PreviewField
-                                                label="Date"
-                                                value={
-                                                    typeof voucher.voucher_date === 'string'
-                                                        ? voucher.voucher_date.slice(0, 10)
-                                                        : voucher.voucher_date
-                                                }
-                                            />
-                                            <PreviewField label="Warehouse" value={voucher.source_warehouse?.name} />
-                                            <PreviewField label="Payment" value={PAYMENT_LABELS[voucher.payment_status] ?? voucher.payment_status} />
-                                            <PreviewField label="Total amount" value={formatMoneyAmount(reviewTotalAmount)} />
-                                        </Stack>
+                                        <WizardSection title="Voucher basic info">
+                                            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+                                                <Table size="small">
+                                                    <TableBody>
+                                                        <TableRow hover>
+                                                            <TableCell width={180} sx={{ color: 'text.secondary' }}>
+                                                                Voucher
+                                                            </TableCell>
+                                                            <TableCell sx={{ fontWeight: 700, wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
+                                                                {voucher.voucher_no ?? '—'}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                        <TableRow hover>
+                                                            <TableCell width={180} sx={{ color: 'text.secondary' }}>
+                                                                Date
+                                                            </TableCell>
+                                                            <TableCell sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
+                                                                {typeof voucher.voucher_date === 'string'
+                                                                    ? voucher.voucher_date.slice(0, 10)
+                                                                    : voucher.voucher_date || '—'}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                        <TableRow hover>
+                                                            <TableCell width={180} sx={{ color: 'text.secondary' }}>
+                                                                Warehouse
+                                                            </TableCell>
+                                                            <TableCell sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
+                                                                {voucher.source_warehouse?.name || '—'}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                        <TableRow hover>
+                                                            <TableCell width={180} sx={{ color: 'text.secondary' }}>
+                                                                Weight
+                                                            </TableCell>
+                                                            <TableCell sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
+                                                                {step1.total_weight !== '' ? step1.total_weight : voucher.total_weight || '—'}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                        <TableRow hover>
+                                                            <TableCell width={180} sx={{ color: 'text.secondary' }}>
+                                                                Total amount
+                                                            </TableCell>
+                                                            <TableCell sx={{ fontWeight: 600 }}>{formatMoneyAmount(reviewTotalAmount)}</TableCell>
+                                                        </TableRow>
+                                                    </TableBody>
+                                                </Table>
+                                            </TableContainer>
+                                        </WizardSection>
+
                                         <Divider />
-                                        <Stack direction="row" flexWrap="wrap" sx={{ gap: 2.5 }}>
-                                            <PreviewField label="Merchant" value={voucher.merchant?.name} />
-                                            <PreviewField label="Phone" value={voucher.merchant?.phone} />
-                                            <PreviewField label="Address" value={voucher.merchant?.address} />
-                                        </Stack>
+
+                                        <WizardSection title="Merchant">
+                                            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+                                                <Table size="small">
+                                                    <TableBody>
+                                                        <TableRow hover>
+                                                            <TableCell width={180} sx={{ color: 'text.secondary' }}>
+                                                                Name
+                                                            </TableCell>
+                                                            <TableCell sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
+                                                                {voucher.merchant?.name || '—'}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                        <TableRow hover>
+                                                            <TableCell width={180} sx={{ color: 'text.secondary' }}>
+                                                                Phone
+                                                            </TableCell>
+                                                            <TableCell sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
+                                                                {voucher.merchant?.phone || '—'}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                        <TableRow hover>
+                                                            <TableCell width={180} sx={{ color: 'text.secondary' }}>
+                                                                Address
+                                                            </TableCell>
+                                                            <TableCell sx={{ fontWeight: 600, wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                                                                {voucher.merchant?.address || '—'}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    </TableBody>
+                                                </Table>
+                                            </TableContainer>
+                                        </WizardSection>
+
                                         <Divider />
-                                        <Stack direction="row" flexWrap="wrap" sx={{ gap: 2.5 }}>
-                                            <PreviewField label="Default delivery (lines)" value={formatDefaultDestinationPreview(voucher)} />
-                                            <PreviewField
-                                                label="Default to warehouse"
-                                                value={
-                                                    voucher.default_to_warehouse_id
-                                                        ? warehouses.find((w) => Number(w.id) === Number(voucher.default_to_warehouse_id))?.code ?? '—'
-                                                        : '—'
-                                                }
-                                            />
-                                        </Stack>
-                                        {voucher.remark ? (
-                                            <>
-                                                <Divider />
-                                                <PreviewField label="Remark" value={voucher.remark} />
-                                            </>
-                                        ) : null}
+
+                                        <WizardSection title="Deliver">
+                                            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+                                                <Table size="small">
+                                                    <TableBody>
+                                                        <TableRow hover>
+                                                            <TableCell width={180} sx={{ color: 'text.secondary' }}>
+                                                                To warehouse
+                                                            </TableCell>
+                                                            <TableCell sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
+                                                                {voucher.default_to_warehouse_id
+                                                                    ? warehouses.find((w) => Number(w.id) === Number(voucher.default_to_warehouse_id))?.name ??
+                                                                      warehouses.find((w) => Number(w.id) === Number(voucher.default_to_warehouse_id))?.code ??
+                                                                      '—'
+                                                                    : '—'}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                        <TableRow hover>
+                                                            <TableCell width={180} sx={{ color: 'text.secondary' }}>
+                                                                Shipping address
+                                                            </TableCell>
+                                                            <TableCell sx={{ fontWeight: 600, wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                                                                {[voucher.default_to_address_line1, voucher.default_to_city].filter(Boolean).join(' · ') || '—'}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                        <TableRow hover>
+                                                            <TableCell width={180} sx={{ color: 'text.secondary' }}>
+                                                                Recipient name
+                                                            </TableCell>
+                                                            <TableCell sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
+                                                                {voucher.default_recipient_name || '—'}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                        <TableRow hover>
+                                                            <TableCell width={180} sx={{ color: 'text.secondary' }}>
+                                                                Recipient phone
+                                                            </TableCell>
+                                                            <TableCell sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
+                                                                {voucher.default_recipient_phone || '—'}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    </TableBody>
+                                                </Table>
+                                            </TableContainer>
+                                        </WizardSection>
+
+                                        <Divider />
+
+                                        <WizardSection title="Payment">
+                                            <Stack spacing={2}>
+                                                <FormControl fullWidth size="small" sx={{ maxWidth: { sm: 360 } }}>
+                                                    <InputLabel id="pay-label-review">Payment status</InputLabel>
+                                                    <Select
+                                                        labelId="pay-label-review"
+                                                        label="Payment status"
+                                                        value={step1.payment_status}
+                                                        onChange={(e) => setStep1((p) => ({ ...p, payment_status: e.target.value }))}
+                                                    >
+                                                        {Object.entries(PAYMENT_LABELS).map(([value, label]) => (
+                                                            <MenuItem key={value} value={value}>
+                                                                {label}
+                                                            </MenuItem>
+                                                        ))}
+                                                    </Select>
+                                                </FormControl>
+
+                                                <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+                                                    <Table size="small">
+                                                        <TableHead>
+                                                            <TableRow
+                                                                sx={{
+                                                                    bgcolor: (theme) =>
+                                                                        theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50',
+                                                                }}
+                                                            >
+                                                                <TableCell width={200}>Title</TableCell>
+                                                                <TableCell>Cost</TableCell>
+                                                            </TableRow>
+                                                        </TableHead>
+                                                        <TableBody>
+                                                            <TableRow hover>
+                                                                <TableCell>
+                                                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                                        Main
+                                                                    </Typography>
+                                                                    <Typography variant="caption" color="text.secondary">
+                                                                        Freight cost for all line
+                                                                    </Typography>
+                                                                </TableCell>
+                                                                <TableCell>{formatMoneyAmount(freightTotalFromItems(voucher.items) ?? 0)}</TableCell>
+                                                            </TableRow>
+                                                            <TableRow hover>
+                                                                <TableCell>
+                                                                    <Stack direction="row" alignItems="center" spacing={0.5}>
+                                                                        <IconButton
+                                                                            size="small"
+                                                                            onClick={() => setReviewCostsOpen((p) => !p)}
+                                                                            aria-label={reviewCostsOpen ? 'Collapse additional costs' : 'Expand additional costs'}
+                                                                        >
+                                                                            {reviewCostsOpen ? (
+                                                                                <ExpandLessIcon fontSize="small" />
+                                                                            ) : (
+                                                                                <ExpandMoreIcon fontSize="small" />
+                                                                            )}
+                                                                        </IconButton>
+                                                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                                            Additional
+                                                                        </Typography>
+                                                                    </Stack>
+                                                                </TableCell>
+                                                                <TableCell>{formatMoneyAmount(additionalCostsTotal)}</TableCell>
+                                                            </TableRow>
+                                                            {reviewCostsOpen && (step1.additional_costs || []).length > 0 ? (
+                                                                <TableRow>
+                                                                    <TableCell colSpan={2} sx={{ py: 1.25 }}>
+                                                                        <Table size="small" sx={{ minWidth: 360 }}>
+                                                                            <TableBody>
+                                                                                {(step1.additional_costs || []).map((c, idx) => (
+                                                                                    <TableRow key={idx} hover>
+                                                                                        <TableCell sx={{ borderBottom: 0, color: 'text.secondary' }}>
+                                                                                            {c.label || '—'}
+                                                                                        </TableCell>
+                                                                                        <TableCell sx={{ borderBottom: 0 }}>
+                                                                                            {formatMoneyAmount(c.amount)}
+                                                                                        </TableCell>
+                                                                                    </TableRow>
+                                                                                ))}
+                                                                            </TableBody>
+                                                                        </Table>
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            ) : null}
+                                                            <TableRow hover>
+                                                                <TableCell sx={{ fontWeight: 700 }}>Total</TableCell>
+                                                                <TableCell sx={{ fontWeight: 700 }}>{formatMoneyAmount(reviewTotalAmount)}</TableCell>
+                                                            </TableRow>
+                                                        </TableBody>
+                                                    </Table>
+                                                </TableContainer>
+
+                                                <TextField
+                                                    label="Remark"
+                                                    size="small"
+                                                    fullWidth
+                                                    multiline
+                                                    minRows={2}
+                                                    value={step1.remark}
+                                                    onChange={(e) => setStep1((p) => ({ ...p, remark: e.target.value }))}
+                                                />
+                                            </Stack>
+                                        </WizardSection>
                                     </Stack>
                                 </Paper>
+
                                 <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
                                     <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, maxWidth: '100%' }}>
                                         <Table size="small" sx={{ minWidth: 480 }}>
                                             <TableHead>
                                                 <TableRow sx={{ bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>
-                                                    <TableCell width={48}>#</TableCell>
+                                                    <TableCell width={48}>No</TableCell>
                                                     <TableCell>Product</TableCell>
                                                     <TableCell>Qty</TableCell>
                                                     <TableCell>Unit</TableCell>
-                                                    <TableCell sx={{ minWidth: 220 }}>Destination</TableCell>
+                                                    <TableCell>Remark</TableCell>
                                                 </TableRow>
                                             </TableHead>
                                             <TableBody>
@@ -1574,8 +1509,8 @@ export default function VoucherWizard() {
                                                         <TableCell>{it.qty}</TableCell>
                                                         <TableCell>{it.unit}</TableCell>
                                                         <TableCell>
-                                                            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                                                                {formatLineDestination(it)}
+                                                            <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                                                {it.description || '—'}
                                                             </Typography>
                                                         </TableCell>
                                                     </TableRow>

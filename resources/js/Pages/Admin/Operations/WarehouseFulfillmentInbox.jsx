@@ -1,15 +1,20 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { ExpandLessOutlined as ExpandLessIcon, ExpandMoreOutlined as ExpandMoreIcon } from '@mui/icons-material';
 import {
     Alert,
     Box,
     Button,
     Chip,
+    Collapse,
     Dialog,
     DialogActions,
     DialogContent,
     DialogTitle,
+    Divider,
     FormControl,
+    Grid,
+    IconButton,
     InputLabel,
     MenuItem,
     Paper,
@@ -26,10 +31,57 @@ import {
     useMediaQuery,
     useTheme,
 } from '@mui/material';
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 
 function remainingQty(row) {
     return Math.max(0, Number(row.qty_received ?? 0) - Number(row.qty_dispatched ?? 0));
+}
+
+function formatInt(value) {
+    if (value == null || value === '') {
+        return '—';
+    }
+    const n = Number(value);
+    if (!Number.isFinite(n)) {
+        return '—';
+    }
+    return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(Math.round(n));
+}
+
+function buildShippingInfo(v) {
+    if (!v) {
+        return { recipient: '—', address: '—', full: '—' };
+    }
+
+    const recipientBits = [];
+    if (v.default_recipient_name) {
+        recipientBits.push(v.default_recipient_name);
+    }
+    if (v.default_recipient_phone) {
+        recipientBits.push(v.default_recipient_phone);
+    }
+    const recipient = recipientBits.length ? recipientBits.join(' · ') : '—';
+
+    const addrBits = [];
+    const wh = v.default_to_warehouse;
+    if (wh?.name) {
+        addrBits.push(wh.name);
+    }
+    const addrParts = [
+        v.default_to_address_line1,
+        v.default_to_address_line2,
+        v.default_to_township,
+        v.default_to_city,
+        v.default_to_region,
+        v.default_to_postal_code,
+    ].filter((x) => x != null && String(x).trim() !== '');
+    if (addrParts.length) {
+        addrBits.push(addrParts.join(', '));
+    }
+    const address = addrBits.length ? addrBits.join(' · ') : '—';
+
+    const full = [recipient !== '—' ? recipient : null, address !== '—' ? address : null].filter(Boolean).join(' — ') || '—';
+    return { recipient, address, full };
 }
 
 export default function WarehouseFulfillmentInbox() {
@@ -44,22 +96,111 @@ export default function WarehouseFulfillmentInbox() {
     const theme = useTheme();
     const isMdUp = useMediaQuery(theme.breakpoints.up('md'));
     const [dialog, setDialog] = useState(null);
+    const [expanded, setExpanded] = useState(() => ({}));
+    const [paymentDialog, setPaymentDialog] = useState(null);
+
     const form = useForm({
         action_type: 'OWNER_PICKUP',
-        qty: '',
         next_warehouse_id: '',
         note: '',
     });
 
-    const openDialog = (row) => {
+    const paymentForm = useForm({
+        amount: '',
+        currency: 'MMK',
+        payment_method: 'CASH',
+        paid_at: '',
+        reference_no: '',
+        note: '',
+    });
+
+    const voucherGroups = useMemo(() => {
+        const m = new Map();
+        for (const row of instructions) {
+            const whId = Number(row.warehouse_id ?? row.warehouse?.id ?? 0);
+            const voucher = row.voucher_item?.voucher;
+            const voucherId = Number(voucher?.id ?? 0);
+            if (!whId || !voucherId) continue;
+
+            const key = `${whId}:${voucherId}`;
+            if (!m.has(key)) {
+                const ship = buildShippingInfo(voucher);
+                m.set(key, {
+                    key,
+                    warehouse_id: whId,
+                    warehouse: row.warehouse ?? null,
+                    voucher_id: voucherId,
+                    voucher_no: voucher?.voucher_no ?? '—',
+                    payment_status: voucher?.payment_status ?? 'UNPAID',
+                    merchant_name: row.merchant?.name ?? '—',
+                    trip: row.trip_item?.trip ?? null,
+                    rows: [],
+                    shipping: ship,
+                    remaining_total: 0,
+                    line_count: 0,
+                });
+            }
+            const g = m.get(key);
+            g.rows.push(row);
+            const rem = remainingQty(row);
+            g.remaining_total += rem;
+            g.line_count += 1;
+        }
+        const out = Array.from(m.values());
+        out.sort((a, b) => {
+            const wa = a.warehouse?.code ?? '';
+            const wb = b.warehouse?.code ?? '';
+            if (wa !== wb) return wa.localeCompare(wb);
+            return String(b.voucher_no).localeCompare(String(a.voucher_no));
+        });
+        return out;
+    }, [instructions]);
+
+    const openDialog = (group) => {
         form.setData({
             action_type: 'OWNER_PICKUP',
-            qty: remainingQty(row).toFixed(3),
             next_warehouse_id: '',
             note: '',
         });
         form.clearErrors();
-        setDialog(row);
+        setDialog(group);
+    };
+
+    const toDatetimeLocalValue = (d) => {
+        if (!d || isNaN(d.getTime())) return '';
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+
+    const openPaymentDialog = (group) => {
+        paymentForm.setData({
+            amount: '',
+            currency: 'MMK',
+            payment_method: 'CASH',
+            paid_at: toDatetimeLocalValue(new Date()),
+            reference_no: '',
+            note: '',
+        });
+        paymentForm.clearErrors();
+        setPaymentDialog(group);
+    };
+
+    const submitPayment = (e) => {
+        e.preventDefault();
+        if (!paymentDialog?.voucher_id) return;
+        paymentForm.post(`${adminAppUrl}/operations/fulfillment/vouchers/${paymentDialog.voucher_id}/payments`, {
+            preserveScroll: true,
+            onSuccess: () => setPaymentDialog(null),
+        });
+    };
+
+    const waivePayment = () => {
+        if (!paymentDialog?.voucher_id) return;
+        router.post(
+            `${adminAppUrl}/operations/fulfillment/vouchers/${paymentDialog.voucher_id}/payment-waive`,
+            { waived: true },
+            { preserveScroll: true, onSuccess: () => setPaymentDialog(null) },
+        );
     };
 
     const allWarehouses = useMemo(() => {
@@ -118,109 +259,245 @@ export default function WarehouseFulfillmentInbox() {
                     ) : (
                         isMdUp ? (
                             <TableContainer sx={{ overflowX: 'auto' }}>
-                                <Table size="small" sx={{ minWidth: 920 }}>
+                                <Table size="small" sx={{ minWidth: 800 }}>
                                 <TableHead>
                                     <TableRow>
-                                        <TableCell>Warehouse</TableCell>
+                                        <TableCell sx={{ width: 100, whiteSpace: 'nowrap' }}>Warehouse</TableCell>
                                         <TableCell>Voucher</TableCell>
-                                        <TableCell>Merchant</TableCell>
-                                        <TableCell>Product</TableCell>
-                                        <TableCell align="right">Received</TableCell>
-                                        <TableCell align="right">Dispatched</TableCell>
-                                        <TableCell align="right">Remaining</TableCell>
-                                        <TableCell>Payment</TableCell>
-                                        <TableCell align="right" />
+                                        <TableCell sx={{ minWidth: 200 }}>Shipping address</TableCell>
+                                        <TableCell sx={{ width: 80, whiteSpace: 'nowrap' }}>Payment</TableCell>
+                                        <TableCell align="right" sx={{ width: 140 }} />
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                    {instructions.map((row) => (
-                                        <TableRow key={row.id}>
-                                            <TableCell>{row.warehouse ? `${row.warehouse.code} · ${row.warehouse.name}` : '—'}</TableCell>
-                                            <TableCell>
-                                                <Stack spacing={0.25}>
-                                                    <Typography variant="body2">
-                                                        <Link href={`${adminAppUrl}/operations/vouchers/${row.voucher_item?.voucher?.id}`}>
-                                                            {row.voucher_item?.voucher?.voucher_no ?? '—'}
-                                                        </Link>
-                                                        {row.voucher_item?.line_no ? ` · L${row.voucher_item.line_no}` : ''}
+                                    {voucherGroups.map((g) => {
+                                        const isOpen = Boolean(expanded[g.key]);
+                                        return (
+                                            <Fragment key={g.key}>
+                                                <TableRow hover>
+                                                <TableCell sx={{ width: 160, whiteSpace: 'nowrap' }}>
+                                                    <Typography variant="body2" noWrap title={g.warehouse?.name ?? undefined}>
+                                                        {g.warehouse ? `${g.warehouse.name}` : '—'}
                                                     </Typography>
-                                                    {row.trip_item?.trip?.id ? (
-                                                        <Typography variant="caption" color="text.secondary">
-                                                            <Link href={`${adminAppUrl}/operations/trips/${row.trip_item.trip.id}`}>
-                                                                {row.trip_item.trip.trip_no ?? 'Trip'}
-                                                            </Link>
-                                                        </Typography>
-                                                    ) : null}
-                                                </Stack>
-                                            </TableCell>
-                                            <TableCell>{row.merchant?.name ?? '—'}</TableCell>
-                                            <TableCell>{row.voucher_item?.product?.name ?? '—'}</TableCell>
-                                            <TableCell align="right">{row.qty_received}</TableCell>
-                                            <TableCell align="right">{row.qty_dispatched}</TableCell>
-                                            <TableCell align="right">{remainingQty(row).toFixed(3)}</TableCell>
-                                            <TableCell>
-                                                <Chip
-                                                    size="small"
-                                                    label={row.voucher_item?.payment_status ?? row.voucher_item?.voucher?.payment_status ?? 'UNPAID'}
-                                                    variant="outlined"
-                                                />
-                                            </TableCell>
-                                            <TableCell align="right">
-                                                <Button size="small" variant="outlined" onClick={() => openDialog(row)}>
-                                                    Process
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
+                                                </TableCell>
+                                                    <TableCell sx={{ minWidth: 0 }}>
+                                                        <Stack direction="row" spacing={0.75} alignItems="flex-start" sx={{ minWidth: 0 }}>
+                                                            <IconButton
+                                                                size="small"
+                                                                disableRipple
+                                                                onClick={() => setExpanded((p) => ({ ...p, [g.key]: !Boolean(p[g.key]) }))}
+                                                                aria-label={isOpen ? 'Collapse lines' : 'Expand lines'}
+                                                                sx={{
+                                                                    mt: 0.1,
+                                                                    width: 28,
+                                                                    height: 28,
+                                                                    flex: '0 0 28px',
+                                                                    borderRadius: 1,
+                                                                    '&:hover': { bgcolor: 'action.hover' },
+                                                                }}
+                                                            >
+                                                                {isOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                                                            </IconButton>
+                                                            <Stack spacing={0.25} sx={{ minWidth: 0 }}>
+                                                                <Typography variant="body2" sx={{ fontWeight: 700 }} noWrap title={g.merchant_name}>
+                                                                    {g.merchant_name}
+                                                                </Typography>
+                                                                <Typography variant="body2" noWrap title={g.voucher_no !== '—' ? g.voucher_no : undefined}>
+                                                                    <Link href={`${adminAppUrl}/operations/vouchers/${g.voucher_id}`}>{g.voucher_no}</Link>
+                                                                </Typography>
+                                                                {g.trip?.id ? (
+                                                                    <Typography variant="caption" color="text.secondary" noWrap>
+                                                                        <Link href={`${adminAppUrl}/operations/trips/${g.trip.id}`}>{g.trip.trip_no ?? 'Trip'}</Link>
+                                                                    </Typography>
+                                                                ) : null}
+                                                            </Stack>
+                                                        </Stack>
+                                                    </TableCell>
+                                                    <TableCell sx={{ minWidth: 260, maxWidth: 420 }}>
+                                                        <Stack spacing={0.1} sx={{ minWidth: 0 }}>
+                                                            {g.shipping?.recipient && g.shipping.recipient !== '—' ? (
+                                                                <Typography
+                                                                    variant="body2"
+                                                                    sx={{
+                                                                        fontWeight: 700,
+                                                                        overflow: 'hidden',
+                                                                        textOverflow: 'ellipsis',
+                                                                        whiteSpace: 'nowrap',
+                                                                        maxWidth: 420,
+                                                                    }}
+                                                                    title={g.shipping.full !== '—' ? g.shipping.full : undefined}
+                                                                >
+                                                                    {g.shipping.recipient}
+                                                                </Typography>
+                                                            ) : null}
+                                                            <Typography
+                                                                variant="caption"
+                                                                color="text.secondary"
+                                                                sx={{
+                                                                    display: 'block',
+                                                                    overflow: 'hidden',
+                                                                    textOverflow: 'ellipsis',
+                                                                    whiteSpace: 'nowrap',
+                                                                    maxWidth: 420,
+                                                                }}
+                                                                title={g.shipping.full !== '—' ? g.shipping.full : undefined}
+                                                            >
+                                                                {g.shipping?.address ?? '—'}
+                                                            </Typography>
+                                                        </Stack>
+                                                    </TableCell>
+                                                    <TableCell sx={{ width: 96, whiteSpace: 'nowrap' }}>
+                                                        <Chip size="small" label={g.payment_status ?? 'UNPAID'} variant="outlined" />
+                                                    </TableCell>
+                                                    <TableCell align="right" sx={{ width: 140 }}>
+                                                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                                                            {g.payment_status !== 'PAID' && g.payment_status !== 'WAIVED' ? (
+                                                                <Button size="small" variant="outlined" color="secondary" onClick={() => openPaymentDialog(g)}>
+                                                                    Payment
+                                                                </Button>
+                                                            ) : null}
+                                                            <Button size="small" variant="outlined" onClick={() => openDialog(g)}>
+                                                                Proceed
+                                                            </Button>
+                                                        </Stack>
+                                                    </TableCell>
+                                                </TableRow>
+                                                <TableRow>
+                                                    <TableCell colSpan={5} sx={{ py: 0, borderBottom: isOpen ? undefined : 0 }}>
+                                                        <Collapse in={isOpen} timeout="auto" unmountOnExit>
+                                                            <Box sx={{ py: 1.25, pl: 5, pr: 1 }}>
+                                                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                                                                    Lines: {g.line_count} · Total qty: {formatInt(g.remaining_total)}
+                                                                </Typography>
+                                                                <Stack spacing={0.5} sx={{ minWidth: 0 }}>
+                                                                    {g.rows.map((r, idx) => {
+                                                                        const lineLabel = r.voucher_item?.line_no ? `L${r.voucher_item.line_no}` : `#${idx + 1}`;
+                                                                        const productName = r.voucher_item?.product?.name ?? '—';
+                                                                        const unit = r.voucher_item?.product?.unit ?? r.voucher_item?.unit ?? '';
+                                                                        const rem = remainingQty(r);
+                                                                        return (
+                                                                            <Fragment key={r.id}>
+                                                                                <Grid container columnSpacing={2} rowSpacing={0.75} alignItems="center">
+                                                                                    <Grid item xs={2.2}>
+                                                                                        <Chip size="small" label={lineLabel} variant="outlined" />
+                                                                                    </Grid>
+                                                                                    <Grid item xs={6.8} sx={{ minWidth: 0 }}>
+                                                                                        <Typography variant="body2" sx={{ fontWeight: 800 }} noWrap title={productName !== '—' ? productName : undefined}>
+                                                                                            {productName}
+                                                                                        </Typography>
+                                                                                    </Grid>
+                                                                                    <Grid item xs={3} sx={{ textAlign: 'right' }}>
+                                                                                        <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                                                                                            {formatInt(rem)}
+                                                                                            {unit ? ` ${unit}` : ''}
+                                                                                        </Typography>
+                                                                                    </Grid>
+                                                                                </Grid>
+                                                                                {idx !== g.rows.length - 1 ? <Divider /> : null}
+                                                                            </Fragment>
+                                                                        );
+                                                                    })}
+                                                                </Stack>
+                                                            </Box>
+                                                        </Collapse>
+                                                    </TableCell>
+                                                </TableRow>
+                                            </Fragment>
+                                        );
+                                    })}
                                 </TableBody>
                                 </Table>
                             </TableContainer>
                         ) : (
                             <Stack spacing={1.25}>
-                                {instructions.map((row) => (
-                                    <Paper key={row.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                                {voucherGroups.map((g) => (
+                                    <Paper key={g.key} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
                                         <Stack spacing={1}>
                                             <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
-                                                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                                                    {row.voucher_item?.product?.name ?? '—'}
-                                                </Typography>
-                                                <Chip
-                                                    size="small"
-                                                    label={row.voucher_item?.payment_status ?? row.voucher_item?.voucher?.payment_status ?? 'UNPAID'}
-                                                    variant="outlined"
-                                                />
+                                                <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
+                                                    <IconButton
+                                                        size="small"
+                                                        disableRipple
+                                                        onClick={() => setExpanded((p) => ({ ...p, [g.key]: !Boolean(p[g.key]) }))}
+                                                        aria-label={expanded[g.key] ? 'Collapse lines' : 'Expand lines'}
+                                                        sx={{
+                                                            width: 28,
+                                                            height: 28,
+                                                            flex: '0 0 28px',
+                                                            borderRadius: 1,
+                                                            '&:hover': { bgcolor: 'action.hover' },
+                                                        }}
+                                                    >
+                                                        {expanded[g.key] ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                                                    </IconButton>
+                                                    <Typography variant="subtitle2" sx={{ fontWeight: 800, minWidth: 0 }} noWrap title={g.merchant_name}>
+                                                        {g.merchant_name}
+                                                    </Typography>
+                                                </Stack>
+                                                <Chip size="small" label={g.payment_status ?? 'UNPAID'} variant="outlined" />
                                             </Stack>
                                             <Typography variant="body2" color="text.secondary">
-                                                {row.warehouse ? `${row.warehouse.code} · ${row.warehouse.name}` : '—'}
+                                                {g.warehouse ? `${g.warehouse.name}` : '—'}
                                             </Typography>
                                             <Typography variant="body2">
-                                                <Link href={`${adminAppUrl}/operations/vouchers/${row.voucher_item?.voucher?.id}`}>
-                                                    {row.voucher_item?.voucher?.voucher_no ?? '—'}
-                                                </Link>
-                                                {row.voucher_item?.line_no ? ` · L${row.voucher_item.line_no}` : ''}
+                                                <Link href={`${adminAppUrl}/operations/vouchers/${g.voucher_id}`}>{g.voucher_no}</Link>
                                             </Typography>
-                                            {row.trip_item?.trip?.id ? (
+                                            {g.shipping?.recipient && g.shipping.recipient !== '—' ? (
+                                                <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
+                                                    {g.shipping.recipient}
+                                                </Typography>
+                                            ) : null}
+                                            {g.shipping?.address && g.shipping.address !== '—' ? (
+                                                <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
+                                                    {g.shipping.address}
+                                                </Typography>
+                                            ) : null}
+                                            {g.trip?.id ? (
                                                 <Typography variant="body2" color="text.secondary">
                                                     Trip:{' '}
-                                                    <Link href={`${adminAppUrl}/operations/trips/${row.trip_item.trip.id}`}>
-                                                        {row.trip_item.trip.trip_no ?? 'Trip'}
-                                                    </Link>
+                                                    <Link href={`${adminAppUrl}/operations/trips/${g.trip.id}`}>{g.trip.trip_no ?? 'Trip'}</Link>
                                                 </Typography>
                                             ) : null}
                                             <Typography variant="body2" color="text.secondary">
-                                                Merchant: {row.merchant?.name ?? '—'}
+                                                Lines: {g.line_count} · Total qty: {formatInt(g.remaining_total)}
                                             </Typography>
-                                            <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
-                                                Destination note: {row.note ?? '—'}
-                                            </Typography>
-                                            <Box>
-                                                <Typography variant="caption" color="text.secondary">
-                                                    Received {row.qty_received} · Dispatched {row.qty_dispatched} · Remaining {remainingQty(row).toFixed(3)}
-                                                </Typography>
-                                            </Box>
-                                            <Button size="small" variant="outlined" fullWidth onClick={() => openDialog(row)}>
-                                                Process
-                                            </Button>
+                                            <Collapse in={Boolean(expanded[g.key])} timeout="auto" unmountOnExit>
+                                                <Divider sx={{ my: 0.5 }} />
+                                                <Stack spacing={0.75} sx={{ pt: 0.5 }}>
+                                                    {g.rows.map((r, idx) => {
+                                                        const lineLabel = r.voucher_item?.line_no ? `L${r.voucher_item.line_no}` : `#${idx + 1}`;
+                                                        const productName = r.voucher_item?.product?.name ?? '—';
+                                                        const unit = r.voucher_item?.product?.unit ?? r.voucher_item?.unit ?? '';
+                                                        const rem = remainingQty(r);
+                                                        return (
+                                                            <Stack key={r.id} direction="row" justifyContent="space-between" alignItems="flex-start" gap={1.5}>
+                                                                <Box sx={{ minWidth: 0 }}>
+                                                                    <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
+                                                                        <Chip size="small" label={lineLabel} variant="outlined" />
+                                                                        <Typography variant="body2" sx={{ fontWeight: 800, minWidth: 0 }} noWrap title={productName !== '—' ? productName : undefined}>
+                                                                            {productName}
+                                                                        </Typography>
+                                                                    </Stack>
+                                                                </Box>
+                                                                <Typography variant="body2" sx={{ fontWeight: 800, flexShrink: 0 }}>
+                                                                    {formatInt(rem)}
+                                                                    {unit ? ` ${unit}` : ''}
+                                                                </Typography>
+                                                            </Stack>
+                                                        );
+                                                    })}
+                                                </Stack>
+                                            </Collapse>
+                                            <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
+                                                {g.payment_status !== 'PAID' && g.payment_status !== 'WAIVED' ? (
+                                                    <Button size="small" variant="outlined" color="secondary" fullWidth onClick={() => openPaymentDialog(g)}>
+                                                        Payment
+                                                    </Button>
+                                                ) : null}
+                                                <Button size="small" variant="outlined" fullWidth onClick={() => openDialog(g)}>
+                                                    Proceed
+                                                </Button>
+                                            </Stack>
                                         </Stack>
                                     </Paper>
                                 ))}
@@ -234,7 +511,7 @@ export default function WarehouseFulfillmentInbox() {
                         {dialog ? (
                             <Stack spacing={2} sx={{ mt: 1 }}>
                                 <Typography variant="body2" color="text.secondary">
-                                    Remaining: {remainingQty(dialog).toFixed(3)} {dialog.voucher_item?.product?.unit ?? dialog.voucher_item?.unit ?? ''}
+                                    Voucher: {dialog.voucher_no} · Lines: {dialog.line_count}
                                 </Typography>
                                 <FormControl fullWidth size="small">
                                     <InputLabel id="wf-action">Action</InputLabel>
@@ -249,16 +526,28 @@ export default function WarehouseFulfillmentInbox() {
                                         <MenuItem value="FORWARD_TO_WAREHOUSE">Forward to warehouse</MenuItem>
                                     </Select>
                                 </FormControl>
-                                <TextField
-                                    size="small"
-                                    label="Quantity"
-                                    type="number"
-                                    inputProps={{ step: '0.001', min: '0.001', max: remainingQty(dialog).toFixed(3) }}
-                                    value={form.data.qty}
-                                    onChange={(e) => form.setData('qty', e.target.value)}
-                                    error={Boolean(errors.qty || form.errors.qty)}
-                                    helperText={errors.qty || form.errors.qty}
-                                />
+                                <Box sx={{ overflowX: 'auto' }}>
+                                    <Table size="small" sx={{ minWidth: 520 }}>
+                                        <TableHead>
+                                            <TableRow>
+                                                <TableCell>Line</TableCell>
+                                                <TableCell>Product</TableCell>
+                                                <TableCell align="right">Qty</TableCell>
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {dialog.rows.map((r, idx) => (
+                                                <TableRow key={r.id}>
+                                                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                                                        {r.voucher_item?.line_no ? `L${r.voucher_item.line_no}` : `#${idx + 1}`}
+                                                    </TableCell>
+                                                    <TableCell>{r.voucher_item?.product?.name ?? '—'}</TableCell>
+                                                    <TableCell align="right">{formatInt(remainingQty(r))}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </Box>
                                 {form.data.action_type === 'FORWARD_TO_WAREHOUSE' ? (
                                     <FormControl fullWidth size="small" error={Boolean(errors.next_warehouse_id || form.errors.next_warehouse_id)}>
                                         <InputLabel id="wf-next-wh">Next warehouse</InputLabel>
@@ -304,7 +593,7 @@ export default function WarehouseFulfillmentInbox() {
                             disabled={form.processing || !dialog}
                             onClick={() => {
                                 if (!dialog) return;
-                                form.post(`${adminAppUrl}/operations/fulfillment/instructions/${dialog.id}/dispatch`, {
+                                form.post(`${adminAppUrl}/operations/fulfillment/warehouses/${dialog.warehouse_id}/vouchers/${dialog.voucher_id}/dispatch`, {
                                     preserveScroll: true,
                                     onSuccess: () => setDialog(null),
                                 });
@@ -314,8 +603,99 @@ export default function WarehouseFulfillmentInbox() {
                         </Button>
                     </DialogActions>
                 </Dialog>
+                <Dialog open={Boolean(paymentDialog)} onClose={() => setPaymentDialog(null)} fullWidth maxWidth="sm">
+                    <form onSubmit={submitPayment}>
+                        <DialogTitle>Record payment</DialogTitle>
+                        <DialogContent>
+                            <Stack spacing={2.5} sx={{ mt: 1 }}>
+                                <Typography variant="body2" color="text.secondary">
+                                    Voucher: {paymentDialog?.voucher_no}
+                                </Typography>
+                                <Grid container spacing={2}>
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField
+                                            label="Amount"
+                                            size="small"
+                                            fullWidth
+                                            type="number"
+                                            inputProps={{ step: '0.01', min: '0.01' }}
+                                            value={paymentForm.data.amount}
+                                            onChange={(e) => paymentForm.setData('amount', e.target.value)}
+                                            error={Boolean(paymentForm.errors.amount)}
+                                            helperText={paymentForm.errors.amount}
+                                        />
+                                    </Grid>
+                                    <Grid item xs={12} sm={6}>
+                                        <FormControl fullWidth size="small" error={Boolean(paymentForm.errors.payment_method)}>
+                                            <InputLabel id="pay-method-label">Method</InputLabel>
+                                            <Select
+                                                labelId="pay-method-label"
+                                                label="Method"
+                                                value={paymentForm.data.payment_method}
+                                                onChange={(e) => paymentForm.setData('payment_method', e.target.value)}
+                                            >
+                                                <MenuItem value="CASH">Cash</MenuItem>
+                                                <MenuItem value="TRANSFER">Bank Transfer</MenuItem>
+                                                <MenuItem value="OTHER">Other</MenuItem>
+                                            </Select>
+                                        </FormControl>
+                                    </Grid>
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField
+                                            label="Paid at"
+                                            type="datetime-local"
+                                            size="small"
+                                            fullWidth
+                                            InputLabelProps={{ shrink: true }}
+                                            value={paymentForm.data.paid_at}
+                                            onChange={(e) => paymentForm.setData('paid_at', e.target.value)}
+                                            error={Boolean(paymentForm.errors.paid_at)}
+                                            helperText={paymentForm.errors.paid_at}
+                                        />
+                                    </Grid>
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField
+                                            label="Reference No"
+                                            size="small"
+                                            fullWidth
+                                            value={paymentForm.data.reference_no}
+                                            onChange={(e) => paymentForm.setData('reference_no', e.target.value)}
+                                            error={Boolean(paymentForm.errors.reference_no)}
+                                            helperText={paymentForm.errors.reference_no}
+                                        />
+                                    </Grid>
+                                    <Grid item xs={12}>
+                                        <TextField
+                                            label="Note"
+                                            size="small"
+                                            fullWidth
+                                            multiline
+                                            rows={2}
+                                            value={paymentForm.data.note}
+                                            onChange={(e) => paymentForm.setData('note', e.target.value)}
+                                            error={Boolean(paymentForm.errors.note)}
+                                            helperText={paymentForm.errors.note}
+                                        />
+                                    </Grid>
+                                </Grid>
+                            </Stack>
+                        </DialogContent>
+                        <DialogActions sx={{ p: 2, pt: 0 }}>
+                            {paymentDialog?.payment_status === 'UNPAID' ? (
+                                <Button onClick={waivePayment} color="warning" disabled={paymentForm.processing}>
+                                    Waive
+                                </Button>
+                            ) : null}
+                            <Button onClick={() => setPaymentDialog(null)} color="inherit">
+                                Cancel
+                            </Button>
+                            <Button type="submit" variant="contained" disabled={paymentForm.processing}>
+                                Save
+                            </Button>
+                        </DialogActions>
+                    </form>
+                </Dialog>
             </Stack>
         </AdminLayout>
     );
 }
-

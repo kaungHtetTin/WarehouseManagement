@@ -1,27 +1,22 @@
-Permission မရှိတဲ့ UI တွေကို မပြနဲ့,
-Assign ပေးမထားတဲ့ warehouse တွေကို မပြနဲ့ ,trip ဆွဲတာမှာ destinated ‌ပေးမယ့် နေရာမျိုးဆို ပြလို့ရတယ်
-Super admin admin အတွက် warehouse အားလုံးကို ပြလို့ရတယ်
-ဘောင်ချာ detail မှာ payment total amount ပြတာ မှားနေတယ်
-voucher 1st line ရဲ့ amount ကိုပဲ ပြနေတယ်
+voucher payment system ကို voucher item level မလုပ်တော့ဘူ 
+partial payment record ကိုတော့ support ဆက်လုပ်သွားမယ်
+voucher_payments.voucher_item_id column ကို ဖြုတ်လိုက်ရင်ရပြီ
 
-cargo trip slip မှာ loaded column အတွက် unit တန်ဖိုးကို လိုအပ်မှပဲ decimal နဲ့ ပြမယ်
-မလိုအပ်ရင် integer ပဲပြမယ်
+payment လုပ်မယ့်နေရာ
+၁. voucher comfirm မှာ paid status နဲ့လားရင်
+တစ်ခါတည်း voucher_payments မှာလည်း လက်ရှိ voucher total ‌
+amount ကို တစ်ခါတည်း ထည့်လိုက်မယ်,
 
-trip detparted status ကိုပြောင်းဖို့ UI UX ပြန်လုပ်မယ် ပြန်ထည့်ရမယ်ပြန်ထည့်ရမယ်
-
-Fullfillment မှာ warehouse အလိုက် filter ထည့်မယ်
-warehouse access permission အလိုက်ပဲ ပြမယ်
-
-quantity တွေကို လိုအပ်မှပဲ decimal တွေ ပြမယ်
-မလိုအပ်ရင် integer နဲ့ပဲပြ 
-
-trip list မှာ  warehouse တွေဟာ
-သူ့ကို target အနေနဲ့ ထားထားတာရယ်
-သူကိုယ်တိုင် source ဖြစ်နေတာတွေကိုပဲ မြင်ရမယ်
+၂. voucher detail မှာ add payment ဆိုတဲ့ function ရှိတယ်
+အဲ့မှာ မှာ partial payment ကို လက်ခံနိုင်တယ်,
+လက်ရှိ approach အတိုင်းပဲ
+ဥပမာ total voucher payment amount 50000 ကို 
+add payment မှာ 50000 နဲ့ တခါတည်းထည့်လိုက် payment paid , process finish
+တကယ်လို့ ပထမအကြိမ် 25000 နဲ့ထည့်ရင် payment partially paid, need to process
+နောက်ထပ် 25000 နဲ့ထပ်ထည့်ရင် payment paid, process finish,
 
 
-organizastion မှာ warehouse A B C D ရှိတယ်
-ငါ က manager, ware A B ကို manage လုပ်တယ်
-tip အတွက်
-source warehouse A,B ငါ မြင်နိုင်တယ်
-target အတွက် , warehouse A B ကို ပြန်မြင်နိုင်တယ်,
+3. fillfullment process လုပ်တာမှာလည်း သက်ဆိုင်ရာ voucher ရဲ့ payment ကို တစ်ခါတည်း update လုပ်ခွင့်ပေးမယ်
+payment လုပ်မယ့် logic ကတော့ ခုန အဆင့် ၂ တုန်းကအတိုင်းပဲ
+
+don't implement now, just ask for your understanding. you can reply in English

@@ -18,22 +18,12 @@ class VoucherItem extends Model
         'product_id',
         'description',
         'from_warehouse_id',
-        'to_warehouse_id',
-        'to_city',
-        'to_address_line1',
-        'to_address_line2',
-        'to_township',
-        'to_region',
-        'to_postal_code',
-        'recipient_name',
-        'recipient_phone',
         'qty',
         'loaded_qty',
         'delivered_qty',
         'unit',
         'freight_rate',
         'freight_amount',
-        'payment_status',
         'is_fragile',
     ];
 
@@ -66,11 +56,6 @@ class VoucherItem extends Model
         return $this->belongsTo(Warehouse::class, 'from_warehouse_id');
     }
 
-    public function toWarehouse(): BelongsTo
-    {
-        return $this->belongsTo(Warehouse::class, 'to_warehouse_id');
-    }
-
     public function tripItems(): HasMany
     {
         return $this->hasMany(TripItem::class);
@@ -79,10 +64,5 @@ class VoucherItem extends Model
     public function fulfillmentInstructions(): HasMany
     {
         return $this->hasMany(WarehouseFulfillmentInstruction::class);
-    }
-
-    public function payments(): HasMany
-    {
-        return $this->hasMany(VoucherPayment::class);
     }
 }

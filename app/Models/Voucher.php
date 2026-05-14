@@ -20,7 +20,9 @@ class Voucher extends Model
         'status',
         'payment_status',
         'total_qty',
+        'total_weight',
         'total_amount',
+        'additional_costs',
         'remark',
         'default_to_warehouse_id',
         'default_to_city',
@@ -37,7 +39,9 @@ class Voucher extends Model
     protected $casts = [
         'voucher_date' => 'date',
         'total_qty' => 'decimal:3',
+        'total_weight' => 'decimal:3',
         'total_amount' => 'decimal:2',
+        'additional_costs' => 'array',
     ];
 
     public function organization(): BelongsTo

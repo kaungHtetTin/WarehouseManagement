@@ -1,5 +1,5 @@
 import AdminLayout from '@/Layouts/AdminLayout';
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import {
     Alert,
     Box,
@@ -11,6 +11,7 @@ import {
     DialogTitle,
     Divider,
     FormControl,
+    IconButton,
     InputLabel,
     MenuItem,
     Paper,
@@ -25,7 +26,7 @@ import {
     TextField,
     Typography,
 } from '@mui/material';
-import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
+import { ArrowBack as ArrowBackIcon, ExpandLess as ExpandLessIcon, ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
 import { useMemo, useState } from 'react';
 
 const PAYMENT_LABELS = {
@@ -127,6 +128,44 @@ function DetailField({ label, value }) {
     );
 }
 
+function KeyValueTable({ rows }) {
+    return (
+        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+            <Table size="small">
+                <TableBody>
+                    {(rows || []).map((r, idx) => {
+                        const raw = r?.value;
+                        const isEmpty =
+                            raw == null ||
+                            raw === '' ||
+                            (typeof raw === 'string' && raw.trim() === '');
+                        const value = isEmpty ? '—' : raw;
+
+                        return (
+                            <TableRow key={idx} hover>
+                                <TableCell width={180} sx={{ color: 'text.secondary' }}>
+                                    {r?.label}
+                                </TableCell>
+                                <TableCell
+                                    sx={{
+                                        fontWeight: 600,
+                                        wordBreak: 'break-word',
+                                        overflowWrap: 'anywhere',
+                                        whiteSpace: r?.preWrap ? 'pre-wrap' : 'normal',
+                                        ...((r?.valueSx ?? {}) || {}),
+                                    }}
+                                >
+                                    {value}
+                                </TableCell>
+                            </TableRow>
+                        );
+                    })}
+                </TableBody>
+            </Table>
+        </TableContainer>
+    );
+}
+
 function statusChipColor(status) {
     if (status === 'DRAFT') return 'default';
     if (status === 'CONFIRMED') return 'success';
@@ -149,12 +188,8 @@ function LineCard({ item, lineNo }) {
                     {item.qty} {item.unit}
                     {item.from_warehouse?.code ? ` · From ${item.from_warehouse.code}` : ''}
                 </Typography>
-                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                    {formatLineDestination(item)}
-                </Typography>
                 <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
                     {item.is_fragile ? <Chip size="small" label="Fragile" color="warning" variant="outlined" /> : null}
-                    <Chip size="small" label={PAYMENT_LABELS[item.payment_status] ?? item.payment_status} variant="outlined" />
                 </Stack>
                 <Typography variant="body2" color="text.secondary">
                     Freight: {formatMoneyAmount(item.freight_amount)} {item.freight_rate != null ? `(rate ${item.freight_rate})` : ''}
@@ -172,6 +207,7 @@ export default function VoucherDetail() {
     const flash = pageProps.flash ?? {};
 
     const [paymentOpen, setPaymentOpen] = useState(false);
+    const [costsOpen, setCostsOpen] = useState(false);
 
     const paymentForm = useForm({
         amount: '',
@@ -180,7 +216,6 @@ export default function VoucherDetail() {
         paid_at: '',
         reference_no: '',
         note: '',
-        voucher_item_id: '',
     });
 
     const openPaymentDialog = () => {
@@ -191,7 +226,6 @@ export default function VoucherDetail() {
             paid_at: toDatetimeLocalValue(new Date()),
             reference_no: '',
             note: '',
-            voucher_item_id: '',
         });
         paymentForm.clearErrors();
         setPaymentOpen(true);
@@ -206,6 +240,15 @@ export default function VoucherDetail() {
         });
     };
 
+    const setWaived = (waived) => {
+        if (!voucher?.id) return;
+        router.post(
+            `${adminAppUrl}/operations/vouchers/${voucher.id}/payment-waive`,
+            { waived: Boolean(waived) },
+            { preserveScroll: true },
+        );
+    };
+
     const paymentsTotal = useMemo(() => {
         let s = 0;
         for (const p of voucher?.payments || []) {
@@ -214,6 +257,17 @@ export default function VoucherDetail() {
         }
         return Math.round(s * 100) / 100;
     }, [voucher?.payments]);
+
+    const additionalCostsTotal = useMemo(() => {
+        let sum = 0;
+        const rows = voucher?.additional_costs;
+        if (!Array.isArray(rows)) return 0;
+        for (const r of rows) {
+            const n = Number(r?.amount);
+            if (Number.isFinite(n) && n > 0) sum += n;
+        }
+        return Math.round(sum * 100) / 100;
+    }, [voucher?.additional_costs]);
 
     const layoutTitle = voucher?.voucher_no ? `Voucher ${voucher.voucher_no}` : 'Voucher';
 
@@ -257,71 +311,230 @@ export default function VoucherDetail() {
                     </Button>
                 </Stack>
 
-                <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
-                    <Stack spacing={2}>
-                        <Stack direction="row" alignItems="center" flexWrap="wrap" gap={1}>
-                            <Typography variant="h6" sx={{ fontWeight: 700, letterSpacing: '-0.02em', flex: '1 1 auto', minWidth: 0 }}>
-                                {voucher.voucher_no}
+                <Box
+                    sx={{
+                        display: 'grid',
+                        gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+                        gap: 2.5,
+                        alignItems: 'start',
+                    }}
+                >
+                    <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+                        <Stack spacing={2}>
+                            <Stack direction="row" alignItems="center" flexWrap="wrap" gap={1}>
+                                <Typography variant="h6" sx={{ fontWeight: 700, letterSpacing: '-0.02em', flex: '1 1 auto', minWidth: 0 }}>
+                                    {voucher.voucher_no}
+                                </Typography>
+                                <Chip size="small" label={voucher.status} color={statusChipColor(voucher.status)} variant="outlined" />
+                                <Chip
+                                    size="small"
+                                    label={PAYMENT_LABELS[voucher.payment_status] ?? voucher.payment_status}
+                                    variant="outlined"
+                                />
+                            </Stack>
+                            <Typography variant="body2" color="text.secondary">
+                                Read-only detail for confirmed and in-process vouchers. Drafts are edited in the wizard.
                             </Typography>
-                            <Chip size="small" label={voucher.status} color={statusChipColor(voucher.status)} variant="outlined" />
-                            <Chip
-                                size="small"
-                                label={PAYMENT_LABELS[voucher.payment_status] ?? voucher.payment_status}
-                                variant="outlined"
+                            <Divider />
+                            <KeyValueTable
+                                rows={[
+                                    {
+                                        label: 'Date',
+                                        value: typeof voucher.voucher_date === 'string' ? voucher.voucher_date.slice(0, 10) : voucher.voucher_date,
+                                    },
+                                    { label: 'Source warehouse', value: voucher.source_warehouse?.name },
+                                    { label: 'Total qty', value: voucher.total_qty != null ? String(voucher.total_qty) : null },
+                                    { label: 'Weight', value: voucher.total_weight != null ? String(voucher.total_weight) : null },
+                                    { label: 'Total amount', value: formatMoneyAmount(totalAmountDisplay) },
+                                    { label: 'Created by', value: voucher.creator?.name },
+                                ]}
                             />
                         </Stack>
-                        <Typography variant="body2" color="text.secondary">
-                            Read-only detail for confirmed and in-process vouchers. Drafts are edited in the wizard.
+                    </Paper>
+
+                    <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>
+                            Payments
                         </Typography>
-                        <Divider />
-                        <Stack direction="row" flexWrap="wrap" sx={{ gap: 2.5 }}>
-                            <DetailField
-                                label="Date"
-                                value={typeof voucher.voucher_date === 'string' ? voucher.voucher_date.slice(0, 10) : voucher.voucher_date}
-                            />
-                            <DetailField label="Source warehouse" value={voucher.source_warehouse?.name} />
-                            <DetailField label="Total qty" value={voucher.total_qty != null ? String(voucher.total_qty) : null} />
-                            <DetailField label="Total amount" value={formatMoneyAmount(totalAmountDisplay)} />
-                            {voucher.creator?.name ? <DetailField label="Created by" value={voucher.creator.name} /> : null}
-                        </Stack>
-                    </Stack>
-                </Paper>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                            Total recorded: {formatMoneyAmount(paymentsTotal)}{' '}
+                            {(voucher.payments && voucher.payments[0]?.currency) || 'MMK'}
+                            {totalAmountDisplay != null ? (
+                                <>
+                                    {' '}
+                                    · Expected total {formatMoneyAmount(totalAmountDisplay)}
+                                    {!voucher.total_amount && voucher.items?.length ? ' (sum of freight lines)' : ''}
+                                </>
+                            ) : null}
+                        </Typography>
+                        {!canRecordVoucherPayments ? (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                                Recording payments requires the payments.manage permission.
+                            </Typography>
+                        ) : null}
+                        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, mb: 2 }}>
+                            <Table size="small">
+                                <TableHead>
+                                    <TableRow sx={{ bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>
+                                        <TableCell width={200}>Title</TableCell>
+                                        <TableCell>Cost</TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    <TableRow hover>
+                                        <TableCell>
+                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                Payment status
+                                            </Typography>
+                                        </TableCell>
+                                        <TableCell>{PAYMENT_LABELS[voucher.payment_status] ?? voucher.payment_status ?? '—'}</TableCell>
+                                    </TableRow>
+                                    <TableRow hover>
+                                        <TableCell>
+                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                Main
+                                            </Typography>
+                                            <Typography variant="caption" color="text.secondary">
+                                                Freight cost for all line
+                                            </Typography>
+                                        </TableCell>
+                                        <TableCell>{formatMoneyAmount(freightTotalFromItems(voucher.items) ?? 0)}</TableCell>
+                                    </TableRow>
+                                    <TableRow hover>
+                                        <TableCell>
+                                            <Stack direction="row" alignItems="center" spacing={0.5}>
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={() => setCostsOpen((p) => !p)}
+                                                    aria-label={costsOpen ? 'Collapse additional costs' : 'Expand additional costs'}
+                                                >
+                                                    {costsOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                                                </IconButton>
+                                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                    Additional
+                                                </Typography>
+                                            </Stack>
+                                        </TableCell>
+                                        <TableCell>{formatMoneyAmount(additionalCostsTotal)}</TableCell>
+                                    </TableRow>
+                                    {costsOpen && Array.isArray(voucher.additional_costs) && voucher.additional_costs.length > 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={2} sx={{ py: 1.25 }}>
+                                                <Table size="small" sx={{ minWidth: 360 }}>
+                                                    <TableBody>
+                                                        {voucher.additional_costs.map((c, idx) => (
+                                                            <TableRow key={idx} hover>
+                                                                <TableCell sx={{ borderBottom: 0, color: 'text.secondary' }}>
+                                                                    {c?.label || '—'}
+                                                                </TableCell>
+                                                                <TableCell sx={{ borderBottom: 0 }}>{formatMoneyAmount(c?.amount)}</TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : null}
+                                    <TableRow hover>
+                                        <TableCell sx={{ fontWeight: 700 }}>Total</TableCell>
+                                        <TableCell sx={{ fontWeight: 700 }}>{formatMoneyAmount(totalAmountDisplay ?? 0)}</TableCell>
+                                    </TableRow>
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
+                        {canRecordVoucherPayments ? (
+                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+                                <Stack direction="row" spacing={1}>
+                                    {voucher.payment_status === 'WAIVED' ? (
+                                        <Button size="small" variant="outlined" onClick={() => setWaived(false)}>
+                                            Unwaive
+                                        </Button>
+                                    ) : (paymentsTotal <= 0.005 && voucher.payment_status !== 'PAID') ? (
+                                        <Button size="small" variant="outlined" color="warning" onClick={() => setWaived(true)}>
+                                            Waive
+                                        </Button>
+                                    ) : null}
+                                    {voucher.payment_status !== 'PAID' && voucher.payment_status !== 'WAIVED' ? (
+                                        <Button size="small" variant="outlined" onClick={openPaymentDialog} disabled={voucher.total_amount == null}>
+                                            Record payment
+                                        </Button>
+                                    ) : null}
+                                </Stack>
+                            </Box>
+                        ) : null}
+                        {(voucher.payments || []).length === 0 ? (
+                            <Typography variant="body2" color="text.secondary">
+                                No payments recorded yet.
+                            </Typography>
+                        ) : (
+                            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+                                <Table size="small">
+                                    <TableHead>
+                                        <TableRow sx={{ bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>
+                                            <TableCell>Paid at</TableCell>
+                                            <TableCell align="right">Amount</TableCell>
+                                            <TableCell>Method</TableCell>
+                                            <TableCell>Reference</TableCell>
+                                            <TableCell>Recorded by</TableCell>
+                                            <TableCell>Note</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {(voucher.payments || []).map((p) => (
+                                            <TableRow key={p.id}>
+                                                <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                                                    {p.paid_at ? new Date(p.paid_at).toLocaleString() : '—'}
+                                                </TableCell>
+                                                <TableCell align="right">
+                                                    {formatMoneyAmount(p.amount)} {p.currency ?? 'MMK'}
+                                                </TableCell>
+                                                <TableCell>{PAYMENT_METHOD_LABELS[p.payment_method] ?? p.payment_method}</TableCell>
+                                                <TableCell>{p.reference_no ?? '—'}</TableCell>
+                                                <TableCell>{p.receiver?.name ?? '—'}</TableCell>
+                                                <TableCell sx={{ maxWidth: 220, wordBreak: 'break-word' }}>{p.note ?? '—'}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        )}
+                    </Paper>
 
-                <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>
-                        Merchant
-                    </Typography>
-                    <Stack direction="row" flexWrap="wrap" sx={{ gap: 2.5 }}>
-                        <DetailField label="Name" value={voucher.merchant?.name} />
-                        <DetailField label="Phone" value={voucher.merchant?.phone} />
-                        <DetailField label="NRC / ID" value={voucher.merchant?.nrc_or_id} />
-                        <Box sx={{ flex: '1 1 100%', minWidth: 0 }}>
-                            <DetailField label="Address" value={voucher.merchant?.address} />
-                        </Box>
-                    </Stack>
-                </Paper>
-
-                <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>
-                        Default delivery (summary)
-                    </Typography>
-                    <Stack direction="row" flexWrap="wrap" sx={{ gap: 2.5 }}>
-                        <DetailField
-                            label="Default to warehouse"
-                            value={
-                                voucher.default_to_warehouse ? `${voucher.default_to_warehouse.name} (${voucher.default_to_warehouse.code})` : null
-                            }
+                    <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>
+                            Merchant
+                        </Typography>
+                        <KeyValueTable
+                            rows={[
+                                { label: 'Name', value: voucher.merchant?.name },
+                                { label: 'Phone', value: voucher.merchant?.phone },
+                                { label: 'NRC / ID', value: voucher.merchant?.nrc_or_id },
+                                { label: 'Address', value: voucher.merchant?.address, preWrap: true },
+                            ]}
                         />
-                        <Box sx={{ flex: '1 1 240px', minWidth: 0 }}>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                                Address snapshot
-                            </Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                                {formatDefaultDestinationPreview(voucher)}
-                            </Typography>
-                        </Box>
-                    </Stack>
-                </Paper>
+                    </Paper>
+
+                    <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>
+                            Default delivery (summary)
+                        </Typography>
+                        <KeyValueTable
+                            rows={[
+                                {
+                                    label: 'To warehouse',
+                                    value: voucher.default_to_warehouse ? `${voucher.default_to_warehouse.name} (${voucher.default_to_warehouse.code})` : null,
+                                },
+                                {
+                                    label: 'Shipping address',
+                                    value: [voucher.default_to_address_line1, voucher.default_to_city].filter(Boolean).join(' · '),
+                                    preWrap: true,
+                                },
+                                { label: 'Recipient name', value: voucher.default_recipient_name },
+                                { label: 'Recipient phone', value: voucher.default_recipient_phone },
+                            ]}
+                        />
+                    </Paper>
+                </Box>
 
                 {voucher.remark ? (
                     <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
@@ -333,71 +546,6 @@ export default function VoucherDetail() {
                         </Typography>
                     </Paper>
                 ) : null}
-
-                <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
-                    <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                            Payments
-                        </Typography>
-                        {canRecordVoucherPayments ? (
-                            <Button size="small" variant="outlined" onClick={openPaymentDialog}>
-                                Record payment
-                            </Button>
-                        ) : null}
-                    </Stack>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                        Total recorded: {formatMoneyAmount(paymentsTotal)}{' '}
-                        {(voucher.payments && voucher.payments[0]?.currency) || 'MMK'}
-                        {totalAmountDisplay != null ? (
-                            <>
-                                {' '}
-                                · Expected total {formatMoneyAmount(totalAmountDisplay)}
-                                {!voucher.total_amount && voucher.items?.length ? ' (sum of freight lines)' : ''}
-                            </>
-                        ) : null}
-                    </Typography>
-                    {!canRecordVoucherPayments ? (
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                            Recording payments requires the payments.manage permission.
-                        </Typography>
-                    ) : null}
-                    {(voucher.payments || []).length === 0 ? (
-                        <Typography variant="body2" color="text.secondary">
-                            No payments recorded yet.
-                        </Typography>
-                    ) : (
-                        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-                            <Table size="small">
-                                <TableHead>
-                                    <TableRow sx={{ bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>
-                                        <TableCell>Paid at</TableCell>
-                                        <TableCell align="right">Amount</TableCell>
-                                        <TableCell>Method</TableCell>
-                                        <TableCell>Reference</TableCell>
-                                        <TableCell>Recorded by</TableCell>
-                                        <TableCell>Note</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {(voucher.payments || []).map((p) => (
-                                        <TableRow key={p.id}>
-                                            <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                                                {p.paid_at ? new Date(p.paid_at).toLocaleString() : '—'}
-                                            </TableCell>
-                                            <TableCell align="right">
-                                                {formatMoneyAmount(p.amount)} {p.currency ?? 'MMK'}
-                                            </TableCell>
-                                            <TableCell>{PAYMENT_METHOD_LABELS[p.payment_method] ?? p.payment_method}</TableCell>
-                                            <TableCell>{p.reference_no ?? '—'}</TableCell>
-                                            <TableCell>{p.receiver?.name ?? '—'}</TableCell>
-                                            <TableCell sx={{ maxWidth: 220, wordBreak: 'break-word' }}>{p.note ?? '—'}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
-                    )}
-                </Paper>
 
                 <Box>
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
@@ -413,16 +561,14 @@ export default function VoucherDetail() {
                                         <TableCell>Qty</TableCell>
                                         <TableCell>Unit</TableCell>
                                         <TableCell>From</TableCell>
-                                        <TableCell sx={{ minWidth: 200 }}>Destination</TableCell>
                                         <TableCell align="right">Freight</TableCell>
-                                        <TableCell>Line payment</TableCell>
                                         <TableCell align="center">Fragile</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
                                     {(voucher.items || []).length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={9}>
+                                            <TableCell colSpan={7}>
                                                 <Typography variant="body2" color="text.secondary">
                                                     No lines.
                                                 </Typography>
@@ -436,13 +582,7 @@ export default function VoucherDetail() {
                                             <TableCell>{it.qty}</TableCell>
                                             <TableCell>{it.unit}</TableCell>
                                             <TableCell>{it.from_warehouse?.code ?? '—'}</TableCell>
-                                            <TableCell>
-                                                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                                                    {formatLineDestination(it)}
-                                                </Typography>
-                                            </TableCell>
                                             <TableCell align="right">{formatMoneyAmount(it.freight_amount)}</TableCell>
-                                            <TableCell>{PAYMENT_LABELS[it.payment_status] ?? it.payment_status}</TableCell>
                                             <TableCell align="center">{it.is_fragile ? 'Yes' : '—'}</TableCell>
                                         </TableRow>
                                         ))
@@ -508,27 +648,6 @@ export default function VoucherDetail() {
                                     helperText={paymentForm.errors.paid_at}
                                     size="small"
                                 />
-                                <FormControl fullWidth size="small">
-                                    <InputLabel id="pay-line">Allocate to line (optional)</InputLabel>
-                                    <Select
-                                        labelId="pay-line"
-                                        label="Allocate to line (optional)"
-                                        value={paymentForm.data.voucher_item_id === '' ? '' : String(paymentForm.data.voucher_item_id)}
-                                        onChange={(e) => paymentForm.setData('voucher_item_id', e.target.value)}
-                                        displayEmpty
-                                    >
-                                        <MenuItem value="">
-                                            <Typography variant="body2" color="text.secondary">
-                                                Whole voucher
-                                            </Typography>
-                                        </MenuItem>
-                                        {(voucher.items || []).map((it) => (
-                                            <MenuItem key={it.id} value={String(it.id)}>
-                                                Line {it.line_no} · {it.product?.name ?? '—'}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </FormControl>
                                 <TextField
                                     label="Reference no."
                                     size="small"

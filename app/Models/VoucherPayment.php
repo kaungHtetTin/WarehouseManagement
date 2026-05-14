@@ -10,7 +10,6 @@ class VoucherPayment extends Model
     protected $fillable = [
         'organization_id',
         'voucher_id',
-        'voucher_item_id',
         'amount',
         'currency',
         'payment_method',
@@ -33,11 +32,6 @@ class VoucherPayment extends Model
     public function voucher(): BelongsTo
     {
         return $this->belongsTo(Voucher::class);
-    }
-
-    public function voucherItem(): BelongsTo
-    {
-        return $this->belongsTo(VoucherItem::class);
     }
 
     public function receiver(): BelongsTo

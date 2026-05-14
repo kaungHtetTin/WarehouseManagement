@@ -48,14 +48,14 @@ class WarehouseManagementController extends Controller
             'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE'])],
         ]);
 
-        $warehouse = DB::transaction(function () use ($validated, $organizationId) {
+        $warehouse = DB::transaction(function () use ($validated, $organizationId, $actor) {
             if (! empty($validated['is_main'])) {
                 Warehouse::query()
                     ->where('organization_id', $organizationId)
                     ->update(['is_main' => false]);
             }
 
-            return Warehouse::query()->create([
+            $warehouse = Warehouse::query()->create([
                 'organization_id' => $organizationId,
                 'code' => strtoupper($validated['code']),
                 'name' => $validated['name'],
@@ -65,6 +65,10 @@ class WarehouseManagementController extends Controller
                 'is_main' => (bool) ($validated['is_main'] ?? false),
                 'status' => $validated['status'] ?? 'ACTIVE',
             ]);
+
+            $this->autoAssignWarehouseAccess($warehouse, $actor);
+
+            return $warehouse;
         });
 
         AuditLogger::record($actor, 'warehouse.create', $warehouse, [
@@ -164,5 +168,29 @@ class WarehouseManagementController extends Controller
             ->whereKey($warehouseId)
             ->where('organization_id', $user->organization_id)
             ->firstOrFail();
+    }
+
+    private function autoAssignWarehouseAccess(Warehouse $warehouse, User $actor): void
+    {
+        $organizationId = (int) $actor->organization_id;
+
+        $superAdminIds = User::query()
+            ->where('organization_id', $organizationId)
+            ->whereHas('roles', fn ($query) => $query->where('code', 'super_admin'))
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $userIds = collect($superAdminIds)
+            ->push((int) $actor->id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $syncPayload = collect($userIds)
+            ->mapWithKeys(fn (int $id) => [$id => ['access_level' => 'MANAGE']])
+            ->all();
+
+        $warehouse->usersWithAccess()->syncWithoutDetaching($syncPayload);
     }
 }

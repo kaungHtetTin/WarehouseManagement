@@ -187,12 +187,24 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/operations/trips/{trip}/items', [TripManagementController::class, 'storeItem'])
             ->middleware('permission:trips.manage')
             ->name('trips.items.store');
+        Route::post('/operations/trips/{trip}/vouchers/load', [TripManagementController::class, 'storeVoucherLoad'])
+            ->middleware('permission:trips.manage')
+            ->name('trips.vouchers.load');
         Route::patch('/operations/trips/{trip}/items/{tripItem}', [TripManagementController::class, 'updateItem'])
             ->middleware('permission:trips.manage')
             ->name('trips.items.update');
         Route::delete('/operations/trips/{trip}/items/{tripItem}', [TripManagementController::class, 'destroyItem'])
             ->middleware('permission:trips.manage')
             ->name('trips.items.destroy');
+        Route::patch('/operations/trips/{trip}/vouchers/{voucher}/stop', [TripManagementController::class, 'updateVoucherStop'])
+            ->middleware('permission:trips.manage')
+            ->name('trips.vouchers.stop.update');
+        Route::delete('/operations/trips/{trip}/vouchers/{voucher}', [TripManagementController::class, 'destroyVoucher'])
+            ->middleware('permission:trips.manage')
+            ->name('trips.vouchers.destroy');
+        Route::post('/operations/trips/{trip}/vouchers/{voucher}/delivery-confirmations', [TripManagementController::class, 'storeVoucherDeliveryConfirmations'])
+            ->middleware('permission:trips.manage')
+            ->name('trips.vouchers.delivery-confirmations.store');
         Route::post('/operations/trips/{trip}/items/{tripItem}/delivery-confirmations', [TripManagementController::class, 'storeDeliveryConfirmation'])
             ->middleware('permission:trips.manage')
             ->name('trips.items.delivery-confirmations.store');
@@ -208,6 +220,15 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/operations/fulfillment/instructions/{instruction}/dispatch', [WarehouseFulfillmentController::class, 'dispatchInstruction'])
             ->middleware('permission:trips.manage')
             ->name('fulfillment.instructions.dispatch');
+        Route::post('/operations/fulfillment/warehouses/{warehouse}/vouchers/{voucher}/dispatch', [WarehouseFulfillmentController::class, 'dispatchVoucher'])
+            ->middleware('permission:trips.manage')
+            ->name('fulfillment.vouchers.dispatch');
+        Route::post('/operations/fulfillment/vouchers/{voucher}/payments', [WarehouseFulfillmentController::class, 'storeVoucherPayment'])
+            ->middleware('permission:trips.manage')
+            ->name('fulfillment.vouchers.payments.store');
+        Route::post('/operations/fulfillment/vouchers/{voucher}/payment-waive', [WarehouseFulfillmentController::class, 'setVoucherWaived'])
+            ->middleware('permission:trips.manage')
+            ->name('fulfillment.vouchers.payment-waive');
 
         Route::middleware(['permission:vouchers.manage', 'permission:inventory.manage'])->group(function () {
             Route::get('/operations/vouchers/create', [VoucherWizardController::class, 'create'])->name('vouchers.wizard.create');
@@ -230,6 +251,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/operations/vouchers/{voucher}/payments', [VoucherManagementController::class, 'storePayment'])
             ->middleware('permission:payments.manage')
             ->name('vouchers.payments.store');
+        Route::post('/operations/vouchers/{voucher}/payment-waive', [VoucherManagementController::class, 'setWaived'])
+            ->middleware('permission:payments.manage')
+            ->name('vouchers.payment-waive');
         Route::post('/operations/vouchers', [VoucherManagementController::class, 'store'])
             ->middleware('permission:vouchers.manage')
             ->name('vouchers.store');

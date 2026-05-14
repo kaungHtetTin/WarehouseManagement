@@ -69,28 +69,19 @@ class VoucherPaymentTest extends TestCase
         $this->assertSame('40.00', (string) VoucherPayment::query()->where('voucher_id', $voucher->id)->value('amount'));
     }
 
-    public function test_line_allocated_payment_updates_line_payment_status(): void
+    public function test_record_payment_prevents_overpayment(): void
     {
         [$user, $voucher] = $this->confirmedVoucherWithTotal('100.00');
         $this->grantPaymentsManage($user);
-        $line = VoucherItem::query()->where('voucher_id', $voucher->id)->firstOrFail();
-        $line->update(['freight_amount' => 50]);
 
-        $this->actingAs($user)->post(route('admin.vouchers.payments.store', $voucher), [
-            'amount' => 20,
+        $response = $this->actingAs($user)->post(route('admin.vouchers.payments.store', $voucher), [
+            'amount' => 150,
             'payment_method' => 'CASH',
             'paid_at' => '2026-05-10 12:00:00',
-            'voucher_item_id' => $line->id,
         ]);
-        $this->assertSame('PARTIAL', $line->fresh()->payment_status);
 
-        $this->actingAs($user)->post(route('admin.vouchers.payments.store', $voucher), [
-            'amount' => 30,
-            'payment_method' => 'CASH',
-            'paid_at' => '2026-05-10 12:30:00',
-            'voucher_item_id' => $line->id,
-        ]);
-        $this->assertSame('PAID', $line->fresh()->payment_status);
+        $response->assertInvalid(['amount']);
+        $this->assertSame(0, VoucherPayment::query()->where('voucher_id', $voucher->id)->count());
     }
 
     /**

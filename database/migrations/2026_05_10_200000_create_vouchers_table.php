@@ -27,7 +27,9 @@ return new class extends Migration
             ])->default('DRAFT');
             $table->enum('payment_status', ['UNPAID', 'PARTIAL', 'PAID', 'WAIVED'])->default('UNPAID');
             $table->decimal('total_qty', 14, 3)->default(0);
+            $table->decimal('total_weight', 14, 3)->nullable();
             $table->decimal('total_amount', 14, 2)->nullable();
+            $table->json('additional_costs')->nullable();
             $table->text('remark')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
