@@ -14,6 +14,9 @@ use App\Http\Controllers\Admin\RoleManagementController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\WarehouseManagementController;
 use App\Http\Controllers\Admin\WarehouseFulfillmentController;
+use App\Http\Controllers\Admin\OrganizationPublicPageController;
+use App\Http\Controllers\Admin\OrganizationSettingsController;
+use App\Http\Controllers\PublicOrganizationPageController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -50,6 +53,23 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/ui-showcase', function () {
             return Inertia::render('UiShowcase');
         })->name('ui-showcase');
+
+        Route::get('/system/organization-settings', [OrganizationSettingsController::class, 'edit'])
+            ->middleware('permission:public_page.manage')
+            ->name('organization-settings.edit');
+        Route::patch('/system/organization-settings', [OrganizationSettingsController::class, 'update'])
+            ->middleware('permission:public_page.manage')
+            ->name('organization-settings.update');
+        Route::post('/system/organization-settings/logo', [OrganizationSettingsController::class, 'uploadLogo'])
+            ->middleware('permission:public_page.manage')
+            ->name('organization-settings.logo');
+
+        Route::get('/system/public-page', [OrganizationPublicPageController::class, 'edit'])
+            ->middleware('permission:public_page.manage')
+            ->name('public-page.edit');
+        Route::patch('/system/public-page', [OrganizationPublicPageController::class, 'update'])
+            ->middleware('permission:public_page.manage')
+            ->name('public-page.update');
 
         Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 
@@ -265,6 +285,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
             ->name('vouchers.destroy');
     });
 });
+
+Route::get('/p/{slug}', [PublicOrganizationPageController::class, 'show'])->name('public-page.show');
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [

@@ -23,7 +23,6 @@ import {
     AccountCircle,
     AdminPanelSettings as AdminPanelSettingsIcon,
     AutoAwesomeMosaic as UiShowcaseIcon,
-    Category as CategoryIcon,
     Dashboard as DashboardIcon,
     DarkMode as DarkModeIcon,
     LightMode as LightModeIcon,
@@ -38,6 +37,7 @@ import {
     ReceiptLong as VoucherIcon,
     AltRoute as TripRouteIcon,
     MoveToInbox as FulfillmentInboxIcon,
+    Settings as SettingsIcon,
 } from '@mui/icons-material';
 
 const drawerWidth = 220;
@@ -144,25 +144,21 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
         {
             title: 'Operations',
             items: [
-                ...(permissionCodes.includes('warehouses.view') || permissionCodes.includes('warehouses.manage')
-                    ? [{ label: 'Warehouses', href: `${adminAppUrl}/master/warehouses`, icon: <WarehouseIcon /> }]
-                    : []),
-                ...(permissionCodes.includes('inventory.view') || permissionCodes.includes('inventory.manage')
-                    ? [
-                          { label: 'Categories', href: `${adminAppUrl}/master/categories`, icon: <CategoryIcon /> },
-                          { label: 'Products', href: `${adminAppUrl}/master/products`, icon: <ProductIcon /> },
-                          { label: 'Merchants', href: `${adminAppUrl}/master/merchants`, icon: <MerchantIcon /> },
-                          { label: 'Vehicles', href: `${adminAppUrl}/master/vehicles`, icon: <VehicleIcon /> },
-                          { label: 'Stock', href: `${adminAppUrl}/inventory/stocks`, icon: <StockIcon /> },
-                      ]
-                    : []),
                 ...(permissionCodes.includes('vouchers.view') || permissionCodes.includes('vouchers.manage')
                     ? [{ label: 'Vouchers', href: `${adminAppUrl}/operations/vouchers`, icon: <VoucherIcon /> }]
                     : []),
                 ...(permissionCodes.includes('trips.view') || permissionCodes.includes('trips.manage')
                     ? [
-                          { label: 'Trips', href: `${adminAppUrl}/operations/trips`, icon: <TripRouteIcon /> },
                           { label: 'Fulfillment Inbox', href: `${adminAppUrl}/operations/fulfillment/inbox`, icon: <FulfillmentInboxIcon /> },
+                          { label: 'Trips', href: `${adminAppUrl}/operations/trips`, icon: <TripRouteIcon /> },
+                      ]
+                    : []),
+                ...(permissionCodes.includes('inventory.view') || permissionCodes.includes('inventory.manage')
+                    ? [
+                          { label: 'Stock', href: `${adminAppUrl}/inventory/stocks`, icon: <StockIcon /> },
+                          { label: 'Products', href: `${adminAppUrl}/master/products`, icon: <ProductIcon /> },
+                          { label: 'Merchants', href: `${adminAppUrl}/master/merchants`, icon: <MerchantIcon /> },
+                          { label: 'Vehicles', href: `${adminAppUrl}/master/vehicles`, icon: <VehicleIcon /> },
                       ]
                     : []),
             ],
@@ -171,6 +167,12 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
             title: 'System',
             items: [
                 { label: 'UI Showcase', href: `${adminAppUrl}/ui-showcase`, icon: <UiShowcaseIcon /> },
+                ...(permissionCodes.includes('public_page.manage')
+                    ? [{ label: 'Settings', href: `${adminAppUrl}/system/organization-settings?tab=settings`, icon: <SettingsIcon /> }]
+                    : []),
+                ...(permissionCodes.includes('warehouses.view') || permissionCodes.includes('warehouses.manage')
+                    ? [{ label: 'Warehouses', href: `${adminAppUrl}/master/warehouses`, icon: <WarehouseIcon /> }]
+                    : []),
                 { label: 'Users', href: `${adminAppUrl}/iam/users`, icon: <AdminPanelSettingsIcon /> },
                 { label: 'Roles', href: `${adminAppUrl}/iam/roles`, icon: <AdminPanelSettingsIcon /> },
             ],

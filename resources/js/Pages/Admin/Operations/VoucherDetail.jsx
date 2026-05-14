@@ -5,6 +5,7 @@ import {
     Box,
     Button,
     Chip,
+    Collapse,
     Dialog,
     DialogActions,
     DialogContent,
@@ -27,7 +28,7 @@ import {
     Typography,
 } from '@mui/material';
 import { ArrowBack as ArrowBackIcon, ExpandLess as ExpandLessIcon, ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 
 const PAYMENT_LABELS = {
     UNPAID: 'Unpaid',
@@ -208,6 +209,7 @@ export default function VoucherDetail() {
 
     const [paymentOpen, setPaymentOpen] = useState(false);
     const [costsOpen, setCostsOpen] = useState(false);
+    const [expandedPaymentId, setExpandedPaymentId] = useState(null);
 
     const paymentForm = useForm({
         amount: '',
@@ -473,27 +475,66 @@ export default function VoucherDetail() {
                                         <TableRow sx={{ bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>
                                             <TableCell>Paid at</TableCell>
                                             <TableCell align="right">Amount</TableCell>
-                                            <TableCell>Method</TableCell>
-                                            <TableCell>Reference</TableCell>
-                                            <TableCell>Recorded by</TableCell>
-                                            <TableCell>Note</TableCell>
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
-                                        {(voucher.payments || []).map((p) => (
-                                            <TableRow key={p.id}>
-                                                <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                                                    {p.paid_at ? new Date(p.paid_at).toLocaleString() : '—'}
-                                                </TableCell>
-                                                <TableCell align="right">
-                                                    {formatMoneyAmount(p.amount)} {p.currency ?? 'MMK'}
-                                                </TableCell>
-                                                <TableCell>{PAYMENT_METHOD_LABELS[p.payment_method] ?? p.payment_method}</TableCell>
-                                                <TableCell>{p.reference_no ?? '—'}</TableCell>
-                                                <TableCell>{p.receiver?.name ?? '—'}</TableCell>
-                                                <TableCell sx={{ maxWidth: 220, wordBreak: 'break-word' }}>{p.note ?? '—'}</TableCell>
-                                            </TableRow>
-                                        ))}
+                                        {(voucher.payments || []).map((p) => {
+                                            const hasDetails = Boolean(p.payment_method || p.reference_no || p.receiver?.name || p.note);
+                                            const isExpanded = expandedPaymentId === p.id;
+
+                                            return (
+                                                <Fragment key={p.id}>
+                                                    <TableRow hover>
+                                                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                                                            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                                                                {hasDetails ? (
+                                                                    <IconButton
+                                                                        size="small"
+                                                                        onClick={() => setExpandedPaymentId((prev) => (prev === p.id ? null : p.id))}
+                                                                    >
+                                                                        {isExpanded ? (
+                                                                            <ExpandLessIcon fontSize="small" />
+                                                                        ) : (
+                                                                            <ExpandMoreIcon fontSize="small" />
+                                                                        )}
+                                                                    </IconButton>
+                                                                ) : null}
+                                                                <Typography variant="body2">
+                                                                    {p.paid_at ? new Date(p.paid_at).toLocaleString() : '—'}
+                                                                </Typography>
+                                                            </Stack>
+                                                        </TableCell>
+                                                        <TableCell align="right">
+                                                            {formatMoneyAmount(p.amount)} {p.currency ?? 'MMK'}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                    {hasDetails ? (
+                                                        <TableRow>
+                                                            <TableCell colSpan={2} sx={{ py: 0 }}>
+                                                                <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                                                                    <Box sx={{ px: 2, py: 1.5 }}>
+                                                                        <Stack spacing={0.75}>
+                                                                            <Typography variant="body2" color="text.secondary">
+                                                                                Method: {PAYMENT_METHOD_LABELS[p.payment_method] ?? p.payment_method ?? '—'}
+                                                                            </Typography>
+                                                                            <Typography variant="body2" color="text.secondary">
+                                                                                Reference: {p.reference_no ?? '—'}
+                                                                            </Typography>
+                                                                            <Typography variant="body2" color="text.secondary">
+                                                                                Recorded by: {p.receiver?.name ?? '—'}
+                                                                            </Typography>
+                                                                            <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+                                                                                Note: {p.note ?? '—'}
+                                                                            </Typography>
+                                                                        </Stack>
+                                                                    </Box>
+                                                                </Collapse>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ) : null}
+                                                </Fragment>
+                                            );
+                                        })}
                                     </TableBody>
                                 </Table>
                             </TableContainer>

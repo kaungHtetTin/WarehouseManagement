@@ -49,6 +49,10 @@ class WarehouseStockController extends Controller
             $stocks = WarehouseStock::query()
                 ->where('organization_id', $organizationId)
                 ->where('warehouse_id', $warehouseId)
+                ->where(function ($query) {
+                    $query->where('qty_on_hand', '!=', 0)
+                        ->orWhere('qty_reserved', '!=', 0);
+                })
                 ->with('product:id,name,unit,sku')
                 ->orderBy('id')
                 ->get(['id', 'warehouse_id', 'product_id', 'qty_on_hand', 'qty_reserved', 'updated_at']);

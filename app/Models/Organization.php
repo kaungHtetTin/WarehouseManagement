@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Organization extends Model
 {
@@ -56,5 +57,9 @@ class Organization extends Model
     {
         return $this->hasMany(Voucher::class);
     }
-}
 
+    public function publicPage(): HasOne
+    {
+        return $this->hasOne(OrganizationPublicPage::class);
+    }
+}

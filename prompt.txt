@@ -1,22 +1,9 @@
-voucher payment system ကို voucher item level မလုပ်တော့ဘူ 
-partial payment record ကိုတော့ support ဆက်လုပ်သွားမယ်
-voucher_payments.voucher_item_id column ကို ဖြုတ်လိုက်ရင်ရပြီ
-
-payment လုပ်မယ့်နေရာ
-၁. voucher comfirm မှာ paid status နဲ့လားရင်
-တစ်ခါတည်း voucher_payments မှာလည်း လက်ရှိ voucher total ‌
-amount ကို တစ်ခါတည်း ထည့်လိုက်မယ်,
-
-၂. voucher detail မှာ add payment ဆိုတဲ့ function ရှိတယ်
-အဲ့မှာ မှာ partial payment ကို လက်ခံနိုင်တယ်,
-လက်ရှိ approach အတိုင်းပဲ
-ဥပမာ total voucher payment amount 50000 ကို 
-add payment မှာ 50000 နဲ့ တခါတည်းထည့်လိုက် payment paid , process finish
-တကယ်လို့ ပထမအကြိမ် 25000 နဲ့ထည့်ရင် payment partially paid, need to process
-နောက်ထပ် 25000 နဲ့ထပ်ထည့်ရင် payment paid, process finish,
-
-
-3. fillfullment process လုပ်တာမှာလည်း သက်ဆိုင်ရာ voucher ရဲ့ payment ကို တစ်ခါတည်း update လုပ်ခွင့်ပေးမယ်
-payment လုပ်မယ့် logic ကတော့ ခုန အဆင့် ၂ တုန်းကအတိုင်းပဲ
-
-don't implement now, just ask for your understanding. you can reply in English
+Drawer Navigation bar ကို ပြန်ပြင်မယ်, Warehouse ကို System section ကို ပို့မယ်, Category ကို ဖြုတ်မယ်, 
+In operation section, sort the link by the following order
+voucher,
+fillfullment
+trip
+stock
+product
+merchant
+vehicle

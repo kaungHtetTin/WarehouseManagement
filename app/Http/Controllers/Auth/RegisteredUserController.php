@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
+use App\Models\OrganizationPublicPage;
 use App\Models\Permission;
 use App\Services\Tenant\TenantRoleBootstrapper;
 use App\Models\User;
@@ -57,6 +58,13 @@ class RegisteredUserController extends Controller
                 'name' => $request->organization_name,
                 'code' => $organizationCode,
                 'default_locale' => 'mm',
+            ]);
+
+            OrganizationPublicPage::query()->create([
+                'organization_id' => $organization->id,
+                'slug' => $organization->code,
+                'is_published' => false,
+                'business_name' => $organization->name,
             ]);
 
             $user = User::query()->create([
