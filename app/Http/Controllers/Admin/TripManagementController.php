@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\DeliveryConfirmation;
+use App\Models\FinanceCategory;
+use App\Models\FinanceEntry;
 use App\Models\Merchant;
 use App\Models\Trip;
 use App\Models\TripItem;
@@ -315,11 +317,50 @@ class TripManagementController extends Controller
 
         $departureCaps = $this->tripDepartureCapabilities($user, $model, (int) $organizationId);
 
+        $canManageTripCosts = $user && $user->hasPermission('trips.manage');
+
+        $tripCostCategories = FinanceCategory::query()
+            ->where('organization_id', $organizationId)
+            ->where('scope', 'TRIP_COST')
+            ->where('direction', 'EXPENSE')
+            ->where('status', 'ACTIVE')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $tripCostEntries = FinanceEntry::query()
+            ->where('organization_id', $organizationId)
+            ->where('scope', 'TRIP_COST')
+            ->where('direction', 'EXPENSE')
+            ->where('reference_type', 'TRIP')
+            ->where('reference_id', $model->id)
+            ->with([
+                'category:id,name',
+                'creator:id,name',
+            ])
+            ->orderByDesc('id')
+            ->get([
+                'id',
+                'organization_id',
+                'category_id',
+                'amount',
+                'note',
+                'created_by',
+                'occurred_at',
+                'reference_type',
+                'reference_id',
+                'created_at',
+                'updated_at',
+            ]);
+
+        $tripExtraCostTotal = round((float) $tripCostEntries->sum(fn ($r) => (float) $r->amount), 2);
+
         return Inertia::render('Admin/Operations/TripDetail', [
             'trip' => $model,
             'can_manage_cargo' => $canManageCargo,
             'can_load_cargo' => $canLoadCargo,
             'can_record_delivery' => $canRecordDelivery,
+            'can_manage_trip_costs' => $canManageTripCosts,
             'can_mark_departed' => $departureCaps['can_mark_departed'],
             'can_undo_depart' => $departureCaps['can_undo_depart'],
             'warehouses' => $canManageCargo
@@ -330,7 +371,165 @@ class TripManagementController extends Controller
                 : [],
             'trip_total_weight' => $this->tripTotalWeight($model),
             'trip_labor_cost' => $this->tripLaborCost($model),
+            'trip_cost_categories' => $tripCostCategories,
+            'trip_cost_entries' => $tripCostEntries,
+            'trip_extra_cost_total' => $tripExtraCostTotal,
         ]);
+    }
+
+    public function storeCostEntry(Request $request, string $trip): RedirectResponse
+    {
+        $actor = $request->user();
+        $organizationId = $actor->organization_id;
+        abort_if($organizationId === null, 404);
+
+        $tripModel = Trip::query()
+            ->where('organization_id', $organizationId)
+            ->whereKey($trip)
+            ->firstOrFail();
+
+        $validated = $request->validate([
+            'category_id' => ['required', 'integer'],
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:1000000000'],
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $category = FinanceCategory::query()
+            ->where('organization_id', $organizationId)
+            ->whereKey((int) $validated['category_id'])
+            ->where('scope', 'TRIP_COST')
+            ->where('direction', 'EXPENSE')
+            ->where('status', 'ACTIVE')
+            ->firstOrFail();
+
+        $entry = FinanceEntry::query()->create([
+            'organization_id' => $organizationId,
+            'warehouse_id' => $tripModel->source_warehouse_id,
+            'scope' => 'TRIP_COST',
+            'direction' => 'EXPENSE',
+            'category_id' => $category->id,
+            'amount' => round((float) $validated['amount'], 2),
+            'currency' => 'MMK',
+            'note' => isset($validated['note']) ? trim((string) $validated['note']) : null,
+            'occurred_at' => now(),
+            'reference_type' => 'TRIP',
+            'reference_id' => $tripModel->id,
+            'source' => 'MANUAL',
+            'created_by' => $actor->id,
+        ]);
+
+        AuditLogger::record($actor, 'trip_cost_entry.create', $entry, [
+            'trip_id' => $tripModel->id,
+            'category_name' => $category->name,
+            'amount' => $entry->amount,
+        ]);
+
+        return Redirect::route('admin.trips.show', $tripModel)
+            ->with('success', 'Trip cost added.');
+    }
+
+    public function updateCostEntry(Request $request, string $trip, string $costEntry): RedirectResponse
+    {
+        $actor = $request->user();
+        $organizationId = $actor->organization_id;
+        abort_if($organizationId === null, 404);
+
+        $tripModel = Trip::query()
+            ->where('organization_id', $organizationId)
+            ->whereKey($trip)
+            ->firstOrFail();
+
+        $entry = FinanceEntry::query()
+            ->where('organization_id', $organizationId)
+            ->where('scope', 'TRIP_COST')
+            ->where('direction', 'EXPENSE')
+            ->where('reference_type', 'TRIP')
+            ->where('reference_id', $tripModel->id)
+            ->whereKey($costEntry)
+            ->firstOrFail();
+
+        $validated = $request->validate([
+            'category_id' => ['sometimes', 'required', 'integer'],
+            'amount' => ['sometimes', 'required', 'numeric', 'min:0.01', 'max:1000000000'],
+            'note' => ['sometimes', 'nullable', 'string', 'max:500'],
+        ]);
+
+        $snapshot = [
+            'id' => $entry->id,
+            'trip_id' => $tripModel->id,
+            'category_id' => $entry->category_id,
+            'amount' => (float) $entry->amount,
+            'note' => $entry->note,
+        ];
+
+        if (array_key_exists('category_id', $validated)) {
+            $category = FinanceCategory::query()
+                ->where('organization_id', $organizationId)
+                ->whereKey((int) $validated['category_id'])
+                ->where('scope', 'TRIP_COST')
+                ->where('direction', 'EXPENSE')
+                ->firstOrFail();
+            $entry->category_id = $category->id;
+        }
+
+        if (array_key_exists('amount', $validated)) {
+            $entry->amount = round((float) $validated['amount'], 2);
+        }
+
+        if (array_key_exists('note', $validated)) {
+            $entry->note = $validated['note'] !== null ? trim((string) $validated['note']) : null;
+        }
+
+        $entry->save();
+
+        AuditLogger::record($actor, 'trip_cost_entry.update', $entry, [
+            'before' => $snapshot,
+            'after' => [
+                'category_id' => $entry->category_id,
+                'amount' => (float) $entry->amount,
+                'note' => $entry->note,
+            ],
+        ]);
+
+        return Redirect::route('admin.trips.show', $tripModel)
+            ->with('success', 'Trip cost updated.');
+    }
+
+    public function destroyCostEntry(Request $request, string $trip, string $costEntry): RedirectResponse
+    {
+        $actor = $request->user();
+        $organizationId = $actor->organization_id;
+        abort_if($organizationId === null, 404);
+
+        $tripModel = Trip::query()
+            ->where('organization_id', $organizationId)
+            ->whereKey($trip)
+            ->firstOrFail();
+
+        $entry = FinanceEntry::query()
+            ->where('organization_id', $organizationId)
+            ->where('scope', 'TRIP_COST')
+            ->where('direction', 'EXPENSE')
+            ->where('reference_type', 'TRIP')
+            ->where('reference_id', $tripModel->id)
+            ->whereKey($costEntry)
+            ->with('category:id,name')
+            ->firstOrFail();
+
+        $snapshot = [
+            'id' => $entry->id,
+            'trip_id' => $tripModel->id,
+            'category_name' => $entry->category?->name,
+            'amount' => (float) $entry->amount,
+            'note' => $entry->note,
+        ];
+
+        $entry->delete();
+
+        AuditLogger::record($actor, 'trip_cost_entry.delete', null, $snapshot);
+
+        return Redirect::route('admin.trips.show', $tripModel)
+            ->with('success', 'Trip cost deleted.');
     }
 
     private function tripTotalWeight(Trip $trip): ?float
@@ -403,6 +602,11 @@ class TripManagementController extends Controller
             }
             foreach ($costs as $row) {
                 if (! is_array($row)) {
+                    continue;
+                }
+                $nameRaw = $row['category_name'] ?? $row['label'] ?? null;
+                $name = $nameRaw !== null ? strtolower(trim((string) $nameRaw)) : '';
+                if ($name !== 'labor' && $name !== 'labour') {
                     continue;
                 }
                 $a = $row['amount'] ?? null;

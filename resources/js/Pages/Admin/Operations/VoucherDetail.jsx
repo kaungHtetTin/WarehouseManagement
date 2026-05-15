@@ -427,7 +427,7 @@ export default function VoucherDetail() {
                                                         {voucher.additional_costs.map((c, idx) => (
                                                             <TableRow key={idx} hover>
                                                                 <TableCell sx={{ borderBottom: 0, color: 'text.secondary' }}>
-                                                                    {c?.label || '—'}
+                                                                    {c?.category_name || c?.label || '—'}
                                                                 </TableCell>
                                                                 <TableCell sx={{ borderBottom: 0 }}>{formatMoneyAmount(c?.amount)}</TableCell>
                                                             </TableRow>

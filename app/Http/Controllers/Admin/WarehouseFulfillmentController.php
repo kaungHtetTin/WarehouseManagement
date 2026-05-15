@@ -3,7 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\FinanceCategory;
+use App\Models\FinanceEntry;
+use App\Models\TripItem;
+use App\Models\TripStop;
 use App\Models\VoucherItem;
+use App\Models\VoucherPayment;
 use App\Models\WarehouseFulfillmentInstruction;
 use App\Services\Audit\AuditLogger;
 use App\Services\Inventory\StockLedgerService;
@@ -57,7 +62,7 @@ class WarehouseFulfillmentController extends Controller
         ]);
 
         DB::transaction(function () use ($validated, $organizationId, $voucherModel, $actor) {
-            \App\Models\VoucherPayment::query()->create([
+            $payment = VoucherPayment::query()->create([
                 'organization_id' => $organizationId,
                 'voucher_id' => $voucherModel->id,
                 'amount' => round((float) $validated['amount'], 2),
@@ -71,8 +76,59 @@ class WarehouseFulfillmentController extends Controller
                 'received_by' => $actor->id,
             ]);
 
+            $incomeCategory = FinanceCategory::query()
+                ->where('organization_id', $organizationId)
+                ->where('scope', 'VOUCHER')
+                ->where('direction', 'INCOME')
+                ->where('name', 'Voucher Payment')
+                ->whereNull('deleted_at')
+                ->first();
+
+            if (! $incomeCategory) {
+                $incomeCategory = FinanceCategory::withTrashed()
+                    ->where('organization_id', $organizationId)
+                    ->where('scope', 'VOUCHER')
+                    ->where('name', 'Voucher Payment')
+                    ->first();
+
+                if ($incomeCategory && $incomeCategory->trashed()) {
+                    $incomeCategory->restore();
+                }
+
+                if (! $incomeCategory) {
+                    $incomeCategory = FinanceCategory::query()->create([
+                        'organization_id' => $organizationId,
+                        'scope' => 'VOUCHER',
+                        'direction' => 'INCOME',
+                        'name' => 'Voucher Payment',
+                        'status' => 'ACTIVE',
+                        'sort_order' => 10,
+                    ]);
+                } else {
+                    $incomeCategory->direction = 'INCOME';
+                    $incomeCategory->status = 'ACTIVE';
+                    $incomeCategory->save();
+                }
+            }
+
+            FinanceEntry::query()->create([
+                'organization_id' => $organizationId,
+                'warehouse_id' => $voucherModel->source_warehouse_id,
+                'scope' => 'VOUCHER',
+                'direction' => 'INCOME',
+                'category_id' => $incomeCategory->id,
+                'amount' => (float) $payment->amount,
+                'currency' => $payment->currency ?? 'MMK',
+                'occurred_at' => $payment->paid_at,
+                'note' => $payment->note,
+                'reference_type' => 'VOUCHER_PAYMENT',
+                'reference_id' => $payment->id,
+                'source' => 'SYSTEM',
+                'created_by' => $actor->id,
+            ]);
+
             $total = round((float) $voucherModel->total_amount, 2);
-            $paid = round((float) \App\Models\VoucherPayment::query()
+            $paid = round((float) VoucherPayment::query()
                 ->where('voucher_id', $voucherModel->id)
                 ->where('organization_id', $organizationId)
                 ->sum('amount'), 2);
@@ -182,6 +238,9 @@ class WarehouseFulfillmentController extends Controller
         $warehouses = $this->operationalContext->assignedWarehousesOnly($user);
         $allowedIds = $this->operationalContext->assignedWarehouseIds($user);
 
+        $rawStatusFilter = (string) $request->query('status', 'pending');
+        $selectedStatusFilter = in_array($rawStatusFilter, ['incoming', 'pending', 'completed', 'all'], true) ? $rawStatusFilter : 'pending';
+
         $rawFilter = $request->query('warehouse_id', 'all');
         $selectedFilter = 'all';
         if ($rawFilter !== null && $rawFilter !== '' && (string) $rawFilter !== 'all') {
@@ -191,39 +250,278 @@ class WarehouseFulfillmentController extends Controller
             }
         }
 
-        $query = WarehouseFulfillmentInstruction::query()
-            ->where('organization_id', $organizationId)
-            ->where('status', 'PENDING_ACTION');
+        $includeIncoming = in_array($selectedStatusFilter, ['incoming', 'all'], true);
+        $includeInstructions = $selectedStatusFilter !== 'incoming';
 
-        if ($selectedFilter !== 'all') {
-            $query->where('warehouse_id', (int) $selectedFilter);
-        } elseif ($allowedIds === []) {
-            $query->whereRaw('1 = 0');
-        } else {
-            $query->whereIn('warehouse_id', $allowedIds);
+        $instructions = collect();
+        if ($includeInstructions) {
+            $query = WarehouseFulfillmentInstruction::query()
+                ->where('organization_id', $organizationId);
+
+            if ($selectedStatusFilter === 'pending') {
+                $query->where(function ($q) {
+                    $q->where('status', 'PENDING_ACTION')
+                        ->orWhere(function ($q2) {
+                            $q2->where('status', 'COMPLETED')
+                                ->whereHas('voucherItem.voucher', fn ($v) => $v->whereIn('payment_status', ['UNPAID', 'PARTIAL']));
+                        });
+                });
+            } elseif ($selectedStatusFilter === 'completed') {
+                $query->where('status', 'COMPLETED');
+            } else {
+                $query->whereIn('status', ['PENDING_ACTION', 'COMPLETED']);
+            }
+
+            if ($selectedFilter !== 'all') {
+                $query->where('warehouse_id', (int) $selectedFilter);
+            } elseif ($allowedIds === []) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereIn('warehouse_id', $allowedIds);
+            }
+
+            $instructions = $query
+                ->with([
+                    'warehouse:id,name,code',
+                    'nextWarehouse:id,name,code',
+                    'merchant:id,name',
+                    'tripItem:id,trip_id',
+                    'tripItem.trip:id,trip_no,status',
+                    'voucherItem:id,voucher_id,line_no,product_id,unit',
+                    'voucherItem.voucher:id,voucher_no,payment_status,total_amount,default_to_warehouse_id,default_to_city,default_to_address_line1,default_to_address_line2,default_to_township,default_to_region,default_to_postal_code,default_recipient_name,default_recipient_phone',
+                    'voucherItem.voucher.defaultToWarehouse:id,name,code',
+                    'voucherItem.product:id,name,unit',
+                ])
+                ->orderByDesc('id')
+                ->limit(400)
+                ->get();
+
+            if (! $instructions->isEmpty()) {
+                $voucherIds = $instructions
+                    ->pluck('voucherItem.voucher_id')
+                    ->filter()
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                if ($voucherIds !== []) {
+                    $paidByVoucher = VoucherPayment::query()
+                        ->where('organization_id', $organizationId)
+                        ->whereIn('voucher_id', $voucherIds)
+                        ->selectRaw('voucher_id, SUM(amount) as paid')
+                        ->groupBy('voucher_id')
+                        ->pluck('paid', 'voucher_id');
+
+                    foreach ($instructions as $row) {
+                        $voucher = $row->voucherItem?->voucher;
+                        if (! $voucher || ! $voucher->id) {
+                            continue;
+                        }
+                        $vid = (int) $voucher->id;
+                        $totalRaw = $voucher->total_amount;
+                        $total = $totalRaw !== null && $totalRaw !== '' ? round((float) $totalRaw, 2) : null;
+                        $paid = round((float) ($paidByVoucher[$vid] ?? 0), 2);
+                        $remaining = $total !== null ? round(max(0, $total - $paid), 2) : null;
+                        if ($voucher->payment_status === 'WAIVED') {
+                            $remaining = 0.0;
+                        }
+
+                        $row->setAttribute('voucher_total_amount', $total);
+                        $row->setAttribute('voucher_paid_amount', $paid);
+                        $row->setAttribute('voucher_remaining_amount', $remaining);
+                    }
+                }
+            }
         }
 
-        $instructions = $query
-            ->with([
-                'warehouse:id,name,code',
-                'nextWarehouse:id,name,code',
-                'merchant:id,name',
-                'tripItem:id,trip_id',
-                'tripItem.trip:id,trip_no,status',
-                'voucherItem:id,voucher_id,line_no,product_id,unit',
-                'voucherItem.voucher:id,voucher_no,payment_status,default_to_warehouse_id,default_to_city,default_to_address_line1,default_to_address_line2,default_to_township,default_to_region,default_to_postal_code,default_recipient_name,default_recipient_phone',
-                'voucherItem.voucher.defaultToWarehouse:id,name,code',
-                'voucherItem.product:id,name,unit',
-            ])
-            ->orderByDesc('id')
-            ->limit(400)
-            ->get();
+        $incoming = [];
+        if ($includeIncoming) {
+            $incoming = $this->buildIncomingRows(
+                organizationId: (int) $organizationId,
+                assignedWarehouseIds: $allowedIds,
+                warehouses: $warehouses,
+                warehouseFilter: $selectedFilter === 'all' ? null : (int) $selectedFilter,
+            );
+        }
+
+        $rows = $includeInstructions
+            ? $instructions->values()->all()
+            : [];
+        if ($includeIncoming) {
+            $rows = array_merge($incoming, $rows);
+        }
 
         return Inertia::render('Admin/Operations/WarehouseFulfillmentInbox', [
-            'instructions' => $instructions,
+            'instructions' => $rows,
             'warehouses' => $warehouses,
             'fulfillment_warehouse_filter' => $selectedFilter,
+            'fulfillment_status_filter' => $selectedStatusFilter,
+            'fulfillment_page' => 'inbox',
+            'fulfillment_base_path' => '/operations/fulfillment/inbox',
+            'fulfillment_fixed_status' => false,
         ]);
+    }
+
+    public function incoming(Request $request): Response
+    {
+        $user = $request->user();
+        $organizationId = $user->organization_id;
+        abort_if($organizationId === null, 404);
+
+        $warehouses = $this->operationalContext->assignedWarehousesOnly($user);
+        $allowedIds = $this->operationalContext->assignedWarehouseIds($user);
+
+        $rawFilter = $request->query('warehouse_id', 'all');
+        $selectedFilter = 'all';
+        if ($rawFilter !== null && $rawFilter !== '' && (string) $rawFilter !== 'all') {
+            $candidate = (int) $rawFilter;
+            if (in_array($candidate, $allowedIds, true)) {
+                $selectedFilter = (string) $candidate;
+            }
+        }
+
+        $incoming = $this->buildIncomingRows(
+            organizationId: (int) $organizationId,
+            assignedWarehouseIds: $allowedIds,
+            warehouses: $warehouses,
+            warehouseFilter: $selectedFilter === 'all' ? null : (int) $selectedFilter,
+        );
+
+        return Inertia::render('Admin/Operations/WarehouseFulfillmentInbox', [
+            'instructions' => $incoming,
+            'warehouses' => $warehouses,
+            'fulfillment_warehouse_filter' => $selectedFilter,
+            'fulfillment_status_filter' => 'incoming',
+            'fulfillment_page' => 'incoming',
+            'fulfillment_base_path' => '/operations/fulfillment/incoming',
+            'fulfillment_fixed_status' => true,
+        ]);
+    }
+
+    private function buildIncomingRows(int $organizationId, array $assignedWarehouseIds, $warehouses, ?int $warehouseFilter = null): array
+    {
+        if ($assignedWarehouseIds === []) {
+            return [];
+        }
+
+        $warehouseById = [];
+        foreach ($warehouses as $w) {
+            $warehouseById[(int) $w->id] = $w;
+        }
+
+        $tripItems = TripItem::query()
+            ->where('organization_id', $organizationId)
+            ->where('loaded_qty', '>', 0)
+            ->whereHas('trip', fn ($q) => $q->whereIn('status', ['PLANNED', 'LOADING', 'DEPARTED', 'AT_STOP']))
+            ->with([
+                'trip:id,trip_no,status',
+                'tripStop:id,trip_id,warehouse_id',
+                'voucherItem:id,voucher_id,line_no,product_id,unit',
+                'voucherItem.product:id,name,unit',
+                'voucherItem.voucher:id,voucher_no,payment_status,default_to_warehouse_id,default_to_city,default_to_address_line1,default_to_address_line2,default_to_township,default_to_region,default_to_postal_code,default_recipient_name,default_recipient_phone,merchant_id',
+                'voucherItem.voucher.defaultToWarehouse:id,name,code',
+                'voucherItem.voucher.merchant:id,name',
+            ])
+            ->orderByDesc('id')
+            ->limit(600)
+            ->get();
+
+        if ($tripItems->isEmpty()) {
+            return [];
+        }
+
+        $existing = WarehouseFulfillmentInstruction::query()
+            ->where('organization_id', $organizationId)
+            ->whereIn('trip_item_id', $tripItems->pluck('id')->all())
+            ->get(['trip_item_id', 'warehouse_id', 'voucher_item_id'])
+            ->map(fn ($r) => ((int) $r->trip_item_id).':'.((int) $r->warehouse_id).':'.((int) $r->voucher_item_id))
+            ->flip();
+
+        $out = [];
+        foreach ($tripItems as $item) {
+            $vi = $item->voucherItem;
+            if (! $vi || ! $vi->voucher) {
+                continue;
+            }
+
+            $receivingWarehouseId = $this->resolveReceivingWarehouseId($item, $vi, $organizationId);
+            if ($receivingWarehouseId === null) {
+                continue;
+            }
+            if ($warehouseFilter !== null && $receivingWarehouseId !== $warehouseFilter) {
+                continue;
+            }
+            if (! in_array($receivingWarehouseId, $assignedWarehouseIds, true)) {
+                continue;
+            }
+
+            $inTransitQty = round((float) $item->loaded_qty - (float) $item->delivered_qty, 3);
+            if ($inTransitQty < 0.0001) {
+                continue;
+            }
+
+            $key = ((int) $item->id).':'.$receivingWarehouseId.':'.((int) $vi->id);
+            if (isset($existing[$key])) {
+                continue;
+            }
+
+            $warehouse = $warehouseById[$receivingWarehouseId] ?? null;
+            if ($warehouse === null) {
+                continue;
+            }
+
+            $voucher = $vi->voucher;
+            $out[] = [
+                'id' => 'incoming-'.$item->id.'-'.$receivingWarehouseId,
+                'warehouse_id' => $receivingWarehouseId,
+                'warehouse' => $warehouse->only(['id', 'name', 'code']),
+                'next_warehouse_id' => null,
+                'next_warehouse' => null,
+                'merchant_id' => $voucher->merchant_id ?? null,
+                'merchant' => $voucher->merchant ? $voucher->merchant->only(['id', 'name']) : null,
+                'trip_item_id' => (int) $item->id,
+                'trip_item' => [
+                    'id' => (int) $item->id,
+                    'trip_id' => (int) $item->trip_id,
+                    'trip' => $item->trip ? $item->trip->only(['id', 'trip_no', 'status']) : null,
+                ],
+                'voucher_item_id' => (int) $vi->id,
+                'voucher_item' => $vi->toArray(),
+                'qty_received' => number_format(max(0, $inTransitQty), 3, '.', ''),
+                'qty_dispatched' => '0.000',
+                'status' => 'INCOMING',
+                'next_action_type' => null,
+                'note' => null,
+                'last_updated_by' => null,
+            ];
+        }
+
+        return $out;
+    }
+
+    private function resolveReceivingWarehouseId(TripItem $tripItem, VoucherItem $voucherItem, int $organizationId): ?int
+    {
+        if ($tripItem->trip_stop_id !== null) {
+            if ($tripItem->relationLoaded('tripStop') && $tripItem->tripStop !== null && $tripItem->tripStop->warehouse_id !== null) {
+                return (int) $tripItem->tripStop->warehouse_id;
+            }
+
+            $stop = TripStop::query()
+                ->whereKey($tripItem->trip_stop_id)
+                ->where('organization_id', $organizationId)
+                ->where('trip_id', $tripItem->trip_id)
+                ->first();
+            if ($stop !== null && $stop->warehouse_id !== null) {
+                return (int) $stop->warehouse_id;
+            }
+        }
+
+        $voucher = $voucherItem->voucher;
+
+        return $voucher !== null && $voucher->default_to_warehouse_id !== null
+            ? (int) $voucher->default_to_warehouse_id
+            : null;
     }
 
     public function dispatchInstruction(Request $request, string $instruction): RedirectResponse

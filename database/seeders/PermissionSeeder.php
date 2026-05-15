@@ -26,6 +26,8 @@ class PermissionSeeder extends Seeder
             ['code' => 'payments.manage', 'name' => 'Manage payment status', 'module' => 'payment'],
             ['code' => 'billing.view', 'name' => 'View billing', 'module' => 'billing'],
             ['code' => 'billing.manage', 'name' => 'Manage billing', 'module' => 'billing'],
+            ['code' => 'finance.view', 'name' => 'View finance ledger', 'module' => 'finance'],
+            ['code' => 'finance.manage', 'name' => 'Manage finance ledger', 'module' => 'finance'],
             ['code' => 'public_page.manage', 'name' => 'Manage public organization page', 'module' => 'public_page'],
         ];
 
@@ -37,4 +39,3 @@ class PermissionSeeder extends Seeder
         }
     }
 }
-

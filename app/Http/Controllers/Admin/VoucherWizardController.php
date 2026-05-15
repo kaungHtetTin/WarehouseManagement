@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\User;
 use App\Models\Voucher;
 use App\Models\VoucherItem;
+use App\Models\VoucherAdditionalCostCategory;
 use App\Support\VoucherLineFreight;
 use App\Services\Audit\AuditLogger;
 use App\Services\Inventory\StockLedgerService;
@@ -86,6 +87,12 @@ class VoucherWizardController extends Controller
                 ->where('organization_id', $organizationId)
                 ->orderBy('name')
                 ->get(['id', 'name']),
+            'additional_cost_categories' => VoucherAdditionalCostCategory::query()
+                ->where('organization_id', $organizationId)
+                ->whereNull('deleted_at')
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(['id', 'name', 'status', 'sort_order']),
         ]);
     }
 
@@ -293,6 +300,7 @@ class VoucherWizardController extends Controller
         $organizationId = $actor->organization_id;
 
         $validated = $request->validate([
+            'product_name' => ['nullable', 'string', 'max:255'],
             'product_id' => [
                 'nullable',
                 Rule::exists('products', 'id')->where(
@@ -315,12 +323,15 @@ class VoucherWizardController extends Controller
             'is_fragile' => ['sometimes', 'boolean'],
         ]);
 
+        $productName = trim((string) ($validated['product_name'] ?? ''));
+        $hasProductName = $productName !== '';
+
         $hasProductId = filled($validated['product_id'] ?? null);
         $hasNewProduct = isset($validated['new_product']) && is_array($validated['new_product'])
             && filled($validated['new_product']['name'] ?? null);
 
-        if (! $hasProductId && ! $hasNewProduct) {
-            return Redirect::back()->with('error', 'Select an existing product or provide new product details.');
+        if (! $hasProductName && ! $hasProductId && ! $hasNewProduct) {
+            return Redirect::back()->with('error', 'Enter product name (or select an existing product).');
         }
 
         $qty = (float) $validated['qty'];
@@ -330,8 +341,42 @@ class VoucherWizardController extends Controller
             $validated['freight_amount'] ?? null,
         );
 
-        DB::transaction(function () use ($actor, $voucherModel, $organizationId, $validated, $hasProductId, $hasNewProduct, $freightAmount) {
-            $productId = $hasProductId ? (int) $validated['product_id'] : null;
+        DB::transaction(function () use ($actor, $voucherModel, $organizationId, $validated, $hasProductId, $hasNewProduct, $hasProductName, $productName, $freightAmount) {
+            $productId = null;
+
+            if ($hasProductName) {
+                $existing = Product::query()
+                    ->where('organization_id', $organizationId)
+                    ->whereNull('deleted_at')
+                    ->where('status', 'ACTIVE')
+                    ->where('name', $productName)
+                    ->orderBy('id')
+                    ->first();
+
+                if ($existing) {
+                    $productId = $existing->id;
+                } else {
+                    $product = Product::query()->create([
+                        'organization_id' => $organizationId,
+                        'category_id' => null,
+                        'sku' => null,
+                        'name' => $productName,
+                        'unit' => $validated['unit'],
+                        'default_weight' => null,
+                        'status' => 'ACTIVE',
+                    ]);
+                    AuditLogger::record($actor, 'product.create', $product, [
+                        'name' => $product->name,
+                        'context' => 'voucher_wizard',
+                    ]);
+                    $productId = $product->id;
+                }
+            }
+
+            if ($productId === null && $hasProductId) {
+                $productId = (int) $validated['product_id'];
+            }
+
             if ($productId === null && $hasNewProduct) {
                 $np = $validated['new_product'];
                 $sku = isset($np['sku']) ? trim((string) $np['sku']) : null;
@@ -520,11 +565,21 @@ class VoucherWizardController extends Controller
 
     private function rulesWizardMeta(): array
     {
+        $organizationId = auth()->user()?->organization_id;
+        abort_if($organizationId === null, 404);
+
         return [
             'total_weight' => ['nullable', 'numeric', 'min:0'],
             'additional_costs' => ['nullable', 'array', 'max:50'],
-            'additional_costs.*.label' => ['required_with:additional_costs.*.amount', 'string', 'max:255'],
-            'additional_costs.*.amount' => ['required_with:additional_costs.*.label', 'numeric', 'min:0'],
+            'additional_costs.*.category_id' => [
+                'required_with:additional_costs.*.amount',
+                'integer',
+                Rule::exists('voucher_additional_cost_categories', 'id')->where(fn ($q) => $q
+                    ->where('organization_id', $organizationId)
+                    ->whereNull('deleted_at')
+                    ->where('status', 'ACTIVE')),
+            ],
+            'additional_costs.*.amount' => ['required_with:additional_costs.*.category_id', 'numeric', 'min:0'],
         ];
     }
 
@@ -532,26 +587,57 @@ class VoucherWizardController extends Controller
     {
         $raw = $validated['additional_costs'] ?? null;
         $normalized = [];
+        $categoryNameById = [];
         if (is_array($raw)) {
+            $ids = [];
             foreach ($raw as $row) {
                 if (! is_array($row)) {
                     continue;
                 }
-                $label = trim((string) ($row['label'] ?? ''));
+                $id = $row['category_id'] ?? null;
+                if ($id === null || $id === '') {
+                    continue;
+                }
+                $ids[] = (int) $id;
+            }
+
+            $orgId = auth()->user()?->organization_id;
+            abort_if($orgId === null, 404);
+
+            if ($ids !== []) {
+                $categoryNameById = VoucherAdditionalCostCategory::query()
+                    ->where('organization_id', $orgId)
+                    ->whereIn('id', array_values(array_unique($ids)))
+                    ->pluck('name', 'id')
+                    ->mapWithKeys(fn ($v, $k) => [(int) $k => (string) $v])
+                    ->all();
+            }
+
+            foreach ($raw as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+                $categoryIdRaw = $row['category_id'] ?? null;
+                $categoryId = $categoryIdRaw !== null && $categoryIdRaw !== '' ? (int) $categoryIdRaw : null;
                 $amountRaw = $row['amount'] ?? null;
 
                 $hasAmount = $amountRaw !== null && $amountRaw !== '';
                 $amount = $hasAmount ? (float) $amountRaw : null;
 
-                if ($label === '' && $amount === null) {
+                if ($categoryId === null && $amount === null) {
                     continue;
                 }
-                if ($label === '' || $amount === null) {
+                if ($categoryId === null || $amount === null) {
+                    continue;
+                }
+                $categoryName = $categoryNameById[$categoryId] ?? null;
+                if ($categoryName === null || trim($categoryName) === '') {
                     continue;
                 }
 
                 $normalized[] = [
-                    'label' => $label,
+                    'category_id' => $categoryId,
+                    'category_name' => $categoryName,
                     'amount' => round((float) $amount, 2),
                 ];
             }

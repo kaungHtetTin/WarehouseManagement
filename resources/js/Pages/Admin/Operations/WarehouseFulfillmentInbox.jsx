@@ -48,6 +48,17 @@ function formatInt(value) {
     return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(Math.round(n));
 }
 
+function formatMoneyAmount(value) {
+    if (value == null || value === '') {
+        return '—';
+    }
+    const n = Number(value);
+    if (!Number.isFinite(n)) {
+        return '—';
+    }
+    return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+}
+
 function buildShippingInfo(v) {
     if (!v) {
         return { recipient: '—', address: '—', full: '—' };
@@ -84,6 +95,16 @@ function buildShippingInfo(v) {
     return { recipient, address, full };
 }
 
+function groupStatusLabel(rows) {
+    if (rows?.some?.((r) => r?.status === 'PENDING_ACTION')) {
+        return 'PENDING';
+    }
+    if (rows?.some?.((r) => r?.status === 'INCOMING')) {
+        return 'INCOMING';
+    }
+    return 'COMPLETED';
+}
+
 export default function WarehouseFulfillmentInbox() {
     const {
         instructions = [],
@@ -92,6 +113,10 @@ export default function WarehouseFulfillmentInbox() {
         admin_app_url: adminAppUrl,
         errors = {},
         fulfillment_warehouse_filter: fulfillmentWarehouseFilter = 'all',
+        fulfillment_status_filter: fulfillmentStatusFilter = 'pending',
+        fulfillment_page: fulfillmentPage = 'inbox',
+        fulfillment_base_path: fulfillmentBasePath = '/operations/fulfillment/inbox',
+        fulfillment_fixed_status: fulfillmentFixedStatus = false,
     } = usePage().props;
     const theme = useTheme();
     const isMdUp = useMediaQuery(theme.breakpoints.up('md'));
@@ -132,8 +157,11 @@ export default function WarehouseFulfillmentInbox() {
                     voucher_id: voucherId,
                     voucher_no: voucher?.voucher_no ?? '—',
                     payment_status: voucher?.payment_status ?? 'UNPAID',
+                    voucher_total_amount: row?.voucher_total_amount ?? voucher?.total_amount ?? null,
+                    voucher_remaining_amount: row?.voucher_remaining_amount ?? null,
                     merchant_name: row.merchant?.name ?? '—',
                     trip: row.trip_item?.trip ?? null,
+                    trip_ids: new Set(),
                     rows: [],
                     shipping: ship,
                     remaining_total: 0,
@@ -142,6 +170,12 @@ export default function WarehouseFulfillmentInbox() {
             }
             const g = m.get(key);
             g.rows.push(row);
+            if (row?.trip_item?.trip?.id != null) {
+                g.trip_ids.add(Number(row.trip_item.trip.id));
+                if (!g.trip) {
+                    g.trip = row.trip_item.trip;
+                }
+            }
             const rem = remainingQty(row);
             g.remaining_total += rem;
             g.line_count += 1;
@@ -156,7 +190,11 @@ export default function WarehouseFulfillmentInbox() {
         return out;
     }, [instructions]);
 
+    const isIncomingPage = fulfillmentPage === 'incoming';
+
     const openDialog = (group) => {
+        const hasPending = Boolean(group?.rows?.some?.((r) => r?.status === 'PENDING_ACTION'));
+        if (!hasPending) return;
         form.setData({
             action_type: 'OWNER_PICKUP',
             next_warehouse_id: '',
@@ -215,17 +253,24 @@ export default function WarehouseFulfillmentInbox() {
         return Array.from(map.values());
     }, [instructions, warehouses]);
 
+    const pageHref = `${adminAppUrl}${fulfillmentBasePath}`;
+    const title = fulfillmentPage === 'incoming' ? 'Fulfillment Incoming' : 'Warehouse Fulfillment Inbox';
+    const subtitle =
+        fulfillmentPage === 'incoming'
+            ? 'Goods loaded onto trips and in transit to destination warehouses. Not actionable until received.'
+            : 'Goods already received at destination warehouses. Process owner pickup, direct delivery, or forward to another warehouse.';
+
     return (
-        <AdminLayout title="Warehouse Fulfillment Inbox">
-            <Head title="Warehouse Fulfillment Inbox" />
+        <AdminLayout title={title}>
+            <Head title={title} />
             <Stack spacing={2.5}>
                 {flash.success ? <Alert severity="success">{flash.success}</Alert> : null}
                 <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
                     <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                        Warehouse Fulfillment Inbox
+                        {title}
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, mb: 1.5 }}>
-                        Goods already received at destination warehouses. Process owner pickup, direct delivery, or forward to another warehouse.
+                        {subtitle}
                     </Typography>
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} sx={{ mb: 1.5 }}>
                         <FormControl size="small" sx={{ width: { xs: '100%', sm: 300 } }}>
@@ -237,8 +282,8 @@ export default function WarehouseFulfillmentInbox() {
                                 onChange={(e) => {
                                     const v = e.target.value;
                                     router.get(
-                                        `${adminAppUrl}/operations/fulfillment/inbox`,
-                                        { warehouse_id: v },
+                                        pageHref,
+                                        { warehouse_id: v, status: fulfillmentStatusFilter },
                                         { preserveScroll: true },
                                     );
                                 }}
@@ -251,10 +296,35 @@ export default function WarehouseFulfillmentInbox() {
                                 ))}
                             </Select>
                         </FormControl>
+                        {!fulfillmentFixedStatus ? (
+                            <FormControl size="small" sx={{ width: { xs: '100%', sm: 240 } }}>
+                                <InputLabel id="fulfillment-status-filter">Status</InputLabel>
+                                <Select
+                                    labelId="fulfillment-status-filter"
+                                    label="Status"
+                                    value={fulfillmentStatusFilter}
+                                    onChange={(e) => {
+                                        const v = e.target.value;
+                                        router.get(pageHref, { warehouse_id: fulfillmentWarehouseFilter, status: v }, { preserveScroll: true });
+                                    }}
+                                >
+                                    <MenuItem value="incoming">Incoming</MenuItem>
+                                    <MenuItem value="pending">Pending</MenuItem>
+                                    <MenuItem value="completed">Completed</MenuItem>
+                                    <MenuItem value="all">All</MenuItem>
+                                </Select>
+                            </FormControl>
+                        ) : null}
                     </Stack>
                     {instructions.length === 0 ? (
                         <Typography variant="body2" color="text.secondary">
-                            No pending fulfillment instructions.
+                            {fulfillmentStatusFilter === 'incoming'
+                                ? 'No incoming (in-transit) lines.'
+                                : fulfillmentStatusFilter === 'completed'
+                                ? 'No completed fulfillment instructions.'
+                                : fulfillmentStatusFilter === 'all'
+                                  ? 'No fulfillment instructions.'
+                                  : 'No pending fulfillment instructions.'}
                         </Typography>
                     ) : (
                         isMdUp ? (
@@ -272,6 +342,7 @@ export default function WarehouseFulfillmentInbox() {
                                 <TableBody>
                                     {voucherGroups.map((g) => {
                                         const isOpen = Boolean(expanded[g.key]);
+                                        const statusLabel = groupStatusLabel(g.rows);
                                         return (
                                             <Fragment key={g.key}>
                                                 <TableRow hover>
@@ -310,6 +381,14 @@ export default function WarehouseFulfillmentInbox() {
                                                                         <Link href={`${adminAppUrl}/operations/trips/${g.trip.id}`}>{g.trip.trip_no ?? 'Trip'}</Link>
                                                                     </Typography>
                                                                 ) : null}
+                                                                <Box sx={{ pt: 0.25 }}>
+                                                                    <Chip
+                                                                        size="small"
+                                                                        label={statusLabel}
+                                                                        variant="outlined"
+                                                                        color={statusLabel === 'PENDING' ? 'warning' : statusLabel === 'INCOMING' ? 'info' : 'default'}
+                                                                    />
+                                                                </Box>
                                                             </Stack>
                                                         </Stack>
                                                     </TableCell>
@@ -351,14 +430,32 @@ export default function WarehouseFulfillmentInbox() {
                                                     </TableCell>
                                                     <TableCell align="right" sx={{ width: 140 }}>
                                                         <Stack direction="row" spacing={1} justifyContent="flex-end">
-                                                            {g.payment_status !== 'PAID' && g.payment_status !== 'WAIVED' ? (
-                                                                <Button size="small" variant="outlined" color="secondary" onClick={() => openPaymentDialog(g)}>
-                                                                    Payment
-                                                                </Button>
-                                                            ) : null}
-                                                            <Button size="small" variant="outlined" onClick={() => openDialog(g)}>
-                                                                Proceed
-                                                            </Button>
+                                                            {isIncomingPage ? (
+                                                                (() => {
+                                                                    const tripHref =
+                                                                        g.trip_ids?.size === 1 && g.trip?.id
+                                                                            ? `${adminAppUrl}/operations/trips/${g.trip.id}`
+                                                                            : `${adminAppUrl}/operations/trips`;
+                                                                    return (
+                                                                        <Button size="small" variant="outlined" component={Link} href={tripHref}>
+                                                                            Confirm delivery
+                                                                        </Button>
+                                                                    );
+                                                                })()
+                                                            ) : (
+                                                                <>
+                                                                    {g.payment_status !== 'PAID' && g.payment_status !== 'WAIVED' ? (
+                                                                        <Button size="small" variant="outlined" color="secondary" onClick={() => openPaymentDialog(g)}>
+                                                                            Payment
+                                                                        </Button>
+                                                                    ) : null}
+                                                                    {g.rows.some((r) => r?.status === 'PENDING_ACTION') ? (
+                                                                        <Button size="small" variant="outlined" onClick={() => openDialog(g)}>
+                                                                            Proceed
+                                                                        </Button>
+                                                                    ) : null}
+                                                                </>
+                                                            )}
                                                         </Stack>
                                                     </TableCell>
                                                 </TableRow>
@@ -410,7 +507,9 @@ export default function WarehouseFulfillmentInbox() {
                             </TableContainer>
                         ) : (
                             <Stack spacing={1.25}>
-                                {voucherGroups.map((g) => (
+                                {voucherGroups.map((g) => {
+                                    const statusLabel = groupStatusLabel(g.rows);
+                                    return (
                                     <Paper key={g.key} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
                                         <Stack spacing={1}>
                                             <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
@@ -436,6 +535,14 @@ export default function WarehouseFulfillmentInbox() {
                                                 </Stack>
                                                 <Chip size="small" label={g.payment_status ?? 'UNPAID'} variant="outlined" />
                                             </Stack>
+                                            <Box>
+                                                <Chip
+                                                    size="small"
+                                                    label={statusLabel}
+                                                    variant="outlined"
+                                                    color={statusLabel === 'PENDING' ? 'warning' : statusLabel === 'INCOMING' ? 'info' : 'default'}
+                                                />
+                                            </Box>
                                             <Typography variant="body2" color="text.secondary">
                                                 {g.warehouse ? `${g.warehouse.name}` : '—'}
                                             </Typography>
@@ -489,18 +596,37 @@ export default function WarehouseFulfillmentInbox() {
                                                 </Stack>
                                             </Collapse>
                                             <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
-                                                {g.payment_status !== 'PAID' && g.payment_status !== 'WAIVED' ? (
-                                                    <Button size="small" variant="outlined" color="secondary" fullWidth onClick={() => openPaymentDialog(g)}>
-                                                        Payment
-                                                    </Button>
-                                                ) : null}
-                                                <Button size="small" variant="outlined" fullWidth onClick={() => openDialog(g)}>
-                                                    Proceed
-                                                </Button>
+                                                {isIncomingPage ? (
+                                                    (() => {
+                                                        const tripHref =
+                                                            g.trip_ids?.size === 1 && g.trip?.id
+                                                                ? `${adminAppUrl}/operations/trips/${g.trip.id}`
+                                                                : `${adminAppUrl}/operations/trips`;
+                                                        return (
+                                                            <Button size="small" variant="outlined" component={Link} href={tripHref} fullWidth>
+                                                                Confirm delivery
+                                                            </Button>
+                                                        );
+                                                    })()
+                                                ) : (
+                                                    <>
+                                                        {g.payment_status !== 'PAID' && g.payment_status !== 'WAIVED' ? (
+                                                            <Button size="small" variant="outlined" color="secondary" fullWidth onClick={() => openPaymentDialog(g)}>
+                                                                Payment
+                                                            </Button>
+                                                        ) : null}
+                                                        {g.rows.some((r) => r?.status === 'PENDING_ACTION') ? (
+                                                            <Button size="small" variant="outlined" fullWidth onClick={() => openDialog(g)}>
+                                                                Proceed
+                                                            </Button>
+                                                        ) : null}
+                                                    </>
+                                                )}
                                             </Stack>
                                         </Stack>
                                     </Paper>
-                                ))}
+                                    );
+                                })}
                             </Stack>
                         )
                     )}
@@ -610,6 +736,12 @@ export default function WarehouseFulfillmentInbox() {
                             <Stack spacing={2.5} sx={{ mt: 1 }}>
                                 <Typography variant="body2" color="text.secondary">
                                     Voucher: {paymentDialog?.voucher_no}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    Total amount: {formatMoneyAmount(paymentDialog?.voucher_total_amount)}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    Remaining: {formatMoneyAmount(paymentDialog?.voucher_remaining_amount)}
                                 </Typography>
                                 <Grid container spacing={2}>
                                     <Grid item xs={12} sm={6}>

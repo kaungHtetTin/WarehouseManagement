@@ -33,6 +33,8 @@ class TenantRoleBootstrapper
                     'trips.view',
                     'trips.manage',
                     'payments.manage',
+                    'finance.view',
+                    'finance.manage',
                     'public_page.manage',
                 ],
             ],
@@ -60,6 +62,8 @@ class TenantRoleBootstrapper
                     'payments.manage',
                     'billing.view',
                     'billing.manage',
+                    'finance.view',
+                    'finance.manage',
                 ],
             ],
             'viewer' => [
@@ -101,4 +105,3 @@ class TenantRoleBootstrapper
         return $roles;
     }
 }
-

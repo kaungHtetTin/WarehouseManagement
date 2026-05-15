@@ -1,13 +1,42 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Alert, Box, Chip, Fab, IconButton, Menu, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography, useMediaQuery, useTheme } from '@mui/material';
-import { Add as AddIcon, MoreVert as MoreVertIcon } from '@mui/icons-material';
-import { useState } from 'react';
+import {
+    Alert,
+    Box,
+    Chip,
+    Fab,
+    FormControl,
+    IconButton,
+    InputLabel,
+    Menu,
+    MenuItem,
+    Paper,
+    Select,
+    Stack,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableRow,
+    Typography,
+    useMediaQuery,
+    useTheme,
+} from '@mui/material';
+import { Add as AddIcon, MoreVert as MoreVertIcon, NotificationsActiveOutlined as NotificationsIcon } from '@mui/icons-material';
+import { useMemo, useState } from 'react';
 
 export default function VouchersIndex() {
     const theme = useTheme();
     const isCompactList = useMediaQuery(theme.breakpoints.down('md'));
-    const { vouchers = [], admin_app_url: adminAppUrl, flash = {}, auth } = usePage().props;
+    const {
+        vouchers = [],
+        warehouses = [],
+        voucher_warehouse_filter: voucherWarehouseFilter = 'all',
+        voucher_payment_filter: voucherPaymentFilter = 'all',
+        admin_app_url: adminAppUrl,
+        flash = {},
+        auth,
+    } = usePage().props;
     const [tableActionAnchorEl, setTableActionAnchorEl] = useState(null);
     const [selectedRow, setSelectedRow] = useState(null);
     const permissionCodes = auth?.permission_codes ?? [];
@@ -35,8 +64,9 @@ export default function VouchersIndex() {
     const removeRow = (row) => {
         handleTableActionClose();
         if (!canManage) return;
-        if (row.status !== 'DRAFT') return;
-        if (!window.confirm(`Delete draft voucher "${row.voucher_no}"?`)) return;
+        if (row.status !== 'DRAFT' && row.status !== 'CONFIRMED') return;
+        const label = row.status === 'DRAFT' ? 'Delete draft voucher' : 'Safe delete confirmed voucher';
+        if (!window.confirm(`${label} "${row.voucher_no}"?`)) return;
         router.delete(`${adminAppUrl}/operations/vouchers/${row.id}`, { preserveScroll: true });
     };
 
@@ -48,12 +78,29 @@ export default function VouchersIndex() {
         return 'primary';
     };
 
+    const voucherHref = (row) => {
+        if (!row?.id) return null;
+        if (row.status === 'DRAFT') {
+            return canWizard ? `${adminAppUrl}/operations/vouchers/${row.id}/edit` : null;
+        }
+        return `${adminAppUrl}/operations/vouchers/${row.id}`;
+    };
+
+    const needsAction = (row) => row?.status !== 'DRAFT' && (row?.payment_status === 'UNPAID' || row?.payment_status === 'PARTIAL');
+
+    const actionNeededCount = useMemo(() => vouchers.filter((r) => needsAction(r)).length, [vouchers]);
+
     return (
         <AdminLayout title="Vouchers">
             <Head title="Vouchers" />
             <Stack spacing={2}>
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
+                {actionNeededCount > 0 ? (
+                    <Alert severity="warning">
+                        {actionNeededCount} voucher{actionNeededCount === 1 ? '' : 's'} need action (payment is UNPAID / PARTIAL).
+                    </Alert>
+                ) : null}
 
                 <Stack
                     direction={{ xs: 'column', md: 'row' }}
@@ -74,6 +121,53 @@ export default function VouchersIndex() {
                                 !canWizard &&
                                 ' Creating or editing drafts in the wizard requires inventory.manage in addition to vouchers.manage.'}
                         </Typography>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1.25 }}>
+                            <FormControl size="small" sx={{ width: { xs: '100%', sm: 260 } }}>
+                                <InputLabel id="voucher-wh-filter">Warehouse</InputLabel>
+                                <Select
+                                    labelId="voucher-wh-filter"
+                                    label="Warehouse"
+                                    value={voucherWarehouseFilter}
+                                    onChange={(e) => {
+                                        const v = e.target.value;
+                                        router.get(
+                                            `${adminAppUrl}/operations/vouchers`,
+                                            { warehouse_id: v, payment_status: voucherPaymentFilter },
+                                            { preserveScroll: true },
+                                        );
+                                    }}
+                                >
+                                    <MenuItem value="all">All</MenuItem>
+                                    {warehouses.map((w) => (
+                                        <MenuItem key={w.id} value={String(w.id)}>
+                                            {w.code} · {w.name}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                            <FormControl size="small" sx={{ width: { xs: '100%', sm: 220 } }}>
+                                <InputLabel id="voucher-pay-filter">Payment</InputLabel>
+                                <Select
+                                    labelId="voucher-pay-filter"
+                                    label="Payment"
+                                    value={voucherPaymentFilter}
+                                    onChange={(e) => {
+                                        const v = e.target.value;
+                                        router.get(
+                                            `${adminAppUrl}/operations/vouchers`,
+                                            { warehouse_id: voucherWarehouseFilter, payment_status: v },
+                                            { preserveScroll: true },
+                                        );
+                                    }}
+                                >
+                                    <MenuItem value="all">All</MenuItem>
+                                    <MenuItem value="UNPAID">Unpaid</MenuItem>
+                                    <MenuItem value="PARTIAL">Partial</MenuItem>
+                                    <MenuItem value="PAID">Paid</MenuItem>
+                                    <MenuItem value="WAIVED">Waived</MenuItem>
+                                </Select>
+                            </FormControl>
+                        </Stack>
                     </Box>
                     {canWizard && (
                         <Stack
@@ -104,14 +198,36 @@ export default function VouchersIndex() {
                             <Paper key={row.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2, boxShadow: 'none' }}>
                                 <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
                                     <Box sx={{ minWidth: 0, flex: 1 }}>
-                                        <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.3 }} noWrap title={row.voucher_no}>
-                                            {row.voucher_no}
-                                        </Typography>
+                                        {voucherHref(row) ? (
+                                            <Typography
+                                                variant="subtitle2"
+                                                component={Link}
+                                                href={voucherHref(row)}
+                                                sx={{ fontWeight: 700, lineHeight: 1.3 }}
+                                                noWrap
+                                                title={row.voucher_no}
+                                            >
+                                                {row.voucher_no}
+                                            </Typography>
+                                        ) : (
+                                            <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.3 }} noWrap title={row.voucher_no}>
+                                                {row.voucher_no}
+                                            </Typography>
+                                        )}
                                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, fontSize: '0.8125rem' }}>
                                             {[row.merchant?.name, row.source_warehouse?.name].filter(Boolean).join(' · ') || '—'}
                                         </Typography>
                                         <Stack direction="row" spacing={0.75} sx={{ mt: 0.75, flexWrap: 'wrap', gap: 0.5 }}>
                                             <Chip size="small" label={row.status} color={statusColor(row.status)} variant="outlined" />
+                                            {needsAction(row) ? (
+                                                <Chip
+                                                    size="small"
+                                                    color="warning"
+                                                    variant="outlined"
+                                                    icon={<NotificationsIcon fontSize="small" />}
+                                                    label={`Payment ${row.payment_status}`}
+                                                />
+                                            ) : null}
                                             <Chip size="small" label={`${row.items?.length ?? 0} lines`} variant="outlined" />
                                         </Stack>
                                     </Box>
@@ -153,12 +269,25 @@ export default function VouchersIndex() {
                             <TableBody>
                                 {vouchers.map((row) => (
                                     <TableRow key={row.id} hover>
-                                        <TableCell sx={{ fontWeight: 600 }}>{row.voucher_no}</TableCell>
+                                        <TableCell sx={{ fontWeight: 600 }}>
+                                            {voucherHref(row) ? <Link href={voucherHref(row)}>{row.voucher_no}</Link> : row.voucher_no}
+                                        </TableCell>
                                         <TableCell>{typeof row.voucher_date === 'string' ? row.voucher_date.slice(0, 10) : row.voucher_date}</TableCell>
                                         <TableCell>{row.merchant?.name ?? '—'}</TableCell>
                                         <TableCell>{row.source_warehouse?.name ?? '—'}</TableCell>
                                         <TableCell>
-                                            <Chip size="small" label={row.status} color={statusColor(row.status)} variant="outlined" />
+                                            <Stack direction="row" spacing={0.75} alignItems="center">
+                                                <Chip size="small" label={row.status} color={statusColor(row.status)} variant="outlined" />
+                                                {needsAction(row) ? (
+                                                    <Chip
+                                                        size="small"
+                                                        color="warning"
+                                                        variant="outlined"
+                                                        icon={<NotificationsIcon fontSize="small" />}
+                                                        label={`Payment ${row.payment_status}`}
+                                                    />
+                                                ) : null}
+                                            </Stack>
                                         </TableCell>
                                         <TableCell align="right">{row.items?.length ?? 0}</TableCell>
                                         <TableCell align="right" sx={{ width: 56 }}>
@@ -206,9 +335,9 @@ export default function VouchersIndex() {
                             Edit requires inventory.manage (wizard)
                         </MenuItem>
                     )}
-                    {selectedRow?.status === 'DRAFT' && (
+                    {(selectedRow?.status === 'DRAFT' || selectedRow?.status === 'CONFIRMED') && (
                         <MenuItem dense sx={{ color: 'error.main' }} onClick={() => selectedRow && removeRow(selectedRow)}>
-                            Delete
+                            {selectedRow?.status === 'DRAFT' ? 'Delete' : 'Safe delete'}
                         </MenuItem>
                     )}
                 </Menu>

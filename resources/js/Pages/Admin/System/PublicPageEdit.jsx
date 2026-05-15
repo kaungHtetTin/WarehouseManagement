@@ -2,6 +2,14 @@ import AdminLayout from '@/Layouts/AdminLayout';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { Alert, Box, Button, FormControlLabel, Paper, Stack, Switch, TextField, Typography } from '@mui/material';
 
+const cardSx = {
+    p: { xs: 2, sm: 2.5 },
+    borderRadius: 2,
+    border: '1px solid',
+    borderColor: 'divider',
+    boxShadow: 'none',
+};
+
 export default function PublicPageEdit() {
     const pageProps = usePage().props;
     const adminAppUrl = pageProps.admin_app_url;
@@ -37,7 +45,7 @@ export default function PublicPageEdit() {
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
 
-                <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+                <Paper elevation={0} sx={cardSx}>
                     <Stack spacing={0.75}>
                         <Typography variant="h6" sx={{ fontWeight: 800 }}>
                             Public page settings
@@ -56,7 +64,7 @@ export default function PublicPageEdit() {
                     </Stack>
                 </Paper>
 
-                <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+                <Paper elevation={0} sx={cardSx}>
                     <Box component="form" onSubmit={submit} noValidate>
                         <Stack spacing={2}>
                             <FormControlLabel
@@ -164,4 +172,3 @@ export default function PublicPageEdit() {
         </AdminLayout>
     );
 }
-

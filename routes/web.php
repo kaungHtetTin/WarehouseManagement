@@ -9,6 +9,10 @@ use App\Http\Controllers\Admin\VehicleManagementController;
 use App\Http\Controllers\Admin\TripManagementController;
 use App\Http\Controllers\Admin\VoucherManagementController;
 use App\Http\Controllers\Admin\VoucherWizardController;
+use App\Http\Controllers\Admin\VoucherAdditionalCostCategoryController;
+use App\Http\Controllers\Admin\FinanceCategoryController;
+use App\Http\Controllers\Admin\FinanceLedgerController;
+use App\Http\Controllers\Admin\TripCostCategoryController;
 use App\Http\Controllers\Admin\WarehouseStockController;
 use App\Http\Controllers\Admin\RoleManagementController;
 use App\Http\Controllers\Admin\UserManagementController;
@@ -105,6 +109,37 @@ Route::prefix('admin')->name('admin.')->group(function () {
                 ->name('roles.destroy');
         });
 
+        Route::prefix('finance')->name('finance.')->group(function () {
+            Route::get('/reports', [FinanceLedgerController::class, 'reports'])
+                ->middleware('permission:finance.view')
+                ->name('reports.index');
+            Route::get('/ledger', [FinanceLedgerController::class, 'index'])
+                ->middleware('permission:finance.view')
+                ->name('ledger.index');
+            Route::post('/entries', [FinanceLedgerController::class, 'store'])
+                ->middleware('permission:finance.manage')
+                ->name('entries.store');
+            Route::patch('/entries/{entry}', [FinanceLedgerController::class, 'update'])
+                ->middleware('permission:finance.manage')
+                ->name('entries.update');
+            Route::delete('/entries/{entry}', [FinanceLedgerController::class, 'destroy'])
+                ->middleware('permission:finance.manage')
+                ->name('entries.destroy');
+
+            Route::get('/categories', [FinanceCategoryController::class, 'index'])
+                ->middleware('permission:finance.manage')
+                ->name('categories.index');
+            Route::post('/categories', [FinanceCategoryController::class, 'store'])
+                ->middleware('permission:finance.manage')
+                ->name('categories.store');
+            Route::patch('/categories/{category}', [FinanceCategoryController::class, 'update'])
+                ->middleware('permission:finance.manage')
+                ->name('categories.update');
+            Route::delete('/categories/{category}', [FinanceCategoryController::class, 'destroy'])
+                ->middleware('permission:finance.manage')
+                ->name('categories.destroy');
+        });
+
         Route::get('/master/warehouses', [WarehouseManagementController::class, 'index'])
             ->middleware('permission:warehouses.view')
             ->name('warehouses.index');
@@ -117,6 +152,32 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/master/warehouses/{warehouse}', [WarehouseManagementController::class, 'destroy'])
             ->middleware('permission:warehouses.manage')
             ->name('warehouses.destroy');
+
+        Route::get('/master/voucher-additional-cost-categories', [VoucherAdditionalCostCategoryController::class, 'index'])
+            ->middleware('permission:vouchers.manage')
+            ->name('voucher-additional-cost-categories.index');
+        Route::post('/master/voucher-additional-cost-categories', [VoucherAdditionalCostCategoryController::class, 'store'])
+            ->middleware('permission:vouchers.manage')
+            ->name('voucher-additional-cost-categories.store');
+        Route::patch('/master/voucher-additional-cost-categories/{category}', [VoucherAdditionalCostCategoryController::class, 'update'])
+            ->middleware('permission:vouchers.manage')
+            ->name('voucher-additional-cost-categories.update');
+        Route::delete('/master/voucher-additional-cost-categories/{category}', [VoucherAdditionalCostCategoryController::class, 'destroy'])
+            ->middleware('permission:vouchers.manage')
+            ->name('voucher-additional-cost-categories.destroy');
+
+        Route::get('/master/trip-cost-categories', [TripCostCategoryController::class, 'index'])
+            ->middleware('permission:trips.manage')
+            ->name('trip-cost-categories.index');
+        Route::post('/master/trip-cost-categories', [TripCostCategoryController::class, 'store'])
+            ->middleware('permission:trips.manage')
+            ->name('trip-cost-categories.store');
+        Route::patch('/master/trip-cost-categories/{category}', [TripCostCategoryController::class, 'update'])
+            ->middleware('permission:trips.manage')
+            ->name('trip-cost-categories.update');
+        Route::delete('/master/trip-cost-categories/{category}', [TripCostCategoryController::class, 'destroy'])
+            ->middleware('permission:trips.manage')
+            ->name('trip-cost-categories.destroy');
 
         Route::get('/master/categories', [CategoryManagementController::class, 'index'])
             ->middleware('permission:inventory.view')
@@ -234,9 +295,21 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/operations/trips/{trip}/delivery-confirmations', [TripManagementController::class, 'storeTripDeliveryConfirmations'])
             ->middleware('permission:trips.manage')
             ->name('trips.delivery-confirmations.store');
+        Route::post('/operations/trips/{trip}/cost-entries', [TripManagementController::class, 'storeCostEntry'])
+            ->middleware('permission:trips.manage')
+            ->name('trips.cost-entries.store');
+        Route::patch('/operations/trips/{trip}/cost-entries/{costEntry}', [TripManagementController::class, 'updateCostEntry'])
+            ->middleware('permission:trips.manage')
+            ->name('trips.cost-entries.update');
+        Route::delete('/operations/trips/{trip}/cost-entries/{costEntry}', [TripManagementController::class, 'destroyCostEntry'])
+            ->middleware('permission:trips.manage')
+            ->name('trips.cost-entries.destroy');
         Route::get('/operations/fulfillment/inbox', [WarehouseFulfillmentController::class, 'index'])
             ->middleware('permission:trips.manage')
             ->name('fulfillment.inbox');
+        Route::get('/operations/fulfillment/incoming', [WarehouseFulfillmentController::class, 'incoming'])
+            ->middleware('permission:trips.manage')
+            ->name('fulfillment.incoming');
         Route::post('/operations/fulfillment/instructions/{instruction}/dispatch', [WarehouseFulfillmentController::class, 'dispatchInstruction'])
             ->middleware('permission:trips.manage')
             ->name('fulfillment.instructions.dispatch');

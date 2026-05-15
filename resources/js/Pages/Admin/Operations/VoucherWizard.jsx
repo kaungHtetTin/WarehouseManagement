@@ -126,10 +126,7 @@ const initialStep1 = () => ({
 });
 
 const emptyLineForm = () => ({
-    product_id: null,
-    product_label: '',
-    create_new: false,
-    new_product: { name: '', unit: '', sku: '', category_id: '' },
+    product_name: '',
     qty: '1',
     unit: '',
     description: '',
@@ -278,7 +275,14 @@ function ReviewLineCard({ item, lineNo }) {
 }
 
 export default function VoucherWizard() {
-    const { voucher = null, warehouses = [], categories = [], admin_app_url: adminAppUrl, flash = {}, auth } = usePage().props;
+    const {
+        voucher = null,
+        warehouses = [],
+        additional_cost_categories: additionalCostCategories = [],
+        admin_app_url: adminAppUrl,
+        flash = {},
+        auth,
+    } = usePage().props;
     const permissionCodes = auth?.permission_codes ?? [];
     const canWizard = permissionCodes.includes('vouchers.manage') && permissionCodes.includes('inventory.manage');
 
@@ -286,7 +290,6 @@ export default function VoucherWizard() {
     const [step1, setStep1] = useState(initialStep1);
     const [merchantMatches, setMerchantMatches] = useState([]);
     const [pickerOpen, setPickerOpen] = useState(false);
-    const [productSearch, setProductSearch] = useState('');
     const [productOptions, setProductOptions] = useState([]);
     const [lineForm, setLineForm] = useState(() => emptyLineForm());
     const [reviewCostsOpen, setReviewCostsOpen] = useState(false);
@@ -335,7 +338,8 @@ export default function VoucherWizard() {
             total_weight: v.total_weight != null && v.total_weight !== '' ? String(v.total_weight) : '',
             additional_costs: Array.isArray(v.additional_costs)
                 ? v.additional_costs.map((c) => ({
-                      label: c?.label ?? '',
+                      category_id: c?.category_id != null ? String(c.category_id) : '',
+                      category_name: c?.category_name ?? '',
                       amount: c?.amount != null && c?.amount !== '' ? String(c.amount) : '',
                   }))
                 : [],
@@ -451,11 +455,11 @@ export default function VoucherWizard() {
 
     const productDebounceRef = useRef(null);
     useEffect(() => {
-        if (!canWizard || lineForm.create_new) {
+        if (!canWizard) {
             setProductOptions([]);
             return;
         }
-        const q = productSearch.trim();
+        const q = (lineForm.product_name ?? '').trim();
         if (q.length < 1) {
             setProductOptions([]);
             return;
@@ -473,7 +477,7 @@ export default function VoucherWizard() {
             }
         }, 300);
         return () => window.clearTimeout(productDebounceRef.current);
-    }, [productSearch, adminAppUrl, canWizard, lineForm.create_new]);
+    }, [lineForm.product_name, adminAppUrl, canWizard]);
 
     const buildStep1Payload = useCallback(
         (overrides = {}) => {
@@ -483,11 +487,11 @@ export default function VoucherWizard() {
 
             const additional_costs = (step1.additional_costs || [])
                 .map((r) => ({
-                    label: (r?.label ?? '').trim(),
+                    category_id: r?.category_id === '' || r?.category_id == null ? null : Number(r.category_id),
                     amount: r?.amount === '' || r?.amount == null ? null : Number(r.amount),
                 }))
-                .filter((r) => r.label !== '' || r.amount != null)
-                .filter((r) => r.label !== '' && r.amount != null && Number.isFinite(r.amount) && r.amount >= 0)
+                .filter((r) => r.category_id != null || r.amount != null)
+                .filter((r) => r.category_id != null && r.amount != null && Number.isFinite(r.amount) && r.amount >= 0)
                 .map((r) => ({ ...r, amount: Math.round(r.amount * 100) / 100 }));
 
             return {
@@ -536,9 +540,7 @@ export default function VoucherWizard() {
         const qty = parseFloat(lineForm.qty);
         if (!Number.isFinite(qty) || qty <= 0) return;
 
-        if (lineForm.create_new) {
-            if (!lineForm.new_product.name?.trim() || !lineForm.new_product.unit?.trim()) return;
-        } else if (!lineForm.product_id) {
+        if (!lineForm.product_name?.trim()) {
             return;
         }
         if (!lineForm.unit?.trim()) return;
@@ -550,6 +552,7 @@ export default function VoucherWizard() {
         };
 
         const base = {
+            product_name: lineForm.product_name.trim(),
             qty,
             unit: lineForm.unit,
             description: lineForm.description?.trim() || null,
@@ -558,24 +561,13 @@ export default function VoucherWizard() {
             is_fragile: lineForm.is_fragile,
         };
 
-        let payload = { ...base };
-        if (lineForm.create_new) {
-            payload.new_product = {
-                name: lineForm.new_product.name,
-                unit: lineForm.new_product.unit,
-                sku: lineForm.new_product.sku?.trim() || null,
-                category_id: lineForm.new_product.category_id ? Number(lineForm.new_product.category_id) : null,
-            };
-        } else {
-            payload.product_id = lineForm.product_id;
-        }
+        const payload = { ...base };
 
         setProcessing(true);
         router.post(`${adminAppUrl}/operations/vouchers/${voucher.id}/wizard/lines`, payload, {
             preserveScroll: true,
             onFinish: () => setProcessing(false),
             onSuccess: () => {
-                setProductSearch('');
                 setProductOptions([]);
                 setLineError('');
                 setFreightAmountManual(false);
@@ -606,7 +598,7 @@ export default function VoucherWizard() {
     const addCostRow = () => {
         setStep1((p) => ({
             ...p,
-            additional_costs: [...(p.additional_costs || []), { label: '', amount: '' }],
+            additional_costs: [...(p.additional_costs || []), { category_id: '', category_name: '', amount: '' }],
         }));
     };
 
@@ -889,13 +881,31 @@ export default function VoucherWizard() {
                                                                 py: 0.25,
                                                             }}
                                                         >
-                                                            <TextField
-                                                                size="small"
-                                                                label="Label"
-                                                                sx={{ flex: 1, minWidth: 180 }}
-                                                                value={row.label}
-                                                                onChange={(e) => updateCostRow(idx, { label: e.target.value })}
-                                                            />
+                                                            <FormControl size="small" sx={{ flex: 1, minWidth: 200 }}>
+                                                                <InputLabel id={`cost-cat-${idx}`}>Category</InputLabel>
+                                                                <Select
+                                                                    labelId={`cost-cat-${idx}`}
+                                                                    label="Category"
+                                                                    value={row.category_id ?? ''}
+                                                                    onChange={(e) => {
+                                                                        const id = e.target.value;
+                                                                        const name =
+                                                                            additionalCostCategories.find((c) => String(c.id) === String(id))?.name ?? '';
+                                                                        updateCostRow(idx, { category_id: id, category_name: name });
+                                                                    }}
+                                                                >
+                                                                    <MenuItem value="">
+                                                                        <em>Select…</em>
+                                                                    </MenuItem>
+                                                                    {additionalCostCategories
+                                                                        .filter((c) => c.status === 'ACTIVE')
+                                                                        .map((c) => (
+                                                                            <MenuItem key={c.id} value={String(c.id)}>
+                                                                                {c.name}
+                                                                            </MenuItem>
+                                                                        ))}
+                                                                </Select>
+                                                            </FormControl>
                                                             <TextField
                                                                 size="small"
                                                                 label="Amount"
@@ -955,122 +965,40 @@ export default function VoucherWizard() {
                                         Add line
                                     </Typography>
                                     <Stack spacing={2}>
-                                        <FormControlLabel
-                                            control={
-                                                <Checkbox
-                                                    size="small"
-                                                    checked={lineForm.create_new}
-                                                    onChange={(e) =>
-                                                        setLineForm((p) => ({
-                                                            ...p,
-                                                            create_new: e.target.checked,
-                                                            product_id: null,
-                                                            product_label: '',
-                                                            unit: e.target.checked ? p.new_product.unit : p.unit,
-                                                        }))
-                                                    }
+                                        <Autocomplete
+                                            size="small"
+                                            freeSolo
+                                            options={productOptions}
+                                            getOptionLabel={(o) => {
+                                                if (typeof o === 'string') return o;
+                                                return (o?.sku ? `${o.name} (${o.sku})` : o?.name) || '';
+                                            }}
+                                            value={null}
+                                            inputValue={lineForm.product_name}
+                                            onInputChange={(_, v) => setLineForm((p) => ({ ...p, product_name: v }))}
+                                            onChange={(_, v) => {
+                                                if (typeof v === 'string') {
+                                                    setLineForm((p) => ({ ...p, product_name: v }));
+                                                    return;
+                                                }
+                                                if (v && typeof v === 'object') {
+                                                    setLineForm((p) => ({
+                                                        ...p,
+                                                        product_name: v.name ?? p.product_name,
+                                                        unit: v.unit || p.unit,
+                                                    }));
+                                                }
+                                            }}
+                                            filterOptions={(opts) => opts}
+                                            renderInput={(params) => (
+                                                <TextField
+                                                    {...params}
+                                                    label="Product"
+                                                    placeholder="Type product name"
+                                                    helperText="If product name exists, it will be used. If not, a new product will be created when you add the line."
                                                 />
-                                            }
-                                            label={<Typography variant="body2">New product for this organization</Typography>}
+                                            )}
                                         />
-
-                                        {!lineForm.create_new && (
-                                            <Autocomplete
-                                                size="small"
-                                                options={productOptions}
-                                                getOptionLabel={(o) => (o?.sku ? `${o.name} (${o.sku})` : o?.name) || ''}
-                                                value={productOptions.find((o) => Number(o.id) === Number(lineForm.product_id)) || null}
-                                                inputValue={productSearch}
-                                                onInputChange={(_, v) => setProductSearch(v)}
-                                                onChange={(_, v) => {
-                                                    if (v) {
-                                                        setLineForm((p) => ({
-                                                            ...p,
-                                                            product_id: v.id,
-                                                            product_label: v.name,
-                                                            unit: v.unit || p.unit,
-                                                        }));
-                                                    } else {
-                                                        setLineForm((p) => ({ ...p, product_id: null, product_label: '' }));
-                                                    }
-                                                }}
-                                                filterOptions={(opts) => opts}
-                                                renderInput={(params) => (
-                                                    <TextField {...params} label="Product" placeholder="Search name or SKU" />
-                                                )}
-                                            />
-                                        )}
-
-                                        {lineForm.create_new && (
-                                            <Stack spacing={2}>
-                                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                                                    <TextField
-                                                        label="Product name"
-                                                        required
-                                                        size="small"
-                                                        fullWidth
-                                                        value={lineForm.new_product.name}
-                                                        onChange={(e) =>
-                                                            setLineForm((p) => ({
-                                                                ...p,
-                                                                new_product: { ...p.new_product, name: e.target.value },
-                                                                unit: p.new_product.unit,
-                                                            }))
-                                                        }
-                                                    />
-                                                    <TextField
-                                                        label="Unit"
-                                                        required
-                                                        size="small"
-                                                        fullWidth
-                                                        sx={{ maxWidth: { sm: 140 } }}
-                                                        value={lineForm.new_product.unit}
-                                                        onChange={(e) =>
-                                                            setLineForm((p) => ({
-                                                                ...p,
-                                                                new_product: { ...p.new_product, unit: e.target.value },
-                                                                unit: e.target.value,
-                                                            }))
-                                                        }
-                                                    />
-                                                </Stack>
-                                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                                                    <TextField
-                                                        label="SKU"
-                                                        size="small"
-                                                        fullWidth
-                                                        sx={{ maxWidth: { sm: 220 } }}
-                                                        value={lineForm.new_product.sku}
-                                                        onChange={(e) =>
-                                                            setLineForm((p) => ({ ...p, new_product: { ...p.new_product, sku: e.target.value } }))
-                                                        }
-                                                    />
-                                                    <FormControl fullWidth size="small" sx={{ maxWidth: { sm: 280 } }}>
-                                                        <InputLabel id="cat-label">Category</InputLabel>
-                                                        <Select
-                                                            labelId="cat-label"
-                                                            label="Category"
-                                                            value={lineForm.new_product.category_id}
-                                                            onChange={(e) =>
-                                                                setLineForm((p) => ({
-                                                                    ...p,
-                                                                    new_product: { ...p.new_product, category_id: e.target.value },
-                                                                }))
-                                                            }
-                                                        >
-                                                            <MenuItem value="">
-                                                                <em>None</em>
-                                                            </MenuItem>
-                                                            {categories.map((c) => (
-                                                                <MenuItem key={c.id} value={String(c.id)}>
-                                                                    {c.name}
-                                                                </MenuItem>
-                                                            ))}
-                                                        </Select>
-                                                    </FormControl>
-                                                </Stack>
-                                            </Stack>
-                                        )}
 
                                         {lineError ? (
                                             <Alert severity="warning" sx={{ py: 0.5 }} onClose={() => setLineError('')}>
@@ -1455,7 +1383,7 @@ export default function VoucherWizard() {
                                                                                 {(step1.additional_costs || []).map((c, idx) => (
                                                                                     <TableRow key={idx} hover>
                                                                                         <TableCell sx={{ borderBottom: 0, color: 'text.secondary' }}>
-                                                                                            {c.label || '—'}
+                                                                                            {c.category_name || '—'}
                                                                                         </TableCell>
                                                                                         <TableCell sx={{ borderBottom: 0 }}>
                                                                                             {formatMoneyAmount(c.amount)}

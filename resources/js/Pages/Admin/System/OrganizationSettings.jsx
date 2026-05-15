@@ -38,6 +38,22 @@ import {
 } from '@mui/icons-material';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+const sectionCardSx = {
+    p: { xs: 2, sm: 2.5 },
+    borderRadius: 2,
+    border: '1px solid',
+    borderColor: 'divider',
+    boxShadow: 'none',
+};
+
+function SettingsCard({ children, sx }) {
+    return (
+        <Paper elevation={0} sx={[sectionCardSx, sx]}>
+            {children}
+        </Paper>
+    );
+}
+
 export default function OrganizationSettings() {
     const page = usePage();
     const pageProps = page.props;
@@ -386,109 +402,55 @@ export default function OrganizationSettings() {
                         {flash.success && <Alert severity="success">{flash.success}</Alert>}
                         {flash.error && <Alert severity="error">{flash.error}</Alert>}
 
-                        <Paper
-                            elevation={0}
-                            sx={{
-                                borderRadius: 3,
-                                p: { xs: 2, sm: 2.5 },
-                                border: '1px solid',
-                                borderColor: 'divider',
-                                background:
-                                    'radial-gradient(900px 220px at 8% 0%, rgba(59,130,246,0.10) 0%, rgba(59,130,246,0.00) 55%), linear-gradient(180deg, rgba(255,255,255,0.90), rgba(255,255,255,0.90))',
-                                boxShadow: '0px 10px 30px rgba(15,23,42,0.06)',
-                            }}
+                        <Stack
+                            direction={{ xs: 'column', md: 'row' }}
+                            spacing={1.5}
+                            sx={{ justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' } }}
                         >
-                            <Stack
-                                direction={{ xs: 'column', md: 'row' }}
-                                spacing={1.5}
-                                sx={{ justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' } }}
-                            >
-                                <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-                                    <Avatar
-                                        sx={{
-                                            width: 44,
-                                            height: 44,
-                                            borderRadius: 2.5,
-                                            bgcolor: 'rgba(59,130,246,0.12)',
-                                            color: '#3B82F6',
-                                        }}
+                            <Box>
+                                <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                                    Settings
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    {organization?.name || 'Organization'}
+                                    {organization?.code ? ` (${organization.code})` : ''}
+                                </Typography>
+                            </Box>
+                            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+                                {isSmallScreen && (
+                                    <Button variant="outlined" size="small" startIcon={<MenuIcon />} onClick={() => setSidebarOpen(true)}>
+                                        Workspace
+                                    </Button>
+                                )}
+                                {activeTab === 'settings' ? (
+                                    <Button
+                                        variant="contained"
+                                        size="small"
+                                        disabled={form.processing}
+                                        onClick={(e) => submit(e)}
+                                        startIcon={form.processing ? <CircularProgress size={16} /> : <SaveIcon fontSize="small" />}
                                     >
-                                        <SettingsIcon />
-                                    </Avatar>
-                                    <Box sx={{ minWidth: 0 }}>
-                                        <Typography variant="h6" sx={{ fontWeight: 900, letterSpacing: -0.2 }}>
-                                            Settings Workspace
-                                        </Typography>
-                                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.2 }}>
-                                            {organization?.name || 'Organization'}
-                                            {organization?.code ? ` (${organization.code})` : ''}
-                                        </Typography>
-                                    </Box>
-                                </Stack>
-
-                                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                                    {isSmallScreen && (
-                                        <Button
-                                            variant="outlined"
-                                            size="small"
-                                            startIcon={<MenuIcon />}
-                                            onClick={() => setSidebarOpen(true)}
-                                            sx={{ borderRadius: 2 }}
-                                        >
-                                            Workspace
-                                        </Button>
-                                    )}
-                                    {activeTab === 'settings' ? (
-                                        <Button
-                                            variant="contained"
-                                            size="small"
-                                            disabled={form.processing}
-                                            onClick={(e) => submit(e)}
-                                            startIcon={form.processing ? <CircularProgress size={16} /> : <SaveIcon fontSize="small" />}
-                                            sx={{
-                                                borderRadius: 2,
-                                                bgcolor: '#3B82F6',
-                                                boxShadow: '0px 8px 18px rgba(59,130,246,0.25)',
-                                                '&:hover': { bgcolor: '#2563EB' },
-                                            }}
-                                        >
-                                            Save
-                                        </Button>
-                                    ) : (
-                                        <Button
-                                            variant="contained"
-                                            size="small"
-                                            disabled={publicForm.processing}
-                                            onClick={(e) => submitPublic(e)}
-                                            startIcon={publicForm.processing ? <CircularProgress size={16} /> : <SaveIcon fontSize="small" />}
-                                            sx={{
-                                                borderRadius: 2,
-                                                bgcolor: '#3B82F6',
-                                                boxShadow: '0px 8px 18px rgba(59,130,246,0.25)',
-                                                '&:hover': { bgcolor: '#2563EB' },
-                                            }}
-                                        >
-                                            Save
-                                        </Button>
-                                    )}
-                                </Stack>
+                                        Save
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        variant="contained"
+                                        size="small"
+                                        disabled={publicForm.processing}
+                                        onClick={(e) => submitPublic(e)}
+                                        startIcon={publicForm.processing ? <CircularProgress size={16} /> : <SaveIcon fontSize="small" />}
+                                    >
+                                        Save
+                                    </Button>
+                                )}
                             </Stack>
-                        </Paper>
+                        </Stack>
 
                         {activeTab === 'settings' ? (
                             <Box component="form" onSubmit={submit} noValidate>
                                 <Grid container spacing={1.5}>
                                     <Grid size={{ xs: 12, md: 7 }}>
-                                        <Paper
-                                            elevation={0}
-                                            sx={{
-                                                p: { xs: 2, sm: 2.5 },
-                                                borderRadius: 3,
-                                                border: '1px solid',
-                                                borderColor: 'divider',
-                                                boxShadow: '0px 10px 24px rgba(15,23,42,0.06)',
-                                            }}
-                                        >
+                                        <SettingsCard>
                                             <Stack spacing={1.5}>
                                                 <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
                                                     <Avatar
@@ -542,19 +504,10 @@ export default function OrganizationSettings() {
                                                     helperText="This code is used to identify your organization."
                                                 />
                                             </Stack>
-                                        </Paper>
+                                        </SettingsCard>
                                     </Grid>
                                     <Grid size={{ xs: 12, md: 5 }}>
-                                        <Paper
-                                            elevation={0}
-                                            sx={{
-                                                p: { xs: 2, sm: 2.5 },
-                                                borderRadius: 3,
-                                                border: '1px solid',
-                                                borderColor: 'divider',
-                                                boxShadow: '0px 10px 24px rgba(15,23,42,0.06)',
-                                            }}
-                                        >
+                                        <SettingsCard>
                                             <Stack spacing={1.5}>
                                                 <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
                                                     <Avatar
@@ -666,7 +619,7 @@ export default function OrganizationSettings() {
                                                     </Grid>
                                                 </Stack>
                                             </Stack>
-                                        </Paper>
+                                        </SettingsCard>
                                     </Grid>
                                 </Grid>
                             </Box>
@@ -674,7 +627,7 @@ export default function OrganizationSettings() {
                             <Box component="form" onSubmit={submitPublic} noValidate>
                                 <Grid container spacing={1.5}>
                                     <Grid size={{ xs: 12, md: 6 }}>
-                                        <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+                                        <SettingsCard>
                                             <Stack spacing={1.5}>
                                                 <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
                                                     Publishing
@@ -717,11 +670,11 @@ export default function OrganizationSettings() {
                                                     helperText={publicForm.errors.about}
                                                 />
                                             </Stack>
-                                        </Paper>
+                                        </SettingsCard>
                                     </Grid>
                                     <Grid size={{ xs: 12, md: 6 }}>
                                         <Stack spacing={1.5}>
-                                            <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+                                            <SettingsCard>
                                                 <Stack spacing={1.5}>
                                                     <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
                                                         Contact
@@ -748,8 +701,8 @@ export default function OrganizationSettings() {
                                                         helperText={publicForm.errors.address}
                                                     />
                                                 </Stack>
-                                            </Paper>
-                                            <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+                                            </SettingsCard>
+                                            <SettingsCard>
                                                 <Stack spacing={1.5}>
                                                     <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
                                                         Links
@@ -769,8 +722,8 @@ export default function OrganizationSettings() {
                                                         helperText={publicForm.errors.facebook_url}
                                                     />
                                                 </Stack>
-                                            </Paper>
-                                            <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+                                            </SettingsCard>
+                                            <SettingsCard>
                                                 <Stack spacing={1.5}>
                                                     <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
                                                         Cover
@@ -783,7 +736,7 @@ export default function OrganizationSettings() {
                                                         helperText={publicForm.errors.cover_url}
                                                     />
                                                 </Stack>
-                                            </Paper>
+                                            </SettingsCard>
                                         </Stack>
                                     </Grid>
                                 </Grid>
@@ -794,7 +747,6 @@ export default function OrganizationSettings() {
 
                 {!isSmallScreen && (
                     <Paper
-                        variant="outlined"
                         sx={{
                             width: 300,
                             borderRadius: 2,

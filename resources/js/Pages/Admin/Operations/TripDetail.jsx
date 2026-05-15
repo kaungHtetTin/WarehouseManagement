@@ -223,16 +223,39 @@ export default function TripDetail() {
     /** Load / edit / remove cargo lines while trip is active (includes departed / at stop). */
     const canLoadCargo = pageProps.can_load_cargo ?? pageProps.can_manage_cargo ?? false;
     const canRecordDelivery = pageProps.can_record_delivery ?? false;
+    const canManageTripCosts = pageProps.can_manage_trip_costs ?? false;
     const canMarkDeparted = pageProps.can_mark_departed ?? false;
     const canUndoDepart = pageProps.can_undo_depart ?? false;
     const loadableVouchers = pageProps.loadable_vouchers ?? [];
     const warehouses = pageProps.warehouses ?? [];
     const tripTotalWeight = pageProps.trip_total_weight;
     const tripLaborCost = pageProps.trip_labor_cost;
+    const tripCostCategories = pageProps.trip_cost_categories ?? [];
+    const tripCostEntries = pageProps.trip_cost_entries ?? [];
+    const tripExtraCostTotal = pageProps.trip_extra_cost_total;
+
+    const tripTotalCost = useMemo(() => {
+        const labor = Number(tripLaborCost ?? 0);
+        const extra = Number(tripExtraCostTotal ?? 0);
+        if (!Number.isFinite(labor) && !Number.isFinite(extra)) {
+            return null;
+        }
+        return (Number.isFinite(labor) ? labor : 0) + (Number.isFinite(extra) ? extra : 0);
+    }, [tripLaborCost, tripExtraCostTotal]);
 
     const loadForm = useForm({
         voucher_id: '',
         trip_stop_id: '',
+    });
+
+    const [tripCostDialogOpen, setTripCostDialogOpen] = useState(false);
+    const [tripCostDialogProcessing, setTripCostDialogProcessing] = useState(false);
+    const [tripCostDialogError, setTripCostDialogError] = useState('');
+    const [tripCostForm, setTripCostForm] = useState({
+        id: null,
+        category_id: '',
+        amount: '',
+        note: '',
     });
 
     const loadableById = useMemo(() => {
@@ -513,6 +536,88 @@ export default function TripDetail() {
         );
     }, [adminAppUrl, trip?.id, tripDeliveryNote]);
 
+    const openCreateTripCost = useCallback(() => {
+        if (!canManageTripCosts) return;
+        const first = tripCostCategories?.[0];
+        setTripCostDialogError('');
+        setTripCostForm({
+            id: null,
+            category_id: first?.id != null ? String(first.id) : '',
+            amount: '',
+            note: '',
+        });
+        setTripCostDialogOpen(true);
+    }, [canManageTripCosts, tripCostCategories]);
+
+    const openEditTripCost = useCallback(
+        (row) => {
+            if (!canManageTripCosts) return;
+            setTripCostDialogError('');
+            setTripCostForm({
+                id: row.id,
+                category_id: row.category_id != null ? String(row.category_id) : row.category?.id != null ? String(row.category.id) : '',
+                amount: row.amount != null ? String(row.amount) : '',
+                note: row.note ?? '',
+            });
+            setTripCostDialogOpen(true);
+        },
+        [canManageTripCosts],
+    );
+
+    const closeTripCostDialog = useCallback(() => {
+        if (tripCostDialogProcessing) return;
+        setTripCostDialogOpen(false);
+    }, [tripCostDialogProcessing]);
+
+    const submitTripCostDialog = useCallback(() => {
+        if (!canManageTripCosts) return;
+        setTripCostDialogError('');
+
+        const categoryId = tripCostForm.category_id === '' ? null : Number(tripCostForm.category_id);
+        const amount = Number(tripCostForm.amount);
+        const note = tripCostForm.note?.trim() || null;
+
+        if (!categoryId || !Number.isFinite(categoryId)) {
+            setTripCostDialogError('Select a category.');
+            return;
+        }
+        if (!Number.isFinite(amount) || amount <= 0) {
+            setTripCostDialogError('Enter a valid amount.');
+            return;
+        }
+
+        const payload = {
+            category_id: categoryId,
+            amount,
+            note,
+        };
+
+        setTripCostDialogProcessing(true);
+        if (!tripCostForm.id) {
+            router.post(`${adminAppUrl}/operations/trips/${trip.id}/cost-entries`, payload, {
+                preserveScroll: true,
+                onSuccess: () => setTripCostDialogOpen(false),
+                onFinish: () => setTripCostDialogProcessing(false),
+            });
+            return;
+        }
+
+        router.patch(`${adminAppUrl}/operations/trips/${trip.id}/cost-entries/${tripCostForm.id}`, payload, {
+            preserveScroll: true,
+            onSuccess: () => setTripCostDialogOpen(false),
+            onFinish: () => setTripCostDialogProcessing(false),
+        });
+    }, [adminAppUrl, canManageTripCosts, trip?.id, tripCostForm]);
+
+    const removeTripCost = useCallback(
+        (row) => {
+            if (!canManageTripCosts) return;
+            if (!window.confirm('Delete this trip cost entry?')) return;
+            router.delete(`${adminAppUrl}/operations/trips/${trip.id}/cost-entries/${row.id}`, { preserveScroll: true });
+        },
+        [adminAppUrl, canManageTripCosts, trip?.id],
+    );
+
     const rowHasCargoActions = useCallback(
         (row) => canLoadCargo || (canRecordDelivery && remainingDeliverQty(row) > 0.0001) || (canRecordDelivery && hasPendingDestinationReceipt(row)),
         [canLoadCargo, canRecordDelivery],
@@ -701,6 +806,22 @@ export default function TripDetail() {
                                     {formatFixed(tripLaborCost, 2)}
                                 </Typography>
                             </Grid>
+                            <Grid item xs={12} sm={6} md={4}>
+                                <Typography variant="caption" color="text.secondary">
+                                    Trip extra costs
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
+                                    {formatFixed(tripExtraCostTotal, 2)}
+                                </Typography>
+                            </Grid>
+                            <Grid item xs={12} sm={6} md={4}>
+                                <Typography variant="caption" color="text.secondary">
+                                    Total trip cost
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
+                                    {formatFixed(tripTotalCost, 2)}
+                                </Typography>
+                            </Grid>
                             {trip.creator?.name ? (
                                 <Grid item xs={12} sm={6} md={4}>
                                     <Typography variant="caption" color="text.secondary">
@@ -712,6 +833,88 @@ export default function TripDetail() {
                                 </Grid>
                             ) : null}
                         </Grid>
+                    </Stack>
+                </Paper>
+
+                <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+                    <Stack spacing={1.5}>
+                        <Stack
+                            direction={{ xs: 'column', sm: 'row' }}
+                            spacing={1.25}
+                            sx={{ justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' } }}
+                        >
+                            <Box>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                    Trip costs
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    Operational costs recorded directly on this trip (does not change vouchers).
+                                </Typography>
+                            </Box>
+                            {canManageTripCosts ? (
+                                <Button
+                                    variant="contained"
+                                    startIcon={<AddCircleOutlineIcon />}
+                                    onClick={openCreateTripCost}
+                                    disabled={tripCostCategories.length === 0}
+                                >
+                                    Add cost
+                                </Button>
+                            ) : null}
+                        </Stack>
+
+                        {tripCostCategories.length === 0 ? (
+                            <Alert severity="warning">Add at least one Trip Cost Category before recording trip costs.</Alert>
+                        ) : null}
+
+                        {tripCostEntries.length === 0 ? (
+                            <Typography variant="body2" color="text.secondary">
+                                No trip costs yet.
+                            </Typography>
+                        ) : (
+                            <Paper sx={{ overflowX: 'auto' }}>
+                                <Table size="small">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell>Category</TableCell>
+                                            <TableCell align="right">Amount</TableCell>
+                                            <TableCell>Note</TableCell>
+                                            <TableCell align="right">Actions</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {tripCostEntries.map((row) => (
+                                            <TableRow key={row.id} hover>
+                                                <TableCell>{row.category?.name ?? '—'}</TableCell>
+                                                <TableCell align="right">{formatFixed(row.amount, 2)}</TableCell>
+                                                <TableCell sx={{ maxWidth: 360 }} title={row.note ?? ''}>
+                                                    {row.note || '—'}
+                                                </TableCell>
+                                                <TableCell align="right" sx={{ width: 104, whiteSpace: 'nowrap' }}>
+                                                    {canManageTripCosts ? (
+                                                        <Fragment>
+                                                            <IconButton size="small" onClick={() => openEditTripCost(row)} aria-label="Edit trip cost">
+                                                                <EditIcon fontSize="small" />
+                                                            </IconButton>
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={() => removeTripCost(row)}
+                                                                aria-label="Delete trip cost"
+                                                                sx={{ color: 'error.main' }}
+                                                            >
+                                                                <DeleteOutlineIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </Fragment>
+                                                    ) : (
+                                                        '—'
+                                                    )}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </Paper>
+                        )}
                     </Stack>
                 </Paper>
 
@@ -1359,7 +1562,11 @@ export default function TripDetail() {
                                                                         sx={{ flexShrink: 0 }}
                                                                         title={voucherNo !== '—' ? voucherNo : undefined}
                                                                     >
-                                                                        {voucherNo}
+                                                                        {row.voucher_id ? (
+                                                                            <Link href={`${adminAppUrl}/operations/vouchers/${row.voucher_id}`}>{voucherNo}</Link>
+                                                                        ) : (
+                                                                            voucherNo
+                                                                        )}
                                                                     </Typography>
                                                                 </Stack>
                                                                 {dest !== '—' ? (
@@ -1588,6 +1795,61 @@ export default function TripDetail() {
                         Remove from trip
                     </MenuItem>
                 </Menu>
+
+                <Dialog open={tripCostDialogOpen} onClose={closeTripCostDialog} fullWidth maxWidth="xs">
+                    <DialogTitle sx={{ fontWeight: 700 }}>{tripCostForm.id ? 'Edit trip cost' : 'Add trip cost'}</DialogTitle>
+                    <DialogContent>
+                        <Stack spacing={1.75} sx={{ mt: 1 }}>
+                            {tripCostDialogError ? <Alert severity="error">{tripCostDialogError}</Alert> : null}
+
+                            <FormControl fullWidth size="small">
+                                <InputLabel id="trip-cost-category-label">Category</InputLabel>
+                                <Select
+                                    labelId="trip-cost-category-label"
+                                    label="Category"
+                                    value={tripCostForm.category_id}
+                                    onChange={(e) => setTripCostForm((p) => ({ ...p, category_id: e.target.value }))}
+                                    disabled={tripCostDialogProcessing}
+                                >
+                                    {(tripCostCategories || []).map((c) => (
+                                        <MenuItem key={c.id} value={String(c.id)}>
+                                            {c.name}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+
+                            <TextField
+                                size="small"
+                                label="Amount"
+                                type="number"
+                                value={tripCostForm.amount}
+                                onChange={(e) => setTripCostForm((p) => ({ ...p, amount: e.target.value }))}
+                                fullWidth
+                                required
+                                disabled={tripCostDialogProcessing}
+                                inputProps={{ step: '0.01', min: 0 }}
+                            />
+
+                            <TextField
+                                size="small"
+                                label="Note"
+                                value={tripCostForm.note}
+                                onChange={(e) => setTripCostForm((p) => ({ ...p, note: e.target.value }))}
+                                fullWidth
+                                disabled={tripCostDialogProcessing}
+                            />
+                        </Stack>
+                    </DialogContent>
+                    <DialogActions sx={{ px: 3, pb: 2.5 }}>
+                        <Button onClick={closeTripCostDialog} disabled={tripCostDialogProcessing}>
+                            Cancel
+                        </Button>
+                        <Button variant="contained" onClick={submitTripCostDialog} disabled={tripCostDialogProcessing}>
+                            Save
+                        </Button>
+                    </DialogActions>
+                </Dialog>
 
                 <Dialog open={Boolean(voucherStopDialog)} onClose={() => setVoucherStopDialog(null)} fullWidth maxWidth="xs">
                     <DialogTitle>Edit voucher stop</DialogTitle>

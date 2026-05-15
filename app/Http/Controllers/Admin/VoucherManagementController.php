@@ -3,31 +3,73 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\FinanceCategory;
+use App\Models\FinanceEntry;
 use App\Models\Product;
+use App\Models\StockMovement;
+use App\Models\TripItem;
 use App\Models\User;
 use App\Models\Voucher;
 use App\Models\VoucherItem;
 use App\Models\VoucherPayment;
+use App\Models\WarehouseFulfillmentInstruction;
+use App\Models\WarehouseStock;
 use App\Support\VoucherLineFreight;
 use App\Services\Audit\AuditLogger;
+use App\Services\Tenant\OperationalWarehouseContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class VoucherManagementController extends Controller
 {
+    public function __construct(
+        private OperationalWarehouseContext $operationalContext,
+    ) {}
+
     public function index(Request $request): Response
     {
-        $organizationId = $request->user()->organization_id;
+        $user = $request->user();
+        $organizationId = $user->organization_id;
         abort_if($organizationId === null, 404);
 
-        $vouchers = Voucher::query()
-            ->where('organization_id', $organizationId)
+        $warehouses = $this->operationalContext->assignedWarehousesOnly($user);
+        $allowedWarehouseIds = $this->operationalContext->assignedWarehouseIds($user);
+
+        $rawWarehouseFilter = (string) $request->query('warehouse_id', 'all');
+        $warehouseFilter = 'all';
+        if ($rawWarehouseFilter !== '' && $rawWarehouseFilter !== 'all') {
+            $candidate = (int) $rawWarehouseFilter;
+            if (in_array($candidate, $allowedWarehouseIds, true)) {
+                $warehouseFilter = (string) $candidate;
+            }
+        }
+
+        $rawPaymentFilter = (string) $request->query('payment_status', 'all');
+        $paymentFilter = in_array($rawPaymentFilter, ['UNPAID', 'PARTIAL', 'PAID', 'WAIVED', 'all'], true) ? $rawPaymentFilter : 'all';
+
+        $query = Voucher::query()
+            ->where('organization_id', $organizationId);
+
+        if ($warehouseFilter !== 'all') {
+            $query->where('source_warehouse_id', (int) $warehouseFilter);
+        } elseif ($allowedWarehouseIds === []) {
+            $query->whereRaw('1 = 0');
+        } else {
+            $query->whereIn('source_warehouse_id', $allowedWarehouseIds);
+        }
+
+        if ($paymentFilter !== 'all') {
+            $query->where('payment_status', $paymentFilter);
+        }
+
+        $vouchers = $query
             ->with([
                 'merchant:id,name',
                 'sourceWarehouse:id,name,code',
@@ -41,6 +83,9 @@ class VoucherManagementController extends Controller
 
         return Inertia::render('Admin/Operations/VouchersIndex', [
             'vouchers' => $vouchers,
+            'warehouses' => $warehouses,
+            'voucher_warehouse_filter' => $warehouseFilter,
+            'voucher_payment_filter' => $paymentFilter,
         ]);
     }
 
@@ -146,14 +191,187 @@ class VoucherManagementController extends Controller
     {
         $actor = $request->user();
         $voucherModel = $this->resolveTenantVoucher($actor, $voucher);
-        abort_unless($voucherModel->isDraft(), 403);
+        $organizationId = $actor->organization_id;
+        abort_if($organizationId === null, 404);
 
-        $snapshot = [
-            'voucher_no' => $voucherModel->voucher_no,
-        ];
-        $voucherModel->delete();
+        if ($voucherModel->isDraft()) {
+            $snapshot = [
+                'voucher_no' => $voucherModel->voucher_no,
+            ];
+            $voucherModel->delete();
 
-        AuditLogger::record($actor, 'voucher.delete', null, $snapshot);
+            AuditLogger::record($actor, 'voucher.delete', null, $snapshot);
+
+            return Redirect::route('admin.vouchers.index')->with('success', 'Voucher deleted successfully.');
+        }
+
+        if ($voucherModel->status !== 'CONFIRMED') {
+            abort(403);
+        }
+
+        if (VoucherPayment::query()
+            ->where('organization_id', $organizationId)
+            ->where('voucher_id', $voucherModel->id)
+            ->exists()) {
+            return Redirect::back()->with('error', 'Cannot delete this confirmed voucher because it has payment records.');
+        }
+
+        $voucherModel->load('items:id,organization_id,voucher_id,from_warehouse_id,product_id,qty,unit');
+        $voucherItemIds = $voucherModel->items->pluck('id')->map(fn ($id) => (int) $id)->all();
+        if ($voucherItemIds === []) {
+            return Redirect::back()->with('error', 'Cannot delete this confirmed voucher because it has no lines.');
+        }
+
+        if (TripItem::query()
+            ->where('organization_id', $organizationId)
+            ->whereIn('voucher_item_id', $voucherItemIds)
+            ->exists()) {
+            return Redirect::back()->with('error', 'Cannot delete this confirmed voucher because it has trip loads.');
+        }
+
+        if (WarehouseFulfillmentInstruction::query()
+            ->where('organization_id', $organizationId)
+            ->whereIn('voucher_item_id', $voucherItemIds)
+            ->exists()) {
+            return Redirect::back()->with('error', 'Cannot delete this confirmed voucher because fulfillment processing has started.');
+        }
+
+        $snapshot = ['voucher_no' => $voucherModel->voucher_no];
+        try {
+            DB::transaction(function () use ($organizationId, $voucherModel) {
+                $lockedVoucher = Voucher::query()
+                    ->whereKey($voucherModel->id)
+                    ->where('organization_id', $organizationId)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if ($lockedVoucher->status !== 'CONFIRMED') {
+                    throw ValidationException::withMessages([
+                        'voucher' => ['Voucher status changed; cannot delete.'],
+                    ]);
+                }
+
+                if (VoucherPayment::query()
+                    ->where('organization_id', $organizationId)
+                    ->where('voucher_id', $lockedVoucher->id)
+                    ->exists()) {
+                    throw ValidationException::withMessages([
+                        'voucher' => ['Voucher has payment records and cannot be deleted.'],
+                    ]);
+                }
+
+                $items = VoucherItem::query()
+                    ->where('organization_id', $organizationId)
+                    ->where('voucher_id', $lockedVoucher->id)
+                    ->lockForUpdate()
+                    ->get();
+
+                $voucherItemIds = $items->pluck('id')->map(fn ($id) => (int) $id)->all();
+                if ($voucherItemIds === []) {
+                    throw ValidationException::withMessages([
+                        'voucher' => ['Voucher has no lines and cannot be deleted.'],
+                    ]);
+                }
+
+                if (TripItem::query()
+                    ->where('organization_id', $organizationId)
+                    ->whereIn('voucher_item_id', $voucherItemIds)
+                    ->exists()) {
+                    throw ValidationException::withMessages([
+                        'voucher' => ['Voucher has trip loads and cannot be deleted.'],
+                    ]);
+                }
+
+                if (WarehouseFulfillmentInstruction::query()
+                    ->where('organization_id', $organizationId)
+                    ->whereIn('voucher_item_id', $voucherItemIds)
+                    ->exists()) {
+                    throw ValidationException::withMessages([
+                        'voucher' => ['Fulfillment processing has started for this voucher and it cannot be deleted.'],
+                    ]);
+                }
+
+                foreach ($items as $vi) {
+                    $movements = StockMovement::query()
+                        ->where('organization_id', $organizationId)
+                        ->where('ref_type', 'VOUCHER_ITEM')
+                        ->where('ref_id', (int) $vi->id)
+                        ->get(['id', 'movement_type', 'warehouse_id', 'product_id', 'qty']);
+
+                    if ($movements->isEmpty()) {
+                        continue;
+                    }
+
+                    foreach ($movements as $m) {
+                        if ($m->movement_type !== 'INTAKE') {
+                            throw ValidationException::withMessages([
+                                'voucher' => ['This voucher has inventory movements beyond intake and cannot be deleted safely.'],
+                            ]);
+                        }
+                    }
+
+                    $qty = round((float) $movements->sum(fn ($m) => (float) $m->qty), 3);
+                    if ($qty < 0.0001) {
+                        StockMovement::query()
+                            ->where('organization_id', $organizationId)
+                            ->where('ref_type', 'VOUCHER_ITEM')
+                            ->where('ref_id', (int) $vi->id)
+                            ->delete();
+                        continue;
+                    }
+
+                    $warehouseId = (int) $vi->from_warehouse_id;
+                    $productId = (int) $vi->product_id;
+
+                    $stock = WarehouseStock::query()
+                        ->where('organization_id', $organizationId)
+                        ->where('warehouse_id', $warehouseId)
+                        ->where('product_id', $productId)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if (! $stock) {
+                        throw ValidationException::withMessages([
+                            'voucher' => ['Cannot delete: source warehouse stock record is missing.'],
+                        ]);
+                    }
+
+                    $newOnHand = round((float) $stock->qty_on_hand - $qty, 3);
+                    if ($newOnHand < -0.0001) {
+                        throw ValidationException::withMessages([
+                            'voucher' => ['Cannot delete: inventory has already been used (insufficient on-hand to reverse intake).'],
+                        ]);
+                    }
+
+                    $stock->qty_on_hand = $newOnHand;
+                    $stock->save();
+
+                    StockMovement::query()
+                        ->where('organization_id', $organizationId)
+                        ->where('ref_type', 'VOUCHER_ITEM')
+                        ->where('ref_id', (int) $vi->id)
+                        ->delete();
+                }
+
+                VoucherItem::query()
+                    ->where('organization_id', $organizationId)
+                    ->where('voucher_id', $lockedVoucher->id)
+                    ->delete();
+
+                $lockedVoucher->delete();
+            });
+        } catch (ValidationException $e) {
+            $msg = null;
+            foreach ($e->errors() as $arr) {
+                if (is_array($arr) && isset($arr[0])) {
+                    $msg = $arr[0];
+                    break;
+                }
+            }
+            return Redirect::back()->with('error', $msg ?? 'Cannot delete voucher.');
+        }
+
+        AuditLogger::record($actor, 'voucher.safe_delete', null, $snapshot);
 
         return Redirect::route('admin.vouchers.index')->with('success', 'Voucher deleted successfully.');
     }
@@ -194,7 +412,7 @@ class VoucherManagementController extends Controller
         ]);
 
         DB::transaction(function () use ($validated, $organizationId, $voucherModel, $actor) {
-            VoucherPayment::query()->create([
+            $payment = VoucherPayment::query()->create([
                 'organization_id' => $organizationId,
                 'voucher_id' => $voucherModel->id,
                 'amount' => round((float) $validated['amount'], 2),
@@ -206,6 +424,56 @@ class VoucherManagementController extends Controller
                 'reference_no' => $validated['reference_no'] ?? null,
                 'note' => $validated['note'] ?? null,
                 'received_by' => $actor->id,
+            ]);
+
+            $incomeCategory = FinanceCategory::query()
+                ->where('organization_id', $organizationId)
+                ->where('scope', 'VOUCHER')
+                ->where('direction', 'INCOME')
+                ->where('name', 'Voucher Payment')
+                ->first();
+
+            if (! $incomeCategory) {
+                $incomeCategory = FinanceCategory::withTrashed()
+                    ->where('organization_id', $organizationId)
+                    ->where('scope', 'VOUCHER')
+                    ->where('name', 'Voucher Payment')
+                    ->first();
+
+                if ($incomeCategory && $incomeCategory->trashed()) {
+                    $incomeCategory->restore();
+                }
+
+                if (! $incomeCategory) {
+                    $incomeCategory = FinanceCategory::query()->create([
+                        'organization_id' => $organizationId,
+                        'scope' => 'VOUCHER',
+                        'direction' => 'INCOME',
+                        'name' => 'Voucher Payment',
+                        'status' => 'ACTIVE',
+                        'sort_order' => 10,
+                    ]);
+                } else {
+                    $incomeCategory->direction = 'INCOME';
+                    $incomeCategory->status = 'ACTIVE';
+                    $incomeCategory->save();
+                }
+            }
+
+            FinanceEntry::query()->create([
+                'organization_id' => $organizationId,
+                'warehouse_id' => $voucherModel->source_warehouse_id,
+                'scope' => 'VOUCHER',
+                'direction' => 'INCOME',
+                'category_id' => $incomeCategory->id,
+                'amount' => (float) $payment->amount,
+                'currency' => $payment->currency ?? 'MMK',
+                'occurred_at' => $payment->paid_at,
+                'note' => $payment->note,
+                'reference_type' => 'VOUCHER_PAYMENT',
+                'reference_id' => $payment->id,
+                'source' => 'SYSTEM',
+                'created_by' => $actor->id,
             ]);
 
             $this->recomputeVoucherPaymentStatus($voucherModel->fresh());
