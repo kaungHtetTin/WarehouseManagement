@@ -37,6 +37,7 @@ class HandleInertiaRequests extends Middleware
         $path = parse_url(url('/'), PHP_URL_PATH) ?: '';
 
         return array_merge(parent::share($request), [
+            'app_url' => config('app.url'),
             'admin_app_url' => config('app.admin_app_url'),
             'app_base' => $path,
             'auth' => [

@@ -35,9 +35,27 @@ class OrganizationSettingsController extends Controller
             ],
         );
 
+        $publicPage = [
+            'id' => $page->id,
+            'slug' => $page->slug,
+            'is_published' => (bool) $page->is_published,
+            'business_name' => $page->business_name,
+            'about' => $page->about,
+            'phone' => $page->phone,
+            'email' => $page->email,
+            'address' => $page->address,
+            'logo_url' => $page->logo_url,
+            'cover_url' => $page->cover_url,
+            'theme_color' => $page->theme_color,
+            'kpis' => is_array($page->kpis) ? $page->kpis : [],
+            'services' => is_array($page->services) ? $page->services : [],
+            'gallery' => is_array($page->gallery) ? $page->gallery : [],
+            'faqs' => is_array($page->faqs) ? $page->faqs : [],
+        ];
+
         return Inertia::render('Admin/System/OrganizationSettings', [
             'organization' => $organization->only(['id', 'name', 'code']),
-            'publicPage' => $page->only(['id', 'slug', 'business_name', 'logo_url', 'theme_color', 'is_published']),
+            'publicPage' => $publicPage,
         ]);
     }
 
@@ -137,6 +155,100 @@ class OrganizationSettingsController extends Controller
             'logo_url' => $page->logo_url,
         ]);
 
-        return Redirect::route('admin.organization-settings.edit')->with('success', 'Logo uploaded successfully.');
+        return Redirect::route('admin.organization-settings.edit', ['tab' => 'public'])
+            ->with('success', 'Logo uploaded successfully.');
+    }
+
+    public function uploadCover(Request $request): RedirectResponse
+    {
+        $actor = $request->user();
+        $organizationId = $actor->organization_id;
+        abort_if($organizationId === null, 404);
+
+        $validated = $request->validate([
+            'cover' => ['required', 'file', 'image', 'max:5120'],
+        ]);
+
+        $file = $validated['cover'];
+        $ext = strtolower($file->getClientOriginalExtension() ?: 'jpg');
+        if (! in_array($ext, ['png', 'jpg', 'jpeg', 'webp'], true)) {
+            $ext = 'jpg';
+        }
+
+        $path = "org/{$organizationId}/cover.{$ext}";
+        Storage::disk('public')->putFileAs("org/{$organizationId}", $file, "cover.{$ext}");
+        $url = Storage::disk('public')->url($path);
+
+        $page = OrganizationPublicPage::query()
+            ->where('organization_id', $organizationId)
+            ->first();
+
+        if (! $page) {
+            $organization = Organization::query()->whereKey($organizationId)->firstOrFail();
+            $page = OrganizationPublicPage::query()->create([
+                'organization_id' => $organizationId,
+                'slug' => $organization->code,
+                'is_published' => false,
+                'business_name' => $organization->name,
+            ]);
+        }
+
+        $page->cover_url = $url;
+        $page->save();
+
+        AuditLogger::record($actor, 'organization.cover.upload', $page, [
+            'cover_url' => $page->cover_url,
+        ]);
+
+        return Redirect::route('admin.organization-settings.edit', ['tab' => 'public'])
+            ->with('success', 'Cover uploaded successfully.');
+    }
+
+    public function uploadGallery(Request $request): RedirectResponse
+    {
+        $actor = $request->user();
+        $organizationId = $actor->organization_id;
+        abort_if($organizationId === null, 404);
+
+        $validated = $request->validate([
+            'photo' => ['required', 'file', 'image', 'max:5120'],
+        ]);
+
+        $file = $validated['photo'];
+        $ext = strtolower($file->getClientOriginalExtension() ?: 'jpg');
+        if (! in_array($ext, ['png', 'jpg', 'jpeg', 'webp'], true)) {
+            $ext = 'jpg';
+        }
+
+        $name = bin2hex(random_bytes(8));
+        $path = "org/{$organizationId}/gallery/{$name}.{$ext}";
+        Storage::disk('public')->putFileAs("org/{$organizationId}/gallery", $file, "{$name}.{$ext}");
+        $url = Storage::disk('public')->url($path);
+
+        $page = OrganizationPublicPage::query()
+            ->where('organization_id', $organizationId)
+            ->first();
+
+        if (! $page) {
+            $organization = Organization::query()->whereKey($organizationId)->firstOrFail();
+            $page = OrganizationPublicPage::query()->create([
+                'organization_id' => $organizationId,
+                'slug' => $organization->code,
+                'is_published' => false,
+                'business_name' => $organization->name,
+            ]);
+        }
+
+        $gallery = is_array($page->gallery) ? $page->gallery : [];
+        $gallery[] = ['url' => $url];
+        $page->gallery = $gallery;
+        $page->save();
+
+        AuditLogger::record($actor, 'organization.gallery.upload', $page, [
+            'photo_url' => $url,
+        ]);
+
+        return Redirect::route('admin.organization-settings.edit', ['tab' => 'public'])
+            ->with('success', 'Gallery photo added successfully.');
     }
 }

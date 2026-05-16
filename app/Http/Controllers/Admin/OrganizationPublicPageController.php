@@ -10,34 +10,12 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Validation\Rule;
-use Inertia\Inertia;
-use Inertia\Response;
 
 class OrganizationPublicPageController extends Controller
 {
-    public function edit(Request $request): Response
+    public function edit(Request $request): RedirectResponse
     {
-        $actor = $request->user();
-        $organizationId = $actor->organization_id;
-        abort_if($organizationId === null, 404);
-
-        $organization = Organization::query()
-            ->whereKey($organizationId)
-            ->firstOrFail();
-
-        $page = OrganizationPublicPage::query()->firstOrCreate(
-            ['organization_id' => $organizationId],
-            [
-                'slug' => $organization->code,
-                'is_published' => false,
-                'business_name' => $organization->name,
-            ],
-        );
-
-        return Inertia::render('Admin/System/PublicPageEdit', [
-            'organization' => $organization->only(['id', 'name', 'code']),
-            'publicPage' => $page,
-        ]);
+        return Redirect::route('admin.organization-settings.edit', ['tab' => 'public']);
     }
 
     public function update(Request $request): RedirectResponse
@@ -73,10 +51,17 @@ class OrganizationPublicPageController extends Controller
             'phone' => ['nullable', 'string', 'max:64'],
             'email' => ['nullable', 'string', 'email', 'max:255'],
             'address' => ['nullable', 'string', 'max:255'],
-            'website_url' => ['nullable', 'string', 'max:255'],
-            'facebook_url' => ['nullable', 'string', 'max:255'],
-            'logo_url' => ['nullable', 'string', 'max:255'],
-            'cover_url' => ['nullable', 'string', 'max:255'],
+            'kpis' => ['nullable', 'array', 'max:8'],
+            'kpis.*.label' => ['required_with:kpis', 'string', 'max:40'],
+            'kpis.*.value' => ['required_with:kpis', 'string', 'max:40'],
+            'services' => ['nullable', 'array', 'max:12'],
+            'services.*.title' => ['required_with:services', 'string', 'max:80'],
+            'services.*.description' => ['nullable', 'string', 'max:500'],
+            'gallery' => ['nullable', 'array', 'max:24'],
+            'gallery.*.url' => ['required_with:gallery', 'string', 'max:255'],
+            'faqs' => ['nullable', 'array', 'max:12'],
+            'faqs.*.q' => ['required_with:faqs', 'string', 'max:120'],
+            'faqs.*.a' => ['nullable', 'string', 'max:800'],
         ]);
 
         $page->fill($validated);
@@ -87,7 +72,7 @@ class OrganizationPublicPageController extends Controller
             'slug' => $page->slug,
         ]);
 
-        return Redirect::route('admin.public-page.edit')->with('success', 'Public page updated successfully.');
+        return Redirect::route('admin.organization-settings.edit', ['tab' => 'public'])
+            ->with('success', 'Public page updated successfully.');
     }
 }
-

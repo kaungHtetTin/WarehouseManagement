@@ -67,6 +67,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/system/organization-settings/logo', [OrganizationSettingsController::class, 'uploadLogo'])
             ->middleware('permission:public_page.manage')
             ->name('organization-settings.logo');
+        Route::post('/system/organization-settings/cover', [OrganizationSettingsController::class, 'uploadCover'])
+            ->middleware('permission:public_page.manage')
+            ->name('organization-settings.cover');
+        Route::post('/system/organization-settings/gallery', [OrganizationSettingsController::class, 'uploadGallery'])
+            ->middleware('permission:public_page.manage')
+            ->name('organization-settings.gallery');
 
         Route::get('/system/public-page', [OrganizationPublicPageController::class, 'edit'])
             ->middleware('permission:public_page.manage')

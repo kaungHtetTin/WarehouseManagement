@@ -20,14 +20,20 @@ class OrganizationPublicPage extends Model
         'phone',
         'email',
         'address',
-        'website_url',
-        'facebook_url',
         'logo_url',
         'cover_url',
+        'kpis',
+        'services',
+        'gallery',
+        'faqs',
     ];
 
     protected $casts = [
         'is_published' => 'boolean',
+        'kpis' => 'array',
+        'services' => 'array',
+        'gallery' => 'array',
+        'faqs' => 'array',
     ];
 
     public function organization(): BelongsTo
