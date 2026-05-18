@@ -5,6 +5,7 @@ import {
     Box,
     Button,
     Chip,
+    Checkbox,
     Collapse,
     Dialog,
     DialogActions,
@@ -27,7 +28,7 @@ import {
     TextField,
     Typography,
 } from '@mui/material';
-import { ArrowBack as ArrowBackIcon, ExpandLess as ExpandLessIcon, ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
+import { ArrowBack as ArrowBackIcon, EditOutlined as EditIcon, ExpandLess as ExpandLessIcon, ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
 import { Fragment, useMemo, useState } from 'react';
 
 const PAYMENT_LABELS = {
@@ -71,7 +72,19 @@ function formatMoneyAmount(value) {
     if (!Number.isFinite(n)) {
         return '—';
     }
-    return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+    return new Intl.NumberFormat(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
+}
+
+function formatQty(value) {
+    if (value == null || value === '') {
+        return '—';
+    }
+    const n = Number(value);
+    if (!Number.isFinite(n)) {
+        return '—';
+    }
+    const rounded = Math.round(n);
+    return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(rounded);
 }
 
 function destinationFieldOneLine(value) {
@@ -175,25 +188,32 @@ function statusChipColor(status) {
     return 'primary';
 }
 
-function LineCard({ item, lineNo }) {
+function LineCard({ item, lineNo, canEdit, onEdit }) {
     return (
         <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, maxWidth: '100%', minWidth: 0 }}>
             <Stack spacing={1}>
                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
                     Line {lineNo}
                 </Typography>
+                {canEdit ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: -0.5 }}>
+                        <IconButton size="small" aria-label="Edit line" onClick={() => onEdit?.(item)}>
+                            <EditIcon fontSize="small" />
+                        </IconButton>
+                    </Box>
+                ) : null}
                 <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                     {item.product?.name ?? '—'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                    {item.qty} {item.unit}
+                    {formatQty(item.qty)} {item.unit}
                     {item.from_warehouse?.display_name ? ` · From ${item.from_warehouse.display_name}` : ''}
                 </Typography>
                 <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
                     {item.is_fragile ? <Chip size="small" label="Fragile" color="warning" variant="outlined" /> : null}
                 </Stack>
                 <Typography variant="body2" color="text.secondary">
-                    Freight: {formatMoneyAmount(item.freight_amount)} {item.freight_rate != null ? `(rate ${item.freight_rate})` : ''}
+                    Freight: {formatMoneyAmount(item.freight_amount)} {item.freight_rate != null ? `(rate ${formatMoneyAmount(item.freight_rate)})` : ''}
                 </Typography>
             </Stack>
         </Paper>
@@ -205,11 +225,15 @@ export default function VoucherDetail() {
     const voucher = pageProps.voucher;
     const adminAppUrl = pageProps.admin_app_url;
     const canRecordVoucherPayments = pageProps.can_record_voucher_payments ?? false;
+    const canManageVoucherLines = pageProps.can_manage_voucher_lines ?? false;
+    const warehouses = pageProps.warehouses ?? [];
     const flash = pageProps.flash ?? {};
 
     const [paymentOpen, setPaymentOpen] = useState(false);
     const [costsOpen, setCostsOpen] = useState(false);
     const [expandedPaymentId, setExpandedPaymentId] = useState(null);
+    const [lineEditOpen, setLineEditOpen] = useState(false);
+    const [lineEditItem, setLineEditItem] = useState(null);
 
     const paymentForm = useForm({
         amount: '',
@@ -218,6 +242,16 @@ export default function VoucherDetail() {
         paid_at: '',
         reference_no: '',
         note: '',
+    });
+
+    const lineForm = useForm({
+        from_warehouse_id: '',
+        qty: '',
+        unit: '',
+        description: '',
+        freight_rate: '',
+        freight_amount: '',
+        is_fragile: false,
     });
 
     const openPaymentDialog = () => {
@@ -231,6 +265,40 @@ export default function VoucherDetail() {
         });
         paymentForm.clearErrors();
         setPaymentOpen(true);
+    };
+
+    const openLineEdit = (item) => {
+        if (!canManageVoucherLines) return;
+        if (!voucher?.id || !item?.id) return;
+        const qtyN = Number(item.qty);
+        const qty = Number.isFinite(qtyN) ? String(Math.round(qtyN)) : '';
+        lineForm.setData({
+            from_warehouse_id: item.from_warehouse_id != null ? String(item.from_warehouse_id) : '',
+            qty,
+            unit: item.unit ?? '',
+            description: item.description ?? '',
+            freight_rate: item.freight_rate != null && item.freight_rate !== '' ? String(item.freight_rate) : '',
+            freight_amount: item.freight_amount != null && item.freight_amount !== '' ? String(item.freight_amount) : '',
+            is_fragile: Boolean(item.is_fragile),
+        });
+        lineForm.clearErrors();
+        setLineEditItem(item);
+        setLineEditOpen(true);
+    };
+
+    const closeLineEdit = () => {
+        if (lineForm.processing) return;
+        setLineEditOpen(false);
+        setLineEditItem(null);
+    };
+
+    const submitLineEdit = (e) => {
+        e.preventDefault();
+        if (!voucher?.id || !lineEditItem?.id) return;
+        lineForm.patch(`${adminAppUrl}/operations/vouchers/${voucher.id}/items/${lineEditItem.id}`, {
+            preserveScroll: true,
+            onSuccess: () => closeLineEdit(),
+        });
     };
 
     const submitPayment = (e) => {
@@ -607,12 +675,13 @@ export default function VoucherDetail() {
                                         <TableCell>From</TableCell>
                                         <TableCell align="right">Freight</TableCell>
                                         <TableCell align="center">Fragile</TableCell>
+                                        {canManageVoucherLines ? <TableCell align="right" width={56} /> : null}
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
                                     {(voucher.items || []).length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={7}>
+                                            <TableCell colSpan={canManageVoucherLines ? 8 : 7}>
                                                 <Typography variant="body2" color="text.secondary">
                                                     No lines.
                                                 </Typography>
@@ -623,11 +692,18 @@ export default function VoucherDetail() {
                                         <TableRow key={it.id}>
                                             <TableCell>{idx + 1}</TableCell>
                                             <TableCell sx={{ fontWeight: 600 }}>{it.product?.name ?? '—'}</TableCell>
-                                            <TableCell>{it.qty}</TableCell>
+                                            <TableCell>{formatQty(it.qty)}</TableCell>
                                             <TableCell>{it.unit}</TableCell>
                                             <TableCell>{it.from_warehouse?.display_name ?? '—'}</TableCell>
                                             <TableCell align="right">{formatMoneyAmount(it.freight_amount)}</TableCell>
                                             <TableCell align="center">{it.is_fragile ? 'Yes' : '—'}</TableCell>
+                                            {canManageVoucherLines ? (
+                                                <TableCell align="right">
+                                                    <IconButton size="small" aria-label="Edit line" onClick={() => openLineEdit(it)}>
+                                                        <EditIcon fontSize="small" />
+                                                    </IconButton>
+                                                </TableCell>
+                                            ) : null}
                                         </TableRow>
                                         ))
                                     )}
@@ -641,10 +717,111 @@ export default function VoucherDetail() {
                                 No lines.
                             </Typography>
                         ) : (
-                            (voucher.items || []).map((it, idx) => <LineCard key={it.id} item={it} lineNo={idx + 1} />)
+                            (voucher.items || []).map((it, idx) => (
+                                <LineCard key={it.id} item={it} lineNo={idx + 1} canEdit={canManageVoucherLines} onEdit={openLineEdit} />
+                            ))
                         )}
                     </Stack>
                 </Box>
+
+                <Dialog open={lineEditOpen} onClose={closeLineEdit} fullWidth maxWidth="sm">
+                    <Box component="form" onSubmit={submitLineEdit} noValidate>
+                        <DialogTitle>Edit line</DialogTitle>
+                        <DialogContent>
+                            <Stack spacing={2} sx={{ mt: 1 }}>
+                                <FormControl fullWidth size="small">
+                                    <InputLabel id="line-from-wh">From warehouse</InputLabel>
+                                    <Select
+                                        labelId="line-from-wh"
+                                        label="From warehouse"
+                                        value={lineForm.data.from_warehouse_id}
+                                        onChange={(e) => lineForm.setData('from_warehouse_id', e.target.value)}
+                                        error={Boolean(lineForm.errors.from_warehouse_id)}
+                                    >
+                                        {(warehouses || []).map((w) => (
+                                            <MenuItem key={w.id} value={String(w.id)}>
+                                                {w.display_name || w.city}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                                {lineForm.errors.from_warehouse_id ? (
+                                    <Typography variant="caption" color="error">
+                                        {lineForm.errors.from_warehouse_id}
+                                    </Typography>
+                                ) : null}
+                                {lineForm.errors.voucher_item ? (
+                                    <Alert severity="error">{lineForm.errors.voucher_item}</Alert>
+                                ) : null}
+                                <TextField
+                                    required
+                                    label="Qty"
+                                    type="number"
+                                    inputProps={{ step: '1', min: '1' }}
+                                    value={lineForm.data.qty}
+                                    onChange={(e) => lineForm.setData('qty', e.target.value)}
+                                    error={Boolean(lineForm.errors.qty)}
+                                    helperText={lineForm.errors.qty}
+                                    size="small"
+                                />
+                                <TextField
+                                    required
+                                    label="Unit"
+                                    value={lineForm.data.unit}
+                                    onChange={(e) => lineForm.setData('unit', e.target.value)}
+                                    error={Boolean(lineForm.errors.unit)}
+                                    helperText={lineForm.errors.unit}
+                                    size="small"
+                                />
+                                <TextField
+                                    label="Description"
+                                    value={lineForm.data.description}
+                                    onChange={(e) => lineForm.setData('description', e.target.value)}
+                                    error={Boolean(lineForm.errors.description)}
+                                    helperText={lineForm.errors.description}
+                                    size="small"
+                                />
+                                <TextField
+                                    label="Freight rate"
+                                    type="number"
+                                    inputProps={{ step: '1', min: '0' }}
+                                    value={lineForm.data.freight_rate}
+                                    onChange={(e) => lineForm.setData('freight_rate', e.target.value)}
+                                    error={Boolean(lineForm.errors.freight_rate)}
+                                    helperText={lineForm.errors.freight_rate}
+                                    size="small"
+                                />
+                                <TextField
+                                    label="Freight amount"
+                                    type="number"
+                                    inputProps={{ step: '1', min: '0' }}
+                                    value={lineForm.data.freight_amount}
+                                    onChange={(e) => lineForm.setData('freight_amount', e.target.value)}
+                                    error={Boolean(lineForm.errors.freight_amount)}
+                                    helperText={lineForm.errors.freight_amount}
+                                    size="small"
+                                />
+                                <FormControl size="small">
+                                    <Stack direction="row" spacing={1} alignItems="center">
+                                        <Checkbox
+                                            checked={Boolean(lineForm.data.is_fragile)}
+                                            onChange={(e) => lineForm.setData('is_fragile', e.target.checked)}
+                                        />
+                                        <Typography variant="body2">Fragile</Typography>
+                                    </Stack>
+                                </FormControl>
+                            </Stack>
+                        </DialogContent>
+                        <DialogActions>
+                            <Button onClick={closeLineEdit} disabled={lineForm.processing}>
+                                Cancel
+                            </Button>
+                            <Button type="submit" variant="contained" disabled={lineForm.processing}>
+                                Save
+                            </Button>
+                        </DialogActions>
+                    </Box>
+                </Dialog>
 
                 <Dialog open={paymentOpen} onClose={() => !paymentForm.processing && setPaymentOpen(false)} fullWidth maxWidth="sm">
                     <Box component="form" onSubmit={submitPayment} noValidate>
@@ -655,7 +832,7 @@ export default function VoucherDetail() {
                                     required
                                     label="Amount"
                                     type="number"
-                                    inputProps={{ step: '0.01', min: '0.01' }}
+                                    inputProps={{ step: '1', min: '1' }}
                                     value={paymentForm.data.amount}
                                     onChange={(e) => paymentForm.setData('amount', e.target.value)}
                                     error={Boolean(paymentForm.errors.amount)}

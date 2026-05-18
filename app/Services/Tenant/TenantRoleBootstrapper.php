@@ -35,7 +35,6 @@ class TenantRoleBootstrapper
                     'payments.manage',
                     'finance.view',
                     'finance.manage',
-                    'public_page.manage',
                 ],
             ],
             'clerk' => [
@@ -56,12 +55,9 @@ class TenantRoleBootstrapper
                 'is_system_role' => true,
                 'permissions' => [
                     'warehouses.view',
-                    'inventory.view',
                     'vouchers.view',
                     'trips.view',
                     'payments.manage',
-                    'billing.view',
-                    'billing.manage',
                     'finance.view',
                     'finance.manage',
                 ],
@@ -74,6 +70,7 @@ class TenantRoleBootstrapper
                     'inventory.view',
                     'vouchers.view',
                     'trips.view',
+                    'finance.view',
                 ],
             ],
         ];

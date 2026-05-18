@@ -50,6 +50,11 @@ class VoucherManagementController extends Controller
         $rawPaymentFilter = (string) $request->query('payment_status', 'all');
         $paymentFilter = in_array($rawPaymentFilter, ['UNPAID', 'PARTIAL', 'PAID', 'WAIVED', 'all'], true) ? $rawPaymentFilter : 'all';
 
+        $rawStatusFilter = (string) $request->query('status', 'all');
+        $statusFilter = in_array($rawStatusFilter, ['all', 'not_delivered', 'delivered'], true)
+            ? $rawStatusFilter
+            : 'all';
+
         $query = Voucher::query()
             ->where('organization_id', $organizationId);
 
@@ -63,6 +68,12 @@ class VoucherManagementController extends Controller
 
         if ($paymentFilter !== 'all') {
             $query->where('payment_status', $paymentFilter);
+        }
+
+        if ($statusFilter === 'delivered') {
+            $query->whereIn('status', ['DELIVERED', 'CLOSED']);
+        } elseif ($statusFilter === 'not_delivered') {
+            $query->whereNotIn('status', ['DELIVERED', 'CLOSED']);
         }
 
         $vouchers = $query
@@ -82,6 +93,7 @@ class VoucherManagementController extends Controller
             'warehouses' => $warehouses,
             'voucher_warehouse_filter' => $warehouseFilter,
             'voucher_payment_filter' => $paymentFilter,
+            'voucher_status_filter' => $statusFilter,
         ]);
     }
 
@@ -89,6 +101,8 @@ class VoucherManagementController extends Controller
     {
         $organizationId = $request->user()->organization_id;
         abort_if($organizationId === null, 404);
+
+        $user = $request->user();
 
         $model = Voucher::query()
             ->whereKey($voucher)
@@ -110,7 +124,9 @@ class VoucherManagementController extends Controller
 
         return Inertia::render('Admin/Operations/VoucherDetail', [
             'voucher' => $model,
-            'can_record_voucher_payments' => $request->user()->hasPermission('payments.manage'),
+            'can_record_voucher_payments' => $user->hasPermission('payments.manage'),
+            'can_manage_voucher_lines' => $user->hasPermission('vouchers.manage'),
+            'warehouses' => $this->operationalContext->accessibleWarehousesForUi($user)->values(),
         ]);
     }
 
@@ -371,6 +387,189 @@ class VoucherManagementController extends Controller
 
         return Redirect::route('admin.vouchers.show', $voucherModel)
             ->with('success', 'Payment recorded.');
+    }
+
+    public function markPaid(Request $request, string $voucher): RedirectResponse
+    {
+        $actor = $request->user();
+        abort_if(! $actor->hasPermission('payments.manage'), 403);
+
+        $organizationId = $actor->organization_id;
+        abort_if($organizationId === null, 404);
+
+        $voucherModel = Voucher::query()
+            ->whereKey($voucher)
+            ->where('organization_id', $organizationId)
+            ->firstOrFail();
+
+        abort_if($voucherModel->status === 'DRAFT', 404);
+        abort_if($voucherModel->payment_status === 'WAIVED', 422, 'Cannot mark a waived voucher as paid.');
+        abort_if($voucherModel->total_amount === null, 422, 'Cannot mark as paid when total amount is not set.');
+
+        $recordedAmount = 0.0;
+        DB::transaction(function () use ($organizationId, $voucherModel, $actor, &$recordedAmount) {
+            $lockedVoucher = Voucher::query()
+                ->whereKey($voucherModel->id)
+                ->where('organization_id', $organizationId)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            abort_if($lockedVoucher->status === 'DRAFT', 404);
+            abort_if($lockedVoucher->payment_status === 'WAIVED', 422, 'Cannot mark a waived voucher as paid.');
+            abort_if($lockedVoucher->total_amount === null, 422, 'Cannot mark as paid when total amount is not set.');
+
+            $total = round((float) $lockedVoucher->total_amount, 2);
+            if ($total <= 0.005) {
+                if ($lockedVoucher->payment_status !== 'PAID') {
+                    $lockedVoucher->payment_status = 'PAID';
+                    $lockedVoucher->save();
+                }
+                return;
+            }
+
+            $payments = VoucherPayment::query()
+                ->where('voucher_id', $lockedVoucher->id)
+                ->where('organization_id', $organizationId)
+                ->lockForUpdate()
+                ->get(['id', 'amount']);
+
+            $paid = round((float) $payments->sum('amount'), 2);
+            $remaining = max(0.0, $total - $paid);
+            abort_if($remaining < 0.01, 422, 'Voucher is already fully paid.');
+
+            VoucherPayment::query()->create([
+                'organization_id' => $organizationId,
+                'voucher_id' => $lockedVoucher->id,
+                'amount' => round((float) $remaining, 2),
+                'currency' => 'MMK',
+                'payment_method' => 'CASH',
+                'paid_at' => now(),
+                'reference_no' => null,
+                'note' => null,
+                'received_by' => $actor->id,
+            ]);
+
+            $recordedAmount = round((float) $remaining, 2);
+            $this->recomputeVoucherPaymentStatus($lockedVoucher->fresh());
+        });
+
+        AuditLogger::record($actor, 'voucher.payment.mark_paid', $voucherModel->fresh(), [
+            'voucher_no' => $voucherModel->voucher_no,
+            'amount' => round((float) $recordedAmount, 2),
+            'payment_method' => 'CASH',
+        ]);
+
+        return Redirect::back()->with('success', 'Voucher marked as paid.');
+    }
+
+    public function updateItem(Request $request, string $voucher, string $voucherItem): RedirectResponse
+    {
+        $actor = $request->user();
+        abort_if(! $actor->hasPermission('vouchers.manage'), 403);
+
+        $organizationId = $actor->organization_id;
+        abort_if($organizationId === null, 404);
+
+        $voucherModel = Voucher::query()
+            ->whereKey($voucher)
+            ->where('organization_id', $organizationId)
+            ->firstOrFail();
+
+        abort_if($voucherModel->status === 'DRAFT', 404);
+
+        try {
+            DB::transaction(function () use ($organizationId, $voucherModel, $voucherItem, $request, $actor) {
+                $lockedVoucher = Voucher::query()
+                    ->whereKey($voucherModel->id)
+                    ->where('organization_id', $organizationId)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                abort_if($lockedVoucher->status === 'DRAFT', 404);
+
+                $item = VoucherItem::query()
+                    ->whereKey($voucherItem)
+                    ->where('organization_id', $organizationId)
+                    ->where('voucher_id', $lockedVoucher->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                $hasTripLoads = TripItem::query()
+                    ->where('organization_id', $organizationId)
+                    ->where('voucher_item_id', $item->id)
+                    ->exists();
+
+                $hasFulfillment = WarehouseFulfillmentInstruction::query()
+                    ->where('organization_id', $organizationId)
+                    ->where('voucher_item_id', $item->id)
+                    ->exists();
+
+                $lockedByOperations = $hasTripLoads || $hasFulfillment;
+
+                if ($lockedByOperations) {
+                    $validated = $request->validate([
+                        'freight_rate' => ['nullable', 'numeric', 'min:0'],
+                        'freight_amount' => ['nullable', 'numeric', 'min:0'],
+                    ]);
+
+                    $qty = (float) $item->qty;
+                    $freightAmount = VoucherLineFreight::resolveAmount(
+                        $qty,
+                        $validated['freight_rate'] ?? $item->freight_rate,
+                        $validated['freight_amount'] ?? $item->freight_amount,
+                    );
+
+                    $item->fill([
+                        'freight_rate' => array_key_exists('freight_rate', $validated) ? ($validated['freight_rate'] ?? null) : $item->freight_rate,
+                        'freight_amount' => $freightAmount,
+                    ]);
+                    $item->save();
+                } else {
+                    $validated = $request->validate([
+                        'from_warehouse_id' => [
+                            'required',
+                            Rule::exists('warehouses', 'id')->where(fn ($q) => $q->where('organization_id', $organizationId)),
+                        ],
+                        'qty' => ['required', 'numeric', 'min:0.001'],
+                        'unit' => ['required', 'string', 'max:32'],
+                        'description' => ['nullable', 'string', 'max:500'],
+                        'freight_rate' => ['nullable', 'numeric', 'min:0'],
+                        'freight_amount' => ['nullable', 'numeric', 'min:0'],
+                        'is_fragile' => ['sometimes', 'boolean'],
+                    ]);
+
+                    $qty = (float) $validated['qty'];
+                    $freightAmount = VoucherLineFreight::resolveAmount(
+                        $qty,
+                        $validated['freight_rate'] ?? null,
+                        $validated['freight_amount'] ?? null,
+                    );
+
+                    $item->fill([
+                        'from_warehouse_id' => (int) $validated['from_warehouse_id'],
+                        'qty' => $validated['qty'],
+                        'unit' => $validated['unit'],
+                        'description' => $validated['description'] ?? null,
+                        'freight_rate' => $validated['freight_rate'] ?? null,
+                        'freight_amount' => $freightAmount,
+                        'is_fragile' => (bool) ($validated['is_fragile'] ?? false),
+                    ]);
+                    $item->save();
+                }
+
+                $this->recalculateTotals($lockedVoucher);
+                $this->recomputeVoucherPaymentStatus($lockedVoucher->fresh());
+            });
+        } catch (ValidationException $e) {
+            return Redirect::back()->withErrors($e->errors());
+        }
+
+        AuditLogger::record($actor, 'voucher.line.update', $voucherModel->fresh(), [
+            'voucher_no' => $voucherModel->voucher_no,
+            'voucher_item_id' => (int) $voucherItem,
+        ]);
+
+        return Redirect::back()->with('success', 'Line updated.');
     }
 
     public function setWaived(Request $request, string $voucher): RedirectResponse

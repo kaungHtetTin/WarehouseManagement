@@ -305,6 +305,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/operations/trips/{trip}/cost-entries/{costEntry}', [TripManagementController::class, 'destroyCostEntry'])
             ->middleware('permission:trips.manage')
             ->name('trips.cost-entries.destroy');
+        Route::post('/operations/trips/{trip}/net-income-ledger', [TripManagementController::class, 'storeNetIncomeLedgerEntry'])
+            ->middleware(['permission:trips.view', 'permission:finance.manage'])
+            ->name('trips.net-income-ledger.store');
         Route::get('/operations/fulfillment/inbox', [WarehouseFulfillmentController::class, 'index'])
             ->middleware('permission:trips.manage')
             ->name('fulfillment.inbox');
@@ -318,10 +321,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
             ->middleware('permission:trips.manage')
             ->name('fulfillment.vouchers.dispatch');
         Route::post('/operations/fulfillment/vouchers/{voucher}/payments', [WarehouseFulfillmentController::class, 'storeVoucherPayment'])
-            ->middleware('permission:trips.manage')
+            ->middleware(['permission:trips.manage', 'permission:payments.manage'])
             ->name('fulfillment.vouchers.payments.store');
         Route::post('/operations/fulfillment/vouchers/{voucher}/payment-waive', [WarehouseFulfillmentController::class, 'setVoucherWaived'])
-            ->middleware('permission:trips.manage')
+            ->middleware(['permission:trips.manage', 'permission:payments.manage'])
             ->name('fulfillment.vouchers.payment-waive');
 
         Route::middleware(['permission:vouchers.manage', 'permission:inventory.manage'])->group(function () {
@@ -345,9 +348,15 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/operations/vouchers/{voucher}/payments', [VoucherManagementController::class, 'storePayment'])
             ->middleware('permission:payments.manage')
             ->name('vouchers.payments.store');
+        Route::post('/operations/vouchers/{voucher}/mark-paid', [VoucherManagementController::class, 'markPaid'])
+            ->middleware('permission:payments.manage')
+            ->name('vouchers.mark-paid');
         Route::post('/operations/vouchers/{voucher}/payment-waive', [VoucherManagementController::class, 'setWaived'])
             ->middleware('permission:payments.manage')
             ->name('vouchers.payment-waive');
+        Route::patch('/operations/vouchers/{voucher}/items/{voucherItem}', [VoucherManagementController::class, 'updateItem'])
+            ->middleware('permission:vouchers.manage')
+            ->name('vouchers.items.update');
         Route::post('/operations/vouchers', [VoucherManagementController::class, 'store'])
             ->middleware('permission:vouchers.manage')
             ->name('vouchers.store');

@@ -33,6 +33,7 @@ export default function VouchersIndex() {
         warehouses = [],
         voucher_warehouse_filter: voucherWarehouseFilter = 'all',
         voucher_payment_filter: voucherPaymentFilter = 'all',
+        voucher_status_filter: voucherStatusFilter = 'all',
         admin_app_url: adminAppUrl,
         flash = {},
         auth,
@@ -43,6 +44,7 @@ export default function VouchersIndex() {
     const canManage = permissionCodes.includes('vouchers.manage');
     const canWizard = canManage && permissionCodes.includes('inventory.manage');
     const canViewDetail = permissionCodes.includes('vouchers.view');
+    const canRecordVoucherPayments = permissionCodes.includes('payments.manage');
     const openTableActionMenu = Boolean(tableActionAnchorEl);
 
     const handleTableActionOpen = (event, row) => {
@@ -70,6 +72,16 @@ export default function VouchersIndex() {
         router.delete(`${adminAppUrl}/operations/vouchers/${row.id}`, { preserveScroll: true });
     };
 
+    const markAsPaid = (row) => {
+        handleTableActionClose();
+        if (!canRecordVoucherPayments) return;
+        if (!row?.id || row?.status === 'DRAFT') return;
+        if (row?.payment_status === 'PAID' || row?.payment_status === 'WAIVED') return;
+        if (row?.total_amount == null) return;
+        if (!window.confirm(`Mark voucher "${row.voucher_no}" as PAID? This will auto-record a CASH payment.`)) return;
+        router.post(`${adminAppUrl}/operations/vouchers/${row.id}/mark-paid`, {}, { preserveScroll: true });
+    };
+
     const statusColor = (status) => {
         if (status === 'DRAFT') return 'default';
         if (status === 'CONFIRMED') return 'success';
@@ -87,6 +99,12 @@ export default function VouchersIndex() {
     };
 
     const needsAction = (row) => row?.status !== 'DRAFT' && (row?.payment_status === 'UNPAID' || row?.payment_status === 'PARTIAL');
+    const canMarkAsPaid = (row) =>
+        canRecordVoucherPayments &&
+        row?.status !== 'DRAFT' &&
+        row?.payment_status !== 'PAID' &&
+        row?.payment_status !== 'WAIVED' &&
+        row?.total_amount != null;
 
     const actionNeededCount = useMemo(() => vouchers.filter((r) => needsAction(r)).length, [vouchers]);
 
@@ -132,7 +150,7 @@ export default function VouchersIndex() {
                                         const v = e.target.value;
                                         router.get(
                                             `${adminAppUrl}/operations/vouchers`,
-                                            { warehouse_id: v, payment_status: voucherPaymentFilter },
+                                            { warehouse_id: v, payment_status: voucherPaymentFilter, status: voucherStatusFilter },
                                             { preserveScroll: true },
                                         );
                                     }}
@@ -155,7 +173,7 @@ export default function VouchersIndex() {
                                         const v = e.target.value;
                                         router.get(
                                             `${adminAppUrl}/operations/vouchers`,
-                                            { warehouse_id: voucherWarehouseFilter, payment_status: v },
+                                            { warehouse_id: voucherWarehouseFilter, payment_status: v, status: voucherStatusFilter },
                                             { preserveScroll: true },
                                         );
                                     }}
@@ -165,6 +183,26 @@ export default function VouchersIndex() {
                                     <MenuItem value="PARTIAL">Partial</MenuItem>
                                     <MenuItem value="PAID">Paid</MenuItem>
                                     <MenuItem value="WAIVED">Waived</MenuItem>
+                                </Select>
+                            </FormControl>
+                            <FormControl size="small" sx={{ width: { xs: '100%', sm: 220 } }}>
+                                <InputLabel id="voucher-status-filter">Status</InputLabel>
+                                <Select
+                                    labelId="voucher-status-filter"
+                                    label="Status"
+                                    value={voucherStatusFilter}
+                                    onChange={(e) => {
+                                        const v = e.target.value;
+                                        router.get(
+                                            `${adminAppUrl}/operations/vouchers`,
+                                            { warehouse_id: voucherWarehouseFilter, payment_status: voucherPaymentFilter, status: v },
+                                            { preserveScroll: true },
+                                        );
+                                    }}
+                                >
+                                    <MenuItem value="all">All</MenuItem>
+                                    <MenuItem value="not_delivered">Not delivered</MenuItem>
+                                    <MenuItem value="delivered">Delivered</MenuItem>
                                 </Select>
                             </FormControl>
                         </Stack>
@@ -333,6 +371,11 @@ export default function VouchersIndex() {
                     {selectedRow?.status === 'DRAFT' && canManage && !canWizard && (
                         <MenuItem dense disabled>
                             Edit requires inventory.manage (wizard)
+                        </MenuItem>
+                    )}
+                    {selectedRow && canMarkAsPaid(selectedRow) && (
+                        <MenuItem dense onClick={() => selectedRow && markAsPaid(selectedRow)}>
+                            Mark as paid
                         </MenuItem>
                     )}
                     {(selectedRow?.status === 'DRAFT' || selectedRow?.status === 'CONFIRMED') && (

@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\Voucher;
 use App\Models\VoucherItem;
+use App\Models\VoucherPayment;
 use App\Models\Warehouse;
 use App\Models\WarehouseFulfillmentInstruction;
 use App\Services\Audit\AuditLogger;
@@ -237,7 +238,7 @@ class TripManagementController extends Controller
                         ->limit(25),
                     'voucherItem' => fn ($q2) => $q2->with([
                     'product:id,name,unit,default_weight',
-                    'voucher:id,voucher_no,total_weight,additional_costs,merchant_id,default_to_warehouse_id,default_to_city,default_to_address_line1,default_to_address_line2,default_to_township,default_to_region,default_to_postal_code,default_recipient_name,default_recipient_phone',
+                    'voucher:id,voucher_no,total_amount,payment_status,total_weight,additional_costs,merchant_id,default_to_warehouse_id,default_to_city,default_to_address_line1,default_to_address_line2,default_to_township,default_to_region,default_to_postal_code,default_recipient_name,default_recipient_phone',
                     'voucher.merchant:id,name',
                         'voucher.defaultToWarehouse:id,city,address',
                     ]),
@@ -249,6 +250,36 @@ class TripManagementController extends Controller
             'items',
             $this->withPendingReceiptQtyForTripItems($model->items, (int) $organizationId)
         );
+
+        $voucherIds = collect($model->items ?? [])
+            ->map(fn ($i) => $i instanceof TripItem ? (int) ($i->voucherItem?->voucher?->id ?? 0) : 0)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($voucherIds !== []) {
+            $paidByVoucherId = VoucherPayment::query()
+                ->where('organization_id', $organizationId)
+                ->whereIn('voucher_id', $voucherIds)
+                ->selectRaw('voucher_id, COALESCE(SUM(amount), 0) as paid_amount')
+                ->groupBy('voucher_id')
+                ->get()
+                ->keyBy(fn ($r) => (int) $r->voucher_id)
+                ->map(fn ($r) => round((float) $r->paid_amount, 2));
+
+            foreach ($model->items as $item) {
+                $voucher = $item->voucherItem?->voucher;
+                if ($voucher === null) {
+                    continue;
+                }
+                $voucherId = (int) $voucher->id;
+                if ($voucherId <= 0) {
+                    continue;
+                }
+                $voucher->setAttribute('paid_amount', (float) ($paidByVoucherId[$voucherId] ?? 0.0));
+            }
+        }
 
         $user = $request->user();
         $canManageCargo = $user && $user->hasPermission('trips.manage')
@@ -300,12 +331,63 @@ class TripManagementController extends Controller
 
         $tripExtraCostTotal = round((float) $tripCostEntries->sum(fn ($r) => (float) $r->amount), 2);
 
+        $voucherPaymentsTotal = 0.0;
+        if (isset($paidByVoucherId) && $paidByVoucherId instanceof Collection) {
+            $voucherPaymentsTotal = round((float) $paidByVoucherId->sum(fn ($n) => (float) $n), 2);
+        }
+
+        $voucherAdditionalCostsTotal = 0.0;
+        $seenVoucher = [];
+        foreach (($model->items ?? []) as $item) {
+            if (! $item instanceof TripItem) {
+                continue;
+            }
+            $voucher = $item->voucherItem?->voucher;
+            if ($voucher === null) {
+                continue;
+            }
+            $vid = (int) $voucher->id;
+            if ($vid <= 0 || isset($seenVoucher[$vid])) {
+                continue;
+            }
+            $seenVoucher[$vid] = true;
+
+            $costs = $voucher->additional_costs;
+            if (! is_array($costs)) {
+                continue;
+            }
+            foreach ($costs as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+                $a = $row['amount'] ?? null;
+                if ($a === null || $a === '') {
+                    continue;
+                }
+                $n = (float) $a;
+                if ($n > 0) {
+                    $voucherAdditionalCostsTotal += $n;
+                }
+            }
+        }
+        $voucherAdditionalCostsTotal = round($voucherAdditionalCostsTotal, 2);
+
+        $tripNetIncome = round($voucherPaymentsTotal - $voucherAdditionalCostsTotal - $tripExtraCostTotal, 2);
+
+        $netIncomeEntry = FinanceEntry::query()
+            ->where('organization_id', $organizationId)
+            ->where('reference_type', 'TRIP_NET_INCOME')
+            ->where('reference_id', $model->id)
+            ->where('direction', 'INCOME')
+            ->first(['id', 'amount', 'occurred_at', 'category_id']);
+
         return Inertia::render('Admin/Operations/TripDetail', [
             'trip' => $model,
             'can_manage_cargo' => $canManageCargo,
             'can_load_cargo' => $canLoadCargo,
             'can_record_delivery' => $canRecordDelivery,
             'can_manage_trip_costs' => $canManageTripCosts,
+            'can_record_trip_net_income' => (bool) ($user && $user->hasPermission('finance.manage')),
             'can_mark_departed' => $departureCaps['can_mark_departed'],
             'can_undo_depart' => $departureCaps['can_undo_depart'],
             'warehouses' => $canManageCargo
@@ -319,7 +401,135 @@ class TripManagementController extends Controller
             'trip_cost_categories' => $tripCostCategories,
             'trip_cost_entries' => $tripCostEntries,
             'trip_extra_cost_total' => $tripExtraCostTotal,
+            'trip_net_income' => $tripNetIncome,
+            'trip_net_income_recorded' => $netIncomeEntry !== null,
+            'trip_net_income_entry' => $netIncomeEntry,
         ]);
+    }
+
+    public function storeNetIncomeLedgerEntry(Request $request, string $trip): RedirectResponse
+    {
+        $actor = $request->user();
+        $organizationId = $actor->organization_id;
+        abort_if($organizationId === null, 404);
+
+        $tripModel = Trip::query()
+            ->where('organization_id', $organizationId)
+            ->whereKey($trip)
+            ->firstOrFail();
+
+        $alreadyRecorded = FinanceEntry::query()
+            ->where('organization_id', $organizationId)
+            ->where('reference_type', 'TRIP_NET_INCOME')
+            ->where('reference_id', $tripModel->id)
+            ->where('direction', 'INCOME')
+            ->exists();
+        if ($alreadyRecorded) {
+            return Redirect::route('admin.trips.show', $tripModel)
+                ->with('info', 'Net income already recorded in Finance Ledger.');
+        }
+
+        $voucherIds = TripItem::query()
+            ->where('trip_items.organization_id', $organizationId)
+            ->where('trip_id', $tripModel->id)
+            ->join('voucher_items', 'voucher_items.id', '=', 'trip_items.voucher_item_id')
+            ->selectRaw('DISTINCT voucher_items.voucher_id as voucher_id')
+            ->pluck('voucher_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->values()
+            ->all();
+
+        $voucherPaymentsTotal = 0.0;
+        if ($voucherIds !== []) {
+            $voucherPaymentsTotal = round((float) VoucherPayment::query()
+                ->where('organization_id', $organizationId)
+                ->whereIn('voucher_id', $voucherIds)
+                ->sum('amount'), 2);
+        }
+
+        $voucherAdditionalCostsTotal = 0.0;
+        if ($voucherIds !== []) {
+            $vouchers = Voucher::query()
+                ->where('organization_id', $organizationId)
+                ->whereIn('id', $voucherIds)
+                ->get(['id', 'additional_costs']);
+
+            foreach ($vouchers as $voucher) {
+                $costs = $voucher->additional_costs;
+                if (! is_array($costs)) {
+                    continue;
+                }
+                foreach ($costs as $row) {
+                    if (! is_array($row)) {
+                        continue;
+                    }
+                    $a = $row['amount'] ?? null;
+                    if ($a === null || $a === '') {
+                        continue;
+                    }
+                    $n = (float) $a;
+                    if ($n > 0) {
+                        $voucherAdditionalCostsTotal += $n;
+                    }
+                }
+            }
+        }
+        $voucherAdditionalCostsTotal = round($voucherAdditionalCostsTotal, 2);
+
+        $tripCostsTotal = round((float) FinanceEntry::query()
+            ->where('organization_id', $organizationId)
+            ->where('scope', 'TRIP_COST')
+            ->where('direction', 'EXPENSE')
+            ->where('reference_type', 'TRIP')
+            ->where('reference_id', $tripModel->id)
+            ->sum('amount'), 2);
+
+        $netIncome = round($voucherPaymentsTotal - $voucherAdditionalCostsTotal - $tripCostsTotal, 2);
+        $netIncomeInt = (int) round($netIncome);
+        if ($netIncomeInt <= 0) {
+            return Redirect::route('admin.trips.show', $tripModel)
+                ->with('error', 'Net income is not positive, so it cannot be recorded.');
+        }
+
+        $category = FinanceCategory::query()->updateOrCreate(
+            [
+                'organization_id' => $organizationId,
+                'scope' => 'GENERAL',
+                'name' => 'Trip',
+            ],
+            [
+                'direction' => 'BOTH',
+                'status' => 'ACTIVE',
+                'sort_order' => 0,
+            ]
+        );
+
+        $occurredAt = $tripModel->departed_at ?? now();
+
+        $entry = FinanceEntry::query()->create([
+            'organization_id' => $organizationId,
+            'warehouse_id' => null,
+            'scope' => $category->scope,
+            'direction' => 'INCOME',
+            'category_id' => $category->id,
+            'amount' => $netIncomeInt,
+            'currency' => 'MMK',
+            'note' => (string) $tripModel->trip_no,
+            'occurred_at' => $occurredAt,
+            'reference_type' => 'TRIP_NET_INCOME',
+            'reference_id' => $tripModel->id,
+            'source' => 'SYSTEM',
+            'created_by' => $actor->id,
+        ]);
+
+        AuditLogger::record($actor, 'trip_net_income_ledger.create', $entry, [
+            'trip_id' => $tripModel->id,
+            'amount' => (float) $entry->amount,
+        ]);
+
+        return Redirect::route('admin.trips.show', $tripModel)
+            ->with('success', 'Net income added to Finance Ledger.');
     }
 
     public function storeCostEntry(Request $request, string $trip): RedirectResponse
@@ -2234,6 +2444,22 @@ class TripManagementController extends Controller
                 'amount' => $amount,
             ];
             $byVoucher[$voucherId]['items_qty'] = (int) $byVoucher[$voucherId]['items_qty'] + $qtyInt;
+        }
+
+        $voucherIds = array_keys($byVoucher);
+        if ($voucherIds !== []) {
+            $paidByVoucherId = VoucherPayment::query()
+                ->where('organization_id', $organizationId)
+                ->whereIn('voucher_id', $voucherIds)
+                ->selectRaw('voucher_id, COALESCE(SUM(amount), 0) as paid_amount')
+                ->groupBy('voucher_id')
+                ->get()
+                ->keyBy(fn ($r) => (int) $r->voucher_id)
+                ->map(fn ($r) => round((float) $r->paid_amount, 2));
+
+            foreach ($voucherIds as $vid) {
+                $byVoucher[$vid]['paid_amount'] = (float) ($paidByVoucherId[$vid] ?? 0.0);
+            }
         }
 
         $cargoRows = array_values($byVoucher);

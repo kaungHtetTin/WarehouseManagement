@@ -230,7 +230,7 @@ export default function TripCreate() {
                             size="small"
                             fullWidth
                             type="number"
-                            inputProps={{ step: '0.001', min: '0' }}
+                            inputProps={{ step: '1', min: '0' }}
                             value={capacityWeight}
                             onChange={(e) => setCapacityWeight(e.target.value)}
                             error={Boolean(errors['vehicle.capacity_weight'])}

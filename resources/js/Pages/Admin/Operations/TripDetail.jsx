@@ -99,7 +99,8 @@ function formatFixed(value, digits) {
     if (!Number.isFinite(n)) {
         return '—';
     }
-    return new Intl.NumberFormat(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
+    const rounded = Math.round(n);
+    return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(rounded);
 }
 
 function formatInt(value) {
@@ -196,6 +197,8 @@ export default function TripDetail() {
     const canLoadCargo = pageProps.can_load_cargo ?? pageProps.can_manage_cargo ?? false;
     const canRecordDelivery = pageProps.can_record_delivery ?? false;
     const canManageTripCosts = pageProps.can_manage_trip_costs ?? false;
+    const canRecordTripNetIncome = pageProps.can_record_trip_net_income ?? false;
+    const tripNetIncomeRecorded = pageProps.trip_net_income_recorded ?? false;
     const canMarkDeparted = pageProps.can_mark_departed ?? false;
     const canUndoDepart = pageProps.can_undo_depart ?? false;
     const loadableVouchers = pageProps.loadable_vouchers ?? [];
@@ -213,6 +216,109 @@ export default function TripDetail() {
         }
         return (Number.isFinite(labor) ? labor : 0) + (Number.isFinite(extra) ? extra : 0);
     }, [tripLaborCost, tripExtraCostTotal]);
+
+    const voucherFinanceSummary = useMemo(() => {
+        const byId = new Map();
+        for (const item of trip?.items ?? []) {
+            const v = item?.voucher_item?.voucher;
+            const id = Number(v?.id);
+            if (!Number.isFinite(id) || id <= 0) continue;
+            if (byId.has(id)) continue;
+            byId.set(id, v);
+        }
+
+        let billedTotal = 0;
+        let collectedTotal = 0;
+        let outstandingTotal = 0;
+        let waivedTotal = 0;
+        let additionalCostsTotal = 0;
+        const statusCounts = { PAID: 0, PARTIAL: 0, UNPAID: 0, WAIVED: 0, OTHER: 0 };
+
+        for (const v of byId.values()) {
+            const total = Number(v?.total_amount);
+            const billed = Number.isFinite(total) ? total : 0;
+            const paid = Number.isFinite(Number(v?.paid_amount)) ? Number(v.paid_amount) : 0;
+            const remaining = Math.max(0, billed - paid);
+            billedTotal += billed;
+            collectedTotal += paid;
+
+            const costs = Array.isArray(v?.additional_costs) ? v.additional_costs : [];
+            for (const row of costs) {
+                const n = Number(row?.amount);
+                if (Number.isFinite(n) && n > 0) additionalCostsTotal += n;
+            }
+
+            const status = String(v?.payment_status ?? '').toUpperCase();
+            if (status === 'PAID') statusCounts.PAID += 1;
+            else if (status === 'PARTIAL') statusCounts.PARTIAL += 1;
+            else if (status === 'UNPAID') statusCounts.UNPAID += 1;
+            else if (status === 'WAIVED') statusCounts.WAIVED += 1;
+            else statusCounts.OTHER += 1;
+
+            if (status === 'WAIVED') waivedTotal += remaining;
+            else outstandingTotal += remaining;
+        }
+
+        billedTotal = Math.round(billedTotal * 100) / 100;
+        collectedTotal = Math.round(collectedTotal * 100) / 100;
+        outstandingTotal = Math.round(outstandingTotal * 100) / 100;
+        waivedTotal = Math.round(waivedTotal * 100) / 100;
+        additionalCostsTotal = Math.round(additionalCostsTotal * 100) / 100;
+
+        return {
+            voucherCount: byId.size,
+            billedTotal,
+            collectedTotal,
+            outstandingTotal,
+            waivedTotal,
+            additionalCostsTotal,
+            statusCounts,
+        };
+    }, [trip?.items]);
+
+    const tripNetIncome = useMemo(() => {
+        const payments = Number(voucherFinanceSummary.collectedTotal);
+        const voucherCosts = Number(voucherFinanceSummary.additionalCostsTotal);
+        const tripCosts = Number(tripExtraCostTotal ?? 0);
+        if (!Number.isFinite(payments) && !Number.isFinite(voucherCosts) && !Number.isFinite(tripCosts)) return null;
+        return Math.round(((Number.isFinite(payments) ? payments : 0) - (Number.isFinite(voucherCosts) ? voucherCosts : 0) - (Number.isFinite(tripCosts) ? tripCosts : 0)) * 100) / 100;
+    }, [tripExtraCostTotal, voucherFinanceSummary.additionalCostsTotal, voucherFinanceSummary.collectedTotal]);
+
+    const [netIncomeDialogOpen, setNetIncomeDialogOpen] = useState(false);
+    const [netIncomeDialogProcessing, setNetIncomeDialogProcessing] = useState(false);
+    const [netIncomeDialogError, setNetIncomeDialogError] = useState('');
+
+    const openNetIncomeDialog = useCallback(() => {
+        if (!canRecordTripNetIncome || tripNetIncomeRecorded) return;
+        setNetIncomeDialogError('');
+        setNetIncomeDialogOpen(true);
+    }, [canRecordTripNetIncome, tripNetIncomeRecorded]);
+
+    const closeNetIncomeDialog = useCallback(() => {
+        if (netIncomeDialogProcessing) return;
+        setNetIncomeDialogOpen(false);
+    }, [netIncomeDialogProcessing]);
+
+    const submitNetIncomeDialog = useCallback(() => {
+        if (!canRecordTripNetIncome || tripNetIncomeRecorded) return;
+        setNetIncomeDialogError('');
+        const n = Number(tripNetIncome);
+        if (!Number.isFinite(n) || n <= 0) {
+            setNetIncomeDialogError('Net income must be positive.');
+            return;
+        }
+        setNetIncomeDialogProcessing(true);
+        router.post(
+            `${adminAppUrl}/operations/trips/${trip.id}/net-income-ledger`,
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: () => setNetIncomeDialogOpen(false),
+                onError: () => setNetIncomeDialogError('Failed to add net income to ledger.'),
+                onFinish: () => setNetIncomeDialogProcessing(false),
+            },
+        );
+    }, [adminAppUrl, canRecordTripNetIncome, trip?.id, tripNetIncome, tripNetIncomeRecorded]);
 
     const [tripCostDialogOpen, setTripCostDialogOpen] = useState(false);
     const [tripCostDialogProcessing, setTripCostDialogProcessing] = useState(false);
@@ -571,7 +677,7 @@ export default function TripDetail() {
         setItemDeliveryDialog({
             row,
             delivery_status: 'FULL',
-            received_qty: rem.toFixed(3),
+            received_qty: String(Math.round(rem)),
             note: '',
         });
     }, []);
@@ -750,7 +856,7 @@ export default function TripDetail() {
                                     Total weight
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
-                                    {formatFixed(tripTotalWeight, 3)}
+                                    {formatFixed(tripTotalWeight, 0)}
                                 </Typography>
                             </Grid>
                             <Grid item xs={12} sm={6} md={4}>
@@ -758,7 +864,7 @@ export default function TripDetail() {
                                     Labor cost
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
-                                    {formatFixed(tripLaborCost, 2)}
+                                    {formatFixed(tripLaborCost, 0)}
                                 </Typography>
                             </Grid>
                             <Grid item xs={12} sm={6} md={4}>
@@ -766,7 +872,7 @@ export default function TripDetail() {
                                     Trip extra costs
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
-                                    {formatFixed(tripExtraCostTotal, 2)}
+                                    {formatFixed(tripExtraCostTotal, 0)}
                                 </Typography>
                             </Grid>
                             <Grid item xs={12} sm={6} md={4}>
@@ -774,8 +880,64 @@ export default function TripDetail() {
                                     Total trip cost
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
-                                    {formatFixed(tripTotalCost, 2)}
+                                    {formatFixed(tripTotalCost, 0)}
                                 </Typography>
+                            </Grid>
+                            <Grid item xs={12} sm={6} md={4}>
+                                <Typography variant="caption" color="text.secondary">
+                                    Voucher billed
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
+                                    {formatFixed(voucherFinanceSummary.billedTotal, 0)}
+                                </Typography>
+                            </Grid>
+                            <Grid item xs={12} sm={6} md={4}>
+                                <Typography variant="caption" color="text.secondary">
+                                    Voucher collected
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
+                                    {formatFixed(voucherFinanceSummary.collectedTotal, 0)}
+                                </Typography>
+                            </Grid>
+                            <Grid item xs={12} sm={6} md={4}>
+                                <Typography variant="caption" color="text.secondary">
+                                    Voucher additional costs
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
+                                    {formatFixed(voucherFinanceSummary.additionalCostsTotal, 0)}
+                                </Typography>
+                            </Grid>
+                            <Grid item xs={12} sm={6} md={4}>
+                                <Typography variant="caption" color="text.secondary">
+                                    Voucher outstanding
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
+                                    {formatFixed(voucherFinanceSummary.outstandingTotal, 0)}
+                                </Typography>
+                            </Grid>
+                            <Grid item xs={12} sm={6} md={4}>
+                                <Typography variant="caption" color="text.secondary">
+                                    Net (payments - voucher costs - trip costs)
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
+                                    {formatFixed(tripNetIncome, 0)}
+                                </Typography>
+                                {canRecordTripNetIncome ? (
+                                    <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap', rowGap: 0.75 }}>
+                                        {tripNetIncomeRecorded ? (
+                                            <Chip size="small" color="success" variant="outlined" label="Added to ledger" />
+                                        ) : (
+                                            <Button
+                                                size="small"
+                                                variant="outlined"
+                                                onClick={openNetIncomeDialog}
+                                                disabled={!Number.isFinite(Number(tripNetIncome)) || Number(tripNetIncome) <= 0}
+                                            >
+                                                Add net income to ledger
+                                            </Button>
+                                        )}
+                                    </Stack>
+                                ) : null}
                             </Grid>
                             {trip.creator?.name ? (
                                 <Grid item xs={12} sm={6} md={4}>
@@ -788,6 +950,23 @@ export default function TripDetail() {
                                 </Grid>
                             ) : null}
                         </Grid>
+                        {voucherFinanceSummary.voucherCount > 0 ? (
+                            <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap' }}>
+                                <Chip size="small" variant="outlined" label={`${voucherFinanceSummary.voucherCount} vouchers`} />
+                                {voucherFinanceSummary.statusCounts.PAID > 0 ? (
+                                    <Chip size="small" color="success" variant="outlined" label={`Paid ${voucherFinanceSummary.statusCounts.PAID}`} />
+                                ) : null}
+                                {voucherFinanceSummary.statusCounts.PARTIAL > 0 ? (
+                                    <Chip size="small" color="warning" variant="outlined" label={`Partial ${voucherFinanceSummary.statusCounts.PARTIAL}`} />
+                                ) : null}
+                                {voucherFinanceSummary.statusCounts.UNPAID > 0 ? (
+                                    <Chip size="small" color="warning" variant="outlined" label={`Unpaid ${voucherFinanceSummary.statusCounts.UNPAID}`} />
+                                ) : null}
+                                {voucherFinanceSummary.statusCounts.WAIVED > 0 ? (
+                                    <Chip size="small" variant="outlined" label={`Waived ${voucherFinanceSummary.statusCounts.WAIVED}`} />
+                                ) : null}
+                            </Stack>
+                        ) : null}
                     </Stack>
                 </Paper>
 
@@ -841,7 +1020,7 @@ export default function TripDetail() {
                                         {tripCostEntries.map((row) => (
                                             <TableRow key={row.id} hover>
                                                 <TableCell>{row.category?.name ?? '—'}</TableCell>
-                                                <TableCell align="right">{formatFixed(row.amount, 2)}</TableCell>
+                                                <TableCell align="right">{formatFixed(row.amount, 0)}</TableCell>
                                                 <TableCell sx={{ maxWidth: 360 }} title={row.note ?? ''}>
                                                     {row.note || '—'}
                                                 </TableCell>
@@ -872,6 +1051,50 @@ export default function TripDetail() {
                         )}
                     </Stack>
                 </Paper>
+
+                <Dialog open={netIncomeDialogOpen} onClose={closeNetIncomeDialog} fullWidth maxWidth="xs">
+                    <DialogTitle>Add net income to Finance Ledger</DialogTitle>
+                    <DialogContent>
+                        <Stack spacing={1.25} sx={{ mt: 0.5 }}>
+                            {netIncomeDialogError ? <Alert severity="error">{netIncomeDialogError}</Alert> : null}
+                            <Typography variant="body2" color="text.secondary">
+                                This will create a ledger entry. Duplicate entries are blocked.
+                            </Typography>
+                            <Box>
+                                <Typography variant="caption" color="text.secondary">
+                                    Amount
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                                    {formatFixed(tripNetIncome, 0)}
+                                </Typography>
+                            </Box>
+                            <Box>
+                                <Typography variant="caption" color="text.secondary">
+                                    Category
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                    Trip
+                                </Typography>
+                            </Box>
+                            <Box>
+                                <Typography variant="caption" color="text.secondary">
+                                    Note
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                    {trip?.trip_no ?? '—'}
+                                </Typography>
+                            </Box>
+                        </Stack>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={closeNetIncomeDialog} disabled={netIncomeDialogProcessing}>
+                            Cancel
+                        </Button>
+                        <Button variant="contained" onClick={submitNetIncomeDialog} disabled={netIncomeDialogProcessing}>
+                            Add
+                        </Button>
+                    </DialogActions>
+                </Dialog>
 
                 <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
@@ -985,9 +1208,9 @@ export default function TripDetail() {
                             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'center' }} justifyContent="space-between" sx={{ mb: 1 }}>
                                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ flexShrink: 0, width: { xs: '100%', md: 'auto' } }} alignItems={{ sm: 'center' }}>
                                     <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: { sm: 'nowrap' }, flex: { sm: '1 1 auto' } }}>
-                                        Vehicle max weight: <Box component="span" sx={{ fontWeight: 800, color: 'text.primary' }}>{vehicleMaxWeight === null ? '—' : formatFixed(vehicleMaxWeight, 3)}</Box>
+                                        Vehicle max weight: <Box component="span" sx={{ fontWeight: 800, color: 'text.primary' }}>{vehicleMaxWeight === null ? '—' : formatFixed(vehicleMaxWeight, 0)}</Box>
                                         {' · '}
-                                        Selected weight: <Box component="span" sx={{ fontWeight: 800, color: selectedExceedsVehicleWeight ? 'error.main' : 'text.primary' }}>{formatFixed(selectedWeightSummary.knownSum, 3)}</Box>
+                                        Selected weight: <Box component="span" sx={{ fontWeight: 800, color: selectedExceedsVehicleWeight ? 'error.main' : 'text.primary' }}>{formatFixed(selectedWeightSummary.knownSum, 0)}</Box>
                                         {selectedWeightSummary.unknownCount > 0 ? ` (+ ${selectedWeightSummary.unknownCount} unknown)` : ''}
                                     </Typography>
                                     <Box
@@ -1085,7 +1308,7 @@ export default function TripDetail() {
                                                                     </Typography>
                                                                 </Stack>
                                                             </TableCell>
-                                                            <TableCell align="right">{w === null || w === undefined ? '—' : formatFixed(w, 3)}</TableCell>
+                                                            <TableCell align="right">{w === null || w === undefined ? '—' : formatFixed(w, 0)}</TableCell>
                                                             <TableCell align="right">{row.lines ?? 0}</TableCell>
                                                             <TableCell align="right">
                                                                 <Checkbox
@@ -1176,7 +1399,7 @@ export default function TripDetail() {
                                                                 Weight
                                                             </Typography>
                                                             <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                                                                {w === null || w === undefined ? '—' : formatFixed(w, 3)}
+                                                                {w === null || w === undefined ? '—' : formatFixed(w, 0)}
                                                             </Typography>
                                                         </Stack>
                                                         <Stack direction="row" justifyContent="space-between" spacing={1}>
@@ -1500,7 +1723,7 @@ export default function TripDetail() {
                                 fullWidth
                                 required
                                 disabled={tripCostDialogProcessing}
-                                inputProps={{ step: '0.01', min: 0 }}
+                                inputProps={{ step: '1', min: 0 }}
                             />
 
                             <TextField
@@ -1538,9 +1761,9 @@ export default function TripDetail() {
                                     type="number"
                                     required
                                     inputProps={{
-                                        step: '0.001',
-                                        min: '0.001',
-                                        max: maxLoadedQtyForTripItem(itemDialog.row, trip.items || []),
+                                        step: '1',
+                                        min: '0',
+                                        max: Math.floor(maxLoadedQtyForTripItem(itemDialog.row, trip.items || [])),
                                     }}
                                     value={itemDialog.loaded_qty}
                                     onChange={(e) => setItemDialog((d) => (d ? { ...d, loaded_qty: e.target.value } : d))}
@@ -1667,7 +1890,7 @@ export default function TripDetail() {
                                                 const rem = remainingDeliverQty(d.row);
                                                 let rq = d.received_qty;
                                                 if (next === 'FULL') {
-                                                    rq = rem.toFixed(3);
+                                                    rq = String(Math.round(rem));
                                                 } else if (next === 'REJECTED') {
                                                     rq = '0';
                                                 } else if (next === 'PARTIAL') {
@@ -1675,8 +1898,8 @@ export default function TripDetail() {
                                                     const safe =
                                                         Number.isFinite(cur) && cur > 0 && cur < rem - 0.0001
                                                             ? cur
-                                                            : Math.min(rem / 2, rem - 0.001);
-                                                    rq = Math.max(0.001, safe).toFixed(3);
+                                                            : Math.min(rem / 2, rem - 1);
+                                                    rq = String(Math.max(1, Math.round(safe)));
                                                 }
                                                 return { ...d, delivery_status: next, received_qty: rq };
                                             });
@@ -1701,12 +1924,12 @@ export default function TripDetail() {
                                     required
                                     disabled={itemDeliveryDialog.delivery_status === 'REJECTED'}
                                     inputProps={{
-                                        step: '0.001',
+                                        step: '1',
                                         min: '0',
                                         max:
                                             itemDeliveryDialog.delivery_status === 'FULL'
-                                                ? remainingDeliverQty(itemDeliveryDialog.row).toFixed(3)
-                                                : remainingDeliverQty(itemDeliveryDialog.row).toFixed(3),
+                                                ? String(Math.round(remainingDeliverQty(itemDeliveryDialog.row)))
+                                                : String(Math.round(remainingDeliverQty(itemDeliveryDialog.row))),
                                     }}
                                     value={itemDeliveryDialog.received_qty}
                                     onChange={(e) =>

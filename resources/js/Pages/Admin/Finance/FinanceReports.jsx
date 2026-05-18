@@ -1,6 +1,6 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Box, Button, Divider, FormControl, Grid, InputLabel, MenuItem, Paper, Select, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, Divider, Grid, Paper, Stack, TextField, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { useCallback, useMemo, useState } from 'react';
 
 function formatMoney(amount, currency) {
@@ -8,25 +8,29 @@ function formatMoney(amount, currency) {
         return '—';
     }
     const n = Number(amount);
-    return `${new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)} ${currency || 'MMK'}`;
+    return `${new Intl.NumberFormat(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n)} ${currency || 'MMK'}`;
 }
 
-function periodLabel(period, groupBy) {
+function periodLabel(period) {
     if (!period) return '—';
     try {
-        if (groupBy === 'month') {
-            const [y, m] = String(period).split('-').map((p) => Number(p));
-            const d = new Date(y, (m || 1) - 1, 1);
+        const d = new Date(String(period));
+        if (!Number.isNaN(d.getTime())) {
             return d.toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
         }
-        const d = new Date(String(period));
-        return d.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
+        const [y, m] = String(period).split('-').map((p) => Number(p));
+        const dm = new Date(y, (m || 1) - 1, 1);
+        return dm.toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
     } catch {
         return String(period);
     }
 }
 
-function CompareBarChart({ series, groupBy }) {
+function CompareBarChart({ series }) {
+    const theme = useTheme();
+    const isSmUp = useMediaQuery(theme.breakpoints.up('sm'));
+    const isMdUp = useMediaQuery(theme.breakpoints.up('md'));
+
     const maxValue = useMemo(() => {
         return Math.max(
             0,
@@ -34,9 +38,12 @@ function CompareBarChart({ series, groupBy }) {
         );
     }, [series]);
 
+    const barWidth = isMdUp ? 44 : isSmUp ? 34 : 26;
+    const minWidth = Math.max(360, (series?.length || 0) * (barWidth + 10));
+
     return (
         <Box sx={{ overflowX: 'auto' }}>
-            <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-end', height: 220, minWidth: 520, px: 0.5, pb: 0.5 }}>
+            <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-end', height: 220, minWidth, px: 0.5, pb: 0.5 }}>
                 {(series || []).map((r) => {
                     const income = Number(r?.income || 0);
                     const expense = Number(r?.expense || 0);
@@ -44,7 +51,7 @@ function CompareBarChart({ series, groupBy }) {
                     const expensePct = maxValue > 0 ? Math.round((expense / maxValue) * 1000) / 10 : 0;
 
                     return (
-                        <Box key={r.period} sx={{ flex: '0 0 44px' }}>
+                        <Box key={r.period} sx={{ flex: `0 0 ${barWidth}px` }}>
                             <Box sx={{ display: 'flex', gap: 0.5, height: 184, alignItems: 'flex-end' }}>
                                 <Box
                                     title={`Income: ${formatMoney(income, 'MMK')}`}
@@ -68,7 +75,7 @@ function CompareBarChart({ series, groupBy }) {
                                 />
                             </Box>
                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 0.75 }}>
-                                {periodLabel(r.period, groupBy)}
+                                {periodLabel(r.period)}
                             </Typography>
                         </Box>
                     );
@@ -130,16 +137,12 @@ export default function FinanceReports() {
 
     const series = pageProps.series ?? [];
     const totals = pageProps.totals ?? { income: 0, expense: 0, net: 0 };
-    const warehouses = pageProps.warehouses ?? [];
     const incomeCategories = pageProps.income_categories ?? [];
     const expenseCategories = pageProps.expense_categories ?? [];
 
     const filters = pageProps.filters ?? {};
     const [from, setFrom] = useState(filters.from ?? '');
     const [to, setTo] = useState(filters.to ?? '');
-    const [groupBy, setGroupBy] = useState(filters.group_by ?? 'month');
-    const [scope, setScope] = useState(filters.scope ?? 'all');
-    const [warehouseId, setWarehouseId] = useState(filters.warehouse_id ?? 'all');
 
     const applyFilters = useCallback(
         (patch) => {
@@ -148,15 +151,12 @@ export default function FinanceReports() {
                 {
                     from,
                     to,
-                    group_by: groupBy,
-                    scope,
-                    warehouse_id: warehouseId,
                     ...patch,
                 },
                 { preserveScroll: true },
             );
         },
-        [adminAppUrl, from, to, groupBy, scope, warehouseId],
+        [adminAppUrl, from, to],
     );
 
     return (
@@ -207,58 +207,6 @@ export default function FinanceReports() {
                                 }}
                                 sx={{ width: { xs: '100%', md: 170 } }}
                             />
-                            <FormControl size="small" sx={{ width: { xs: '100%', md: 160 } }}>
-                                <InputLabel id="fin-groupby">Group by</InputLabel>
-                                <Select
-                                    labelId="fin-groupby"
-                                    label="Group by"
-                                    value={groupBy}
-                                    onChange={(e) => {
-                                        setGroupBy(e.target.value);
-                                        applyFilters({ group_by: e.target.value });
-                                    }}
-                                >
-                                    <MenuItem value="month">Month</MenuItem>
-                                    <MenuItem value="day">Day</MenuItem>
-                                </Select>
-                            </FormControl>
-                            <FormControl size="small" sx={{ width: { xs: '100%', md: 180 } }}>
-                                <InputLabel id="fin-scope">Scope</InputLabel>
-                                <Select
-                                    labelId="fin-scope"
-                                    label="Scope"
-                                    value={scope}
-                                    onChange={(e) => {
-                                        setScope(e.target.value);
-                                        applyFilters({ scope: e.target.value });
-                                    }}
-                                >
-                                    <MenuItem value="all">All</MenuItem>
-                                    <MenuItem value="GENERAL">GENERAL</MenuItem>
-                                    <MenuItem value="VOUCHER">VOUCHER</MenuItem>
-                                    <MenuItem value="TRIP_COST">TRIP_COST</MenuItem>
-                                </Select>
-                            </FormControl>
-                            <FormControl size="small" sx={{ width: { xs: '100%', md: 260 } }}>
-                                <InputLabel id="fin-warehouse">Warehouse</InputLabel>
-                                <Select
-                                    labelId="fin-warehouse"
-                                    label="Warehouse"
-                                    value={warehouseId}
-                                    onChange={(e) => {
-                                        setWarehouseId(e.target.value);
-                                        applyFilters({ warehouse_id: e.target.value });
-                                    }}
-                                >
-                                    <MenuItem value="all">All</MenuItem>
-                                    <MenuItem value="none">Unassigned</MenuItem>
-                                    {warehouses.map((w) => (
-                                        <MenuItem key={w.id} value={String(w.id)}>
-                                            {w.display_name || w.city}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
                         </Stack>
                     </Stack>
                 </Paper>
@@ -299,10 +247,10 @@ export default function FinanceReports() {
                                 Income vs Expense
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                                Comparison grouped by {groupBy}.
+                                Comparison grouped by month.
                             </Typography>
                         </Box>
-                        <CompareBarChart series={series} groupBy={groupBy} />
+                        <CompareBarChart series={series} />
                         <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap', rowGap: 0.75 }}>
                             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                                 <Box sx={{ width: 12, height: 12, borderRadius: 1, bgcolor: 'success.main' }} />

@@ -56,7 +56,7 @@ function formatMoneyAmount(value) {
     if (!Number.isFinite(n)) {
         return '—';
     }
-    return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+    return new Intl.NumberFormat(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
 }
 
 function buildShippingInfo(v) {
@@ -750,7 +750,7 @@ export default function WarehouseFulfillmentInbox() {
                                             size="small"
                                             fullWidth
                                             type="number"
-                                            inputProps={{ step: '0.01', min: '0.01' }}
+                                            inputProps={{ step: '1', min: '1' }}
                                             value={paymentForm.data.amount}
                                             onChange={(e) => paymentForm.setData('amount', e.target.value)}
                                             error={Boolean(paymentForm.errors.amount)}

@@ -14,6 +14,7 @@ import {
     Grid,
     IconButton,
     InputLabel,
+    Menu,
     MenuItem,
     Paper,
     Select,
@@ -28,7 +29,7 @@ import {
     useMediaQuery,
     useTheme,
 } from '@mui/material';
-import { Add as AddIcon, DeleteOutlineOutlined as DeleteIcon, EditOutlined as EditIcon, FilterAltOutlined as FilterIcon } from '@mui/icons-material';
+import { Add as AddIcon, DeleteOutlineOutlined as DeleteIcon, EditOutlined as EditIcon, FilterAltOutlined as FilterIcon, MoreVert as MoreVertIcon } from '@mui/icons-material';
 import { Fragment, useCallback, useMemo, useState } from 'react';
 
 function formatMoney(amount, currency) {
@@ -36,7 +37,7 @@ function formatMoney(amount, currency) {
         return '—';
     }
     const n = Number(amount);
-    return `${new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)} ${currency || 'MMK'}`;
+    return `${new Intl.NumberFormat(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n)} ${currency || 'MMK'}`;
 }
 
 function formatDateTime(iso) {
@@ -59,7 +60,6 @@ export default function FinanceLedger() {
 
     const entries = pageProps.entries ?? [];
     const totals = pageProps.totals ?? { income: 0, expense: 0, net: 0 };
-    const warehouses = pageProps.warehouses ?? [];
     const categories = pageProps.categories ?? [];
     const canManageFinance = pageProps.can_manage_finance ?? false;
 
@@ -67,9 +67,6 @@ export default function FinanceLedger() {
     const [from, setFrom] = useState(filters.from ?? '');
     const [to, setTo] = useState(filters.to ?? '');
     const [direction, setDirection] = useState(filters.direction ?? 'all');
-    const [scope, setScope] = useState(filters.scope ?? 'all');
-    const [source, setSource] = useState(filters.source ?? 'all');
-    const [warehouseId, setWarehouseId] = useState(filters.warehouse_id ?? 'all');
     const [categoryId, setCategoryId] = useState(filters.category_id ?? 'all');
 
     const applyFilters = useCallback(
@@ -80,35 +77,30 @@ export default function FinanceLedger() {
                     from,
                     to,
                     direction,
-                    scope,
-                    source,
-                    warehouse_id: warehouseId,
                     category_id: categoryId,
                     ...patch,
                 },
                 { preserveScroll: true },
             );
         },
-        [adminAppUrl, from, to, direction, scope, source, warehouseId, categoryId],
+        [adminAppUrl, from, to, direction, categoryId],
     );
 
     const effectiveCategories = useMemo(() => {
         return (categories || []).filter((c) => {
-            if (scope !== 'all' && c.scope !== scope) return false;
             if (direction !== 'all' && c.direction !== 'BOTH' && c.direction !== direction) return false;
             return true;
         });
-    }, [categories, scope, direction]);
+    }, [categories, direction]);
 
     const [entryDialogOpen, setEntryDialogOpen] = useState(false);
     const [entryDialogProcessing, setEntryDialogProcessing] = useState(false);
     const [entryDialogError, setEntryDialogError] = useState('');
+    const [rowMenu, setRowMenu] = useState(null);
     const [entryForm, setEntryForm] = useState({
         id: null,
         direction: 'EXPENSE',
-        scope: 'GENERAL',
         category_id: '',
-        warehouse_id: '',
         amount: '',
         currency: 'MMK',
         occurred_at: new Date().toISOString().slice(0, 10),
@@ -120,9 +112,7 @@ export default function FinanceLedger() {
         setEntryForm({
             id: null,
             direction: 'EXPENSE',
-            scope: 'GENERAL',
             category_id: '',
-            warehouse_id: '',
             amount: '',
             currency: 'MMK',
             occurred_at: new Date().toISOString().slice(0, 10),
@@ -136,9 +126,7 @@ export default function FinanceLedger() {
         setEntryForm({
             id: row.id,
             direction: row.direction ?? 'EXPENSE',
-            scope: row.scope ?? 'GENERAL',
             category_id: row.category?.id != null ? String(row.category.id) : '',
-            warehouse_id: row.warehouse?.id != null ? String(row.warehouse.id) : '',
             amount: row.amount != null ? String(row.amount) : '',
             currency: row.currency ?? 'MMK',
             occurred_at: row.occurred_at ? String(row.occurred_at).slice(0, 10) : new Date().toISOString().slice(0, 10),
@@ -156,6 +144,10 @@ export default function FinanceLedger() {
         if (!canManageFinance) return;
         setEntryDialogError('');
 
+        if (!entryForm.category_id) {
+            setEntryDialogError('Select a category.');
+            return;
+        }
         const amount = Number(entryForm.amount);
         if (!Number.isFinite(amount) || amount <= 0) {
             setEntryDialogError('Enter a valid amount.');
@@ -168,9 +160,7 @@ export default function FinanceLedger() {
 
         const payload = {
             direction: entryForm.direction,
-            scope: entryForm.scope,
-            category_id: entryForm.category_id === '' ? null : Number(entryForm.category_id),
-            warehouse_id: entryForm.warehouse_id === '' ? null : Number(entryForm.warehouse_id),
+            category_id: Number(entryForm.category_id),
             amount,
             currency: entryForm.currency?.trim() || 'MMK',
             occurred_at: entryForm.occurred_at,
@@ -201,8 +191,6 @@ export default function FinanceLedger() {
     };
 
     const directionChipColor = (d) => (d === 'INCOME' ? 'success' : 'warning');
-    const scopeChipColor = (s) => (s === 'GENERAL' ? 'default' : s === 'VOUCHER' ? 'info' : 'primary');
-    const sourceChipColor = (s) => (s === 'SYSTEM' ? 'info' : 'default');
 
     return (
         <AdminLayout title="Finance Ledger">
@@ -301,60 +289,6 @@ export default function FinanceLedger() {
                                     <MenuItem value="EXPENSE">EXPENSE</MenuItem>
                                 </Select>
                             </FormControl>
-                            <FormControl size="small" sx={{ width: { xs: '100%', md: 170 } }}>
-                                <InputLabel id="fin-scope">Scope</InputLabel>
-                                <Select
-                                    labelId="fin-scope"
-                                    label="Scope"
-                                    value={scope}
-                                    onChange={(e) => {
-                                        setScope(e.target.value);
-                                        applyFilters({ scope: e.target.value, category_id: 'all' });
-                                        setCategoryId('all');
-                                    }}
-                                >
-                                    <MenuItem value="all">All</MenuItem>
-                                    <MenuItem value="GENERAL">GENERAL</MenuItem>
-                                    <MenuItem value="VOUCHER">VOUCHER</MenuItem>
-                                    <MenuItem value="TRIP_COST">TRIP_COST</MenuItem>
-                                </Select>
-                            </FormControl>
-                            <FormControl size="small" sx={{ width: { xs: '100%', md: 170 } }}>
-                                <InputLabel id="fin-source">Source</InputLabel>
-                                <Select
-                                    labelId="fin-source"
-                                    label="Source"
-                                    value={source}
-                                    onChange={(e) => {
-                                        setSource(e.target.value);
-                                        applyFilters({ source: e.target.value });
-                                    }}
-                                >
-                                    <MenuItem value="all">All</MenuItem>
-                                    <MenuItem value="MANUAL">MANUAL</MenuItem>
-                                    <MenuItem value="SYSTEM">SYSTEM</MenuItem>
-                                </Select>
-                            </FormControl>
-                            <FormControl size="small" sx={{ width: { xs: '100%', md: 220 } }}>
-                                <InputLabel id="fin-warehouse">Warehouse</InputLabel>
-                                <Select
-                                    labelId="fin-warehouse"
-                                    label="Warehouse"
-                                    value={warehouseId}
-                                    onChange={(e) => {
-                                        setWarehouseId(e.target.value);
-                                        applyFilters({ warehouse_id: e.target.value });
-                                    }}
-                                >
-                                    <MenuItem value="all">All</MenuItem>
-                                    <MenuItem value="none">Unassigned</MenuItem>
-                                    {warehouses.map((w) => (
-                                        <MenuItem key={w.id} value={String(w.id)}>
-                                            {w.display_name || w.city}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
                             <FormControl size="small" sx={{ width: { xs: '100%', md: 240 } }}>
                                 <InputLabel id="fin-category">Category</InputLabel>
                                 <Select
@@ -389,33 +323,15 @@ export default function FinanceLedger() {
                                 <TableRow>
                                     <TableCell>Date</TableCell>
                                     <TableCell>Direction</TableCell>
-                                    <TableCell>Scope</TableCell>
                                     <TableCell>Category</TableCell>
-                                    <TableCell>Warehouse</TableCell>
                                     <TableCell align="right">Amount</TableCell>
-                                    <TableCell>Source</TableCell>
-                                    <TableCell>Reference</TableCell>
                                     <TableCell>Note</TableCell>
                                     <TableCell align="right">Actions</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {entries.map((row) => {
-                                    const canEdit = canManageFinance && row.source === 'MANUAL';
-                                    const ref = row.reference;
-                                    const refNode = ref ? (
-                                        ref.type === 'TRIP' ? (
-                                            <Link href={`${adminAppUrl}/operations/trips/${ref.trip_id}`}>Trip #{ref.trip_id}</Link>
-                                        ) : ref.type === 'VOUCHER_PAYMENT' && ref.voucher_id ? (
-                                            <Link href={`${adminAppUrl}/operations/vouchers/${ref.voucher_id}`}>Voucher #{ref.voucher_id}</Link>
-                                        ) : (
-                                            <Typography variant="body2" color="text.secondary">
-                                                {ref.type} #{ref.id}
-                                            </Typography>
-                                        )
-                                    ) : (
-                                        '—'
-                                    );
+                                    const canEdit = canManageFinance && (row.source === 'MANUAL' || row.reference_type === 'TRIP_NET_INCOME');
 
                                     return (
                                         <TableRow key={row.id} hover>
@@ -423,31 +339,22 @@ export default function FinanceLedger() {
                                             <TableCell>
                                                 <Chip size="small" label={row.direction} color={directionChipColor(row.direction)} variant="outlined" />
                                             </TableCell>
-                                            <TableCell>
-                                                <Chip size="small" label={row.scope} color={scopeChipColor(row.scope)} variant="outlined" />
-                                            </TableCell>
                                             <TableCell>{row.category?.name ?? '—'}</TableCell>
-                                            <TableCell>{row.warehouse ? `${row.warehouse.display_name}` : '—'}</TableCell>
                                             <TableCell align="right" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
                                                 {formatMoney(row.amount, row.currency)}
                                             </TableCell>
-                                            <TableCell>
-                                                <Chip size="small" label={row.source} color={sourceChipColor(row.source)} variant="outlined" />
-                                            </TableCell>
-                                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{refNode}</TableCell>
                                             <TableCell sx={{ maxWidth: 360 }} title={row.note ?? ''}>
                                                 {row.note || '—'}
                                             </TableCell>
                                             <TableCell align="right" sx={{ width: 96, whiteSpace: 'nowrap' }}>
                                                 {canEdit ? (
-                                                    <Fragment>
-                                                        <IconButton size="small" onClick={() => openEdit(row)} aria-label="Edit entry">
-                                                            <EditIcon fontSize="small" />
-                                                        </IconButton>
-                                                        <IconButton size="small" onClick={() => removeEntry(row)} aria-label="Delete entry" sx={{ color: 'error.main' }}>
-                                                            <DeleteIcon fontSize="small" />
-                                                        </IconButton>
-                                                    </Fragment>
+                                                    <IconButton
+                                                        size="small"
+                                                        aria-label="Entry actions"
+                                                        onClick={(e) => setRowMenu({ anchorEl: e.currentTarget, row })}
+                                                    >
+                                                        <MoreVertIcon fontSize="small" />
+                                                    </IconButton>
                                                 ) : (
                                                     '—'
                                                 )}
@@ -457,7 +364,7 @@ export default function FinanceLedger() {
                                 })}
                                 {entries.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={10}>
+                                        <TableCell colSpan={6}>
                                             <Typography variant="body2" color="text.secondary">
                                                 No entries for the selected filters.
                                             </Typography>
@@ -470,21 +377,7 @@ export default function FinanceLedger() {
                 ) : (
                     <Stack spacing={1.25}>
                         {entries.map((row) => {
-                            const canEdit = canManageFinance && row.source === 'MANUAL';
-                            const ref = row.reference;
-                            const refNode = ref ? (
-                                ref.type === 'TRIP' ? (
-                                    <Link href={`${adminAppUrl}/operations/trips/${ref.trip_id}`}>Trip #{ref.trip_id}</Link>
-                                ) : ref.type === 'VOUCHER_PAYMENT' && ref.voucher_id ? (
-                                    <Link href={`${adminAppUrl}/operations/vouchers/${ref.voucher_id}`}>Voucher #{ref.voucher_id}</Link>
-                                ) : (
-                                    <Typography variant="body2" color="text.secondary">
-                                        {ref.type} #{ref.id}
-                                    </Typography>
-                                )
-                            ) : (
-                                '—'
-                            );
+                            const canEdit = canManageFinance && (row.source === 'MANUAL' || row.reference_type === 'TRIP_NET_INCOME');
 
                             return (
                                 <Paper key={row.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
@@ -512,8 +405,6 @@ export default function FinanceLedger() {
 
                                         <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap', rowGap: 0.75 }}>
                                             <Chip size="small" label={row.direction} color={directionChipColor(row.direction)} variant="outlined" />
-                                            <Chip size="small" label={row.scope} color={scopeChipColor(row.scope)} variant="outlined" />
-                                            <Chip size="small" label={row.source} color={sourceChipColor(row.source)} variant="outlined" />
                                         </Stack>
 
                                         <Grid container spacing={1}>
@@ -522,22 +413,6 @@ export default function FinanceLedger() {
                                                     Category
                                                 </Typography>
                                                 <Typography variant="body2">{row.category?.name ?? '—'}</Typography>
-                                            </Grid>
-                                            <Grid item xs={12} sm={6}>
-                                                <Typography variant="caption" color="text.secondary">
-                                                    Warehouse
-                                                </Typography>
-                                                <Typography variant="body2">
-                                                    {row.warehouse ? `${row.warehouse.display_name}` : '—'}
-                                                </Typography>
-                                            </Grid>
-                                            <Grid item xs={12} sm={6}>
-                                                <Typography variant="caption" color="text.secondary">
-                                                    Reference
-                                                </Typography>
-                                                <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
-                                                    {refNode}
-                                                </Typography>
                                             </Grid>
                                             <Grid item xs={12} sm={6}>
                                                 <Typography variant="caption" color="text.secondary">
@@ -562,6 +437,38 @@ export default function FinanceLedger() {
                     </Stack>
                 )}
 
+                <Menu
+                    anchorEl={rowMenu?.anchorEl}
+                    open={Boolean(rowMenu?.anchorEl)}
+                    onClose={() => setRowMenu(null)}
+                    anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                    transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                >
+                    <MenuItem
+                        dense
+                        onClick={() => {
+                            if (!rowMenu?.row) return;
+                            const row = rowMenu.row;
+                            setRowMenu(null);
+                            openEdit(row);
+                        }}
+                    >
+                        Edit
+                    </MenuItem>
+                    <MenuItem
+                        dense
+                        sx={{ color: 'error.main' }}
+                        onClick={() => {
+                            if (!rowMenu?.row) return;
+                            const row = rowMenu.row;
+                            setRowMenu(null);
+                            removeEntry(row);
+                        }}
+                    >
+                        Delete
+                    </MenuItem>
+                </Menu>
+
                 <Dialog open={entryDialogOpen} onClose={closeDialog} fullWidth maxWidth="sm">
                     <DialogTitle sx={{ fontWeight: 800 }}>{entryForm.id ? 'Edit entry' : 'Add entry'}</DialogTitle>
                     <DialogContent>
@@ -585,23 +492,6 @@ export default function FinanceLedger() {
                                         <MenuItem value="INCOME">INCOME</MenuItem>
                                     </Select>
                                 </FormControl>
-                                <FormControl fullWidth size="small">
-                                    <InputLabel id="entry-scope">Scope</InputLabel>
-                                    <Select
-                                        labelId="entry-scope"
-                                        label="Scope"
-                                        value={entryForm.scope}
-                                        onChange={(e) => {
-                                            const next = e.target.value;
-                                            setEntryForm((p) => ({ ...p, scope: next, category_id: '' }));
-                                        }}
-                                        disabled={entryDialogProcessing}
-                                    >
-                                        <MenuItem value="GENERAL">GENERAL</MenuItem>
-                                        <MenuItem value="VOUCHER">VOUCHER</MenuItem>
-                                        <MenuItem value="TRIP_COST">TRIP_COST</MenuItem>
-                                    </Select>
-                                </FormControl>
                             </Stack>
 
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
@@ -614,40 +504,13 @@ export default function FinanceLedger() {
                                         onChange={(e) => setEntryForm((p) => ({ ...p, category_id: e.target.value }))}
                                         disabled={entryDialogProcessing}
                                     >
-                                        <MenuItem value="">
-                                            <Typography variant="body2" color="text.secondary">
-                                                Not set
-                                            </Typography>
-                                        </MenuItem>
                                         {(categories || [])
-                                            .filter((c) => c.scope === entryForm.scope)
                                             .filter((c) => c.direction === 'BOTH' || c.direction === entryForm.direction)
                                             .map((c) => (
                                                 <MenuItem key={c.id} value={String(c.id)}>
-                                                    {c.name}
+                                                    {c.scope} · {c.name}
                                                 </MenuItem>
                                             ))}
-                                    </Select>
-                                </FormControl>
-                                <FormControl fullWidth size="small">
-                                    <InputLabel id="entry-warehouse">Warehouse</InputLabel>
-                                    <Select
-                                        labelId="entry-warehouse"
-                                        label="Warehouse"
-                                        value={entryForm.warehouse_id}
-                                        onChange={(e) => setEntryForm((p) => ({ ...p, warehouse_id: e.target.value }))}
-                                        disabled={entryDialogProcessing}
-                                    >
-                                        <MenuItem value="">
-                                            <Typography variant="body2" color="text.secondary">
-                                                Unassigned
-                                            </Typography>
-                                        </MenuItem>
-                                        {warehouses.map((w) => (
-                                            <MenuItem key={w.id} value={String(w.id)}>
-                                                {w.display_name || w.city}
-                                            </MenuItem>
-                                        ))}
                                     </Select>
                                 </FormControl>
                             </Stack>
@@ -662,7 +525,7 @@ export default function FinanceLedger() {
                                     fullWidth
                                     required
                                     disabled={entryDialogProcessing}
-                                    inputProps={{ step: '0.01', min: 0 }}
+                                    inputProps={{ step: '1', min: 0 }}
                                 />
                                 <TextField
                                     size="small"

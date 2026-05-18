@@ -68,7 +68,19 @@ function formatMoneyAmount(value) {
     if (!Number.isFinite(n)) {
         return '—';
     }
-    return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+    return new Intl.NumberFormat(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
+}
+
+function formatQty(value) {
+    if (value == null || value === '') {
+        return '—';
+    }
+    const n = Number(value);
+    if (!Number.isFinite(n)) {
+        return '—';
+    }
+    const rounded = Math.round(n);
+    return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(rounded);
 }
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -228,7 +240,7 @@ function WizardLineCard({ item, onRemove }) {
                         <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>
                             Qty
                         </Box>{' '}
-                        · {item.qty} {item.unit}
+                        · {formatQty(item.qty)} {item.unit}
                     </Typography>
                     {item.freight_amount != null ? (
                         <Typography variant="body2" color="text.secondary" sx={destinationMobileLineSx}>
@@ -263,7 +275,7 @@ function ReviewLineCard({ item, lineNo }) {
                     {item.product?.name ?? '—'}
                 </Typography>
                 <Typography variant="body2" sx={destinationMobileLineSx}>
-                    {item.qty}{' '}
+                    {formatQty(item.qty)}{' '}
                     <Box component="span" sx={{ color: 'text.secondary' }}>
                         {item.unit}
                     </Box>
@@ -949,7 +961,7 @@ export default function VoucherWizard() {
                                                             <TableCell>{idx + 1}</TableCell>
                                                             <TableCell sx={{ fontWeight: 500 }}>{it.product?.name ?? '—'}</TableCell>
                                                             <TableCell>
-                                                                {it.qty}
+                                                                {formatQty(it.qty)}
                                                             </TableCell>
                                                             <TableCell>{it.unit}</TableCell>
                                                             <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
@@ -1063,7 +1075,7 @@ export default function VoucherWizard() {
                                                     size="small"
                                                     label="Voucher weight"
                                                     type="number"
-                                                    inputProps={{ step: '0.001', min: '0' }}
+                                                    inputProps={{ step: '1', min: '0' }}
                                                     sx={{ width: { xs: '100%', sm: 220 } }}
                                                     value={step1.total_weight}
                                                     onChange={(e) => setStep1((p) => ({ ...p, total_weight: e.target.value }))}
@@ -1136,7 +1148,7 @@ export default function VoucherWizard() {
                                                                         size="small"
                                                                         label="Amount"
                                                                         type="number"
-                                                                        inputProps={{ step: '0.01', min: '0' }}
+                                                                        inputProps={{ step: '1', min: '0' }}
                                                                         sx={{ width: 140, flexShrink: 0 }}
                                                                         value={row.amount}
                                                                         onChange={(e) => updateCostRow(idx, { amount: e.target.value })}
@@ -1364,7 +1376,7 @@ export default function VoucherWizard() {
                                                     <TableRow key={it.id} hover>
                                                         <TableCell>{idx + 1}</TableCell>
                                                         <TableCell sx={{ fontWeight: 500 }}>{it.product?.name ?? '—'}</TableCell>
-                                                        <TableCell>{it.qty}</TableCell>
+                                                        <TableCell>{formatQty(it.qty)}</TableCell>
                                                         <TableCell>{it.unit}</TableCell>
                                                         <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                                                             {formatMoneyAmount(it.freight_amount)}

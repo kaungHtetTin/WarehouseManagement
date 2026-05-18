@@ -176,7 +176,7 @@
                                     <tr>
                                         <td class="num text-center">{{ $i + 1 }}</td>
                                         <td class="num text-center">{{ isset($row['total_amount']) ? number_format((float) $row['total_amount'], 0, '.', ',') : '—' }}</td>
-                                        <td class="text-center">{{ $row['payment_status'] ?? '—' }}</td>
+                                        <td class="num text-center">{{ number_format((float) ($row['paid_amount'] ?? 0), 0, '.', ',') }}</td>
                                         <td class="num text-center">{{ (int) ($row['total_items_qty'] ?? 0) }}</td>
                                         <td class="items-cell">—</td>
                                         <td style="white-space: pre-wrap;">{{ $row['destination'] ?? '—' }}</td>
@@ -188,7 +188,7 @@
                                             @if ($j === 0)
                                                 <td style="text-align: center" class="num" rowspan="{{ $rowspan }}">{{ $i + 1 }}</td>
                                                 <td class="num text-center" rowspan="{{ $rowspan }}">{{ isset($row['total_amount']) ? number_format((float) $row['total_amount'], 0, '.', ',') : '—' }}</td>
-                                                <td class="text-center" rowspan="{{ $rowspan }}">{{ $row['payment_status'] ?? '—' }}</td>
+                                                <td class="num text-center" rowspan="{{ $rowspan }}">{{ number_format((float) ($row['paid_amount'] ?? 0), 0, '.', ',') }}</td>
                                                 <td class="num text-center" rowspan="{{ $rowspan }}">{{ (int) ($row['total_items_qty'] ?? 0) }}</td>
                                             @endif
 

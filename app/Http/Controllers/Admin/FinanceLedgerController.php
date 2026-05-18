@@ -30,36 +30,13 @@ class FinanceLedgerController extends Controller
         $organizationId = $actor->organization_id;
         abort_if($organizationId === null, 404);
 
-        $warehouses = $this->operationalContext->accessibleWarehousesForUi($actor)->values();
-        $allowedWarehouseIds = $warehouses->pluck('id')->map(fn ($id) => (int) $id)->all();
-
         $defaultFrom = now()->subMonths(11)->startOfMonth()->toDateString();
         $defaultTo = now()->toDateString();
 
         $from = (string) $request->query('from', $defaultFrom);
         $to = (string) $request->query('to', $defaultTo);
 
-        $groupBy = strtolower((string) $request->query('group_by', 'month'));
-        if (! in_array($groupBy, ['month', 'day'], true)) {
-            $groupBy = 'month';
-        }
-
-        $scope = strtoupper((string) $request->query('scope', 'all'));
-        if (! in_array($scope, ['all', 'GENERAL', 'VOUCHER', 'TRIP_COST'], true)) {
-            $scope = 'all';
-        }
-
-        $warehouseFilter = (string) $request->query('warehouse_id', 'all');
-        $selectedWarehouseId = null;
-        $warehouseIsNullOnly = false;
-        if ($warehouseFilter === 'none') {
-            $warehouseIsNullOnly = true;
-        } elseif ($warehouseFilter !== 'all' && $warehouseFilter !== '') {
-            $candidate = (int) $warehouseFilter;
-            if (in_array($candidate, $allowedWarehouseIds, true)) {
-                $selectedWarehouseId = $candidate;
-            }
-        }
+        $groupBy = 'month';
 
         $fromDate = Carbon::parse($from)->startOfDay();
         $toDate = Carbon::parse($to)->endOfDay();
@@ -68,37 +45,15 @@ class FinanceLedgerController extends Controller
             $from = $fromDate->toDateString();
             $to = $toDate->toDateString();
         }
-        if ($groupBy === 'day' && $fromDate->diffInDays($toDate) > 120) {
-            $groupBy = 'month';
-        }
-
         $query = FinanceEntry::query()
             ->where('organization_id', $organizationId)
             ->where('occurred_at', '>=', $fromDate)
             ->where('occurred_at', '<=', $toDate);
 
-        if ($scope !== 'all') {
-            $query->where('scope', $scope);
-        }
-
-        if ($allowedWarehouseIds === []) {
-            $query->whereNull('warehouse_id');
-        } elseif ($warehouseIsNullOnly) {
-            $query->whereNull('warehouse_id');
-        } elseif ($selectedWarehouseId !== null) {
-            $query->where('warehouse_id', $selectedWarehouseId);
-        } else {
-            $query->where(function ($q) use ($allowedWarehouseIds) {
-                $q->whereNull('warehouse_id')->orWhereIn('warehouse_id', $allowedWarehouseIds);
-            });
-        }
-
         $incomeTotal = round((float) (clone $query)->where('direction', 'INCOME')->sum('amount'), 2);
         $expenseTotal = round((float) (clone $query)->where('direction', 'EXPENSE')->sum('amount'), 2);
 
-        $periodExpr = $groupBy === 'day'
-            ? 'DATE(occurred_at)'
-            : "DATE_FORMAT(occurred_at, '%Y-%m')";
+        $periodExpr = "DATE_FORMAT(occurred_at, '%Y-%m')";
 
         $rawSeries = (clone $query)
             ->selectRaw("$periodExpr as period")
@@ -111,38 +66,20 @@ class FinanceLedgerController extends Controller
         $seriesMap = $rawSeries->keyBy(fn ($r) => (string) $r->period);
 
         $series = [];
-        if ($groupBy === 'day') {
-            $cursor = $fromDate->copy()->startOfDay();
-            $end = $toDate->copy()->startOfDay();
-            while ($cursor->lessThanOrEqualTo($end)) {
-                $key = $cursor->format('Y-m-d');
-                $row = $seriesMap->get($key);
-                $income = $row ? round((float) $row->income, 2) : 0.0;
-                $expense = $row ? round((float) $row->expense, 2) : 0.0;
-                $series[] = [
-                    'period' => $key,
-                    'income' => $income,
-                    'expense' => $expense,
-                    'net' => round($income - $expense, 2),
-                ];
-                $cursor->addDay();
-            }
-        } else {
-            $cursor = $fromDate->copy()->startOfMonth();
-            $end = $toDate->copy()->startOfMonth();
-            while ($cursor->lessThanOrEqualTo($end)) {
-                $key = $cursor->format('Y-m');
-                $row = $seriesMap->get($key);
-                $income = $row ? round((float) $row->income, 2) : 0.0;
-                $expense = $row ? round((float) $row->expense, 2) : 0.0;
-                $series[] = [
-                    'period' => $key,
-                    'income' => $income,
-                    'expense' => $expense,
-                    'net' => round($income - $expense, 2),
-                ];
-                $cursor->addMonth();
-            }
+        $cursor = $fromDate->copy()->startOfMonth();
+        $end = $toDate->copy()->startOfMonth();
+        while ($cursor->lessThanOrEqualTo($end)) {
+            $key = $cursor->format('Y-m');
+            $row = $seriesMap->get($key);
+            $income = $row ? round((float) $row->income, 2) : 0.0;
+            $expense = $row ? round((float) $row->expense, 2) : 0.0;
+            $series[] = [
+                'period' => $key,
+                'income' => $income,
+                'expense' => $expense,
+                'net' => round($income - $expense, 2),
+            ];
+            $cursor->addMonth();
         }
 
         $categoryMap = FinanceCategory::query()
@@ -188,11 +125,8 @@ class FinanceLedgerController extends Controller
             'filters' => [
                 'from' => $from,
                 'to' => $to,
-                'group_by' => $groupBy,
-                'scope' => $scope,
-                'warehouse_id' => $warehouseIsNullOnly ? 'none' : ($selectedWarehouseId !== null ? (string) $selectedWarehouseId : 'all'),
+                'group_by' => 'month',
             ],
-            'warehouses' => $warehouses,
             'totals' => [
                 'income' => $incomeTotal,
                 'expense' => $expenseTotal,
@@ -210,9 +144,6 @@ class FinanceLedgerController extends Controller
         $organizationId = $actor->organization_id;
         abort_if($organizationId === null, 404);
 
-        $warehouses = $this->operationalContext->accessibleWarehousesForUi($actor)->values();
-        $allowedWarehouseIds = $warehouses->pluck('id')->map(fn ($id) => (int) $id)->all();
-
         $defaultFrom = now()->subDays(30)->toDateString();
         $defaultTo = now()->toDateString();
 
@@ -222,28 +153,6 @@ class FinanceLedgerController extends Controller
         $direction = strtoupper((string) $request->query('direction', 'all'));
         if (! in_array($direction, ['all', 'INCOME', 'EXPENSE'], true)) {
             $direction = 'all';
-        }
-
-        $scope = strtoupper((string) $request->query('scope', 'all'));
-        if (! in_array($scope, ['all', 'GENERAL', 'VOUCHER', 'TRIP_COST'], true)) {
-            $scope = 'all';
-        }
-
-        $source = strtoupper((string) $request->query('source', 'all'));
-        if (! in_array($source, ['all', 'MANUAL', 'SYSTEM'], true)) {
-            $source = 'all';
-        }
-
-        $warehouseFilter = (string) $request->query('warehouse_id', 'all');
-        $selectedWarehouseId = null;
-        $warehouseIsNullOnly = false;
-        if ($warehouseFilter === 'none') {
-            $warehouseIsNullOnly = true;
-        } elseif ($warehouseFilter !== 'all' && $warehouseFilter !== '') {
-            $candidate = (int) $warehouseFilter;
-            if (in_array($candidate, $allowedWarehouseIds, true)) {
-                $selectedWarehouseId = $candidate;
-            }
         }
 
         $categoryFilter = (string) $request->query('category_id', 'all');
@@ -264,24 +173,6 @@ class FinanceLedgerController extends Controller
         if ($direction !== 'all') {
             $query->where('direction', $direction);
         }
-        if ($scope !== 'all') {
-            $query->where('scope', $scope);
-        }
-        if ($source !== 'all') {
-            $query->where('source', $source);
-        }
-
-        if ($allowedWarehouseIds === []) {
-            $query->whereNull('warehouse_id');
-        } elseif ($warehouseIsNullOnly) {
-            $query->whereNull('warehouse_id');
-        } elseif ($selectedWarehouseId !== null) {
-            $query->where('warehouse_id', $selectedWarehouseId);
-        } else {
-            $query->where(function ($q) use ($allowedWarehouseIds) {
-                $q->whereNull('warehouse_id')->orWhereIn('warehouse_id', $allowedWarehouseIds);
-            });
-        }
 
         if ($selectedCategoryId !== null) {
             $query->where('category_id', $selectedCategoryId);
@@ -293,7 +184,6 @@ class FinanceLedgerController extends Controller
         $rows = (clone $query)
             ->with([
                 'category:id,name,scope,direction',
-                'warehouse:id,city,address',
                 'creator:id,name',
             ])
             ->orderByDesc('occurred_at')
@@ -302,8 +192,6 @@ class FinanceLedgerController extends Controller
             ->get([
                 'id',
                 'organization_id',
-                'warehouse_id',
-                'scope',
                 'direction',
                 'category_id',
                 'amount',
@@ -343,6 +231,12 @@ class FinanceLedgerController extends Controller
                     'id' => (int) $e->reference_id,
                     'trip_id' => (int) $e->reference_id,
                 ];
+            } elseif ($e->reference_type === 'TRIP_NET_INCOME' && $e->reference_id !== null) {
+                $reference = [
+                    'type' => 'TRIP_NET_INCOME',
+                    'id' => (int) $e->reference_id,
+                    'trip_id' => (int) $e->reference_id,
+                ];
             } elseif ($e->reference_type === 'VOUCHER_PAYMENT' && $e->reference_id !== null) {
                 $pid = (int) $e->reference_id;
                 $reference = [
@@ -354,14 +248,14 @@ class FinanceLedgerController extends Controller
 
             return [
                 'id' => $e->id,
-                'warehouse' => $e->warehouse ? $e->warehouse->only(['id', 'city', 'address', 'display_name']) : null,
-                'scope' => $e->scope,
                 'direction' => $e->direction,
                 'category' => $e->category ? $e->category->only(['id', 'name', 'scope', 'direction']) : null,
                 'amount' => (float) $e->amount,
                 'currency' => $e->currency ?? 'MMK',
                 'occurred_at' => $e->occurred_at?->toISOString(),
                 'note' => $e->note,
+                'reference_type' => $e->reference_type,
+                'reference_id' => $e->reference_id !== null ? (int) $e->reference_id : null,
                 'reference' => $reference,
                 'source' => $e->source,
                 'creator' => $e->creator ? $e->creator->only(['id', 'name']) : null,
@@ -390,12 +284,8 @@ class FinanceLedgerController extends Controller
                 'from' => $from,
                 'to' => $to,
                 'direction' => $direction,
-                'scope' => $scope,
-                'source' => $source,
-                'warehouse_id' => $warehouseIsNullOnly ? 'none' : ($selectedWarehouseId !== null ? (string) $selectedWarehouseId : 'all'),
                 'category_id' => $selectedCategoryId !== null ? (string) $selectedCategoryId : 'all',
             ],
-            'warehouses' => $warehouses,
             'categories' => $categories,
             'can_manage_finance' => $actor->hasPermission('finance.manage'),
         ]);
@@ -407,49 +297,33 @@ class FinanceLedgerController extends Controller
         $organizationId = $actor->organization_id;
         abort_if($organizationId === null, 404);
 
-        $warehouses = $this->operationalContext->accessibleWarehouseIds($actor);
-
         $validated = $request->validate([
             'direction' => ['required', Rule::in(['INCOME', 'EXPENSE'])],
-            'scope' => ['required', Rule::in(['GENERAL', 'VOUCHER', 'TRIP_COST'])],
-            'category_id' => ['nullable', 'integer'],
-            'warehouse_id' => ['nullable', 'integer'],
-            'amount' => ['required', 'numeric', 'min:0.01', 'max:1000000000'],
+            'category_id' => ['required', 'integer'],
+            'amount' => ['required', 'integer', 'min:1', 'max:1000000000'],
             'currency' => ['nullable', 'string', 'max:8'],
             'occurred_at' => ['required', 'date'],
             'note' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $warehouseId = null;
-        if (array_key_exists('warehouse_id', $validated) && $validated['warehouse_id'] !== null) {
-            $candidate = (int) $validated['warehouse_id'];
-            abort_if(! in_array($candidate, $warehouses, true), 422, 'Invalid warehouse.');
-            $warehouseId = $candidate;
-        }
+        $cat = FinanceCategory::query()
+            ->where('organization_id', $organizationId)
+            ->whereKey((int) $validated['category_id'])
+            ->firstOrFail();
 
-        $categoryId = null;
-        if (array_key_exists('category_id', $validated) && $validated['category_id'] !== null) {
-            $cat = FinanceCategory::query()
-                ->where('organization_id', $organizationId)
-                ->whereKey((int) $validated['category_id'])
-                ->firstOrFail();
-
-            abort_if($cat->scope !== $validated['scope'], 422, 'Category scope does not match entry scope.');
-            if ($cat->direction !== 'BOTH') {
-                abort_if($cat->direction !== $validated['direction'], 422, 'Category direction does not match entry direction.');
-            }
-            $categoryId = (int) $cat->id;
+        if ($cat->direction !== 'BOTH') {
+            abort_if($cat->direction !== $validated['direction'], 422, 'Category direction does not match entry direction.');
         }
 
         $entry = null;
-        DB::transaction(function () use (&$entry, $validated, $organizationId, $actor, $warehouseId, $categoryId) {
+        DB::transaction(function () use (&$entry, $validated, $organizationId, $actor, $cat) {
             $entry = FinanceEntry::query()->create([
                 'organization_id' => $organizationId,
-                'warehouse_id' => $warehouseId,
-                'scope' => $validated['scope'],
+                'warehouse_id' => null,
+                'scope' => $cat->scope,
                 'direction' => $validated['direction'],
-                'category_id' => $categoryId,
-                'amount' => round((float) $validated['amount'], 2),
+                'category_id' => (int) $cat->id,
+                'amount' => (int) $validated['amount'],
                 'currency' => isset($validated['currency']) && trim((string) $validated['currency']) !== ''
                     ? trim((string) $validated['currency'])
                     : 'MMK',
@@ -480,59 +354,46 @@ class FinanceLedgerController extends Controller
         $organizationId = $actor->organization_id;
         abort_if($organizationId === null, 404);
 
-        $warehouses = $this->operationalContext->accessibleWarehouseIds($actor);
-
         $model = $this->resolveTenantEntry($actor, $entry);
-        abort_if($model->source !== 'MANUAL', 403);
+        $editable = $model->source === 'MANUAL' || $model->reference_type === 'TRIP_NET_INCOME';
+        abort_if(! $editable, 403);
 
         $validated = $request->validate([
             'direction' => ['sometimes', 'required', Rule::in(['INCOME', 'EXPENSE'])],
-            'scope' => ['sometimes', 'required', Rule::in(['GENERAL', 'VOUCHER', 'TRIP_COST'])],
-            'category_id' => ['sometimes', 'nullable', 'integer'],
-            'warehouse_id' => ['sometimes', 'nullable', 'integer'],
-            'amount' => ['sometimes', 'required', 'numeric', 'min:0.01', 'max:1000000000'],
+            'category_id' => ['sometimes', 'required', 'integer'],
+            'amount' => ['sometimes', 'required', 'integer', 'min:1', 'max:1000000000'],
             'currency' => ['sometimes', 'nullable', 'string', 'max:8'],
             'occurred_at' => ['sometimes', 'required', 'date'],
             'note' => ['sometimes', 'nullable', 'string', 'max:2000'],
         ]);
 
-        $nextScope = array_key_exists('scope', $validated) ? $validated['scope'] : $model->scope;
         $nextDirection = array_key_exists('direction', $validated) ? $validated['direction'] : $model->direction;
 
-        if (array_key_exists('warehouse_id', $validated)) {
-            if ($validated['warehouse_id'] === null) {
-                $model->warehouse_id = null;
-            } else {
-                $candidate = (int) $validated['warehouse_id'];
-                abort_if(! in_array($candidate, $warehouses, true), 422, 'Invalid warehouse.');
-                $model->warehouse_id = $candidate;
-            }
-        }
-
         if (array_key_exists('category_id', $validated)) {
-            if ($validated['category_id'] === null) {
-                $model->category_id = null;
-            } else {
-                $cat = FinanceCategory::query()
-                    ->where('organization_id', $organizationId)
-                    ->whereKey((int) $validated['category_id'])
-                    ->firstOrFail();
-                abort_if($cat->scope !== $nextScope, 422, 'Category scope does not match entry scope.');
-                if ($cat->direction !== 'BOTH') {
-                    abort_if($cat->direction !== $nextDirection, 422, 'Category direction does not match entry direction.');
-                }
-                $model->category_id = (int) $cat->id;
+            $cat = FinanceCategory::query()
+                ->where('organization_id', $organizationId)
+                ->whereKey((int) $validated['category_id'])
+                ->firstOrFail();
+            if ($cat->direction !== 'BOTH') {
+                abort_if($cat->direction !== $nextDirection, 422, 'Category direction does not match entry direction.');
+            }
+            $model->category_id = (int) $cat->id;
+            $model->scope = $cat->scope;
+        } elseif (array_key_exists('direction', $validated) && $model->category_id !== null) {
+            $cat = FinanceCategory::query()
+                ->where('organization_id', $organizationId)
+                ->whereKey((int) $model->category_id)
+                ->first();
+            if ($cat && $cat->direction !== 'BOTH') {
+                abort_if($cat->direction !== $nextDirection, 422, 'Category direction does not match entry direction.');
             }
         }
 
-        if (array_key_exists('scope', $validated)) {
-            $model->scope = $validated['scope'];
-        }
         if (array_key_exists('direction', $validated)) {
             $model->direction = $validated['direction'];
         }
         if (array_key_exists('amount', $validated)) {
-            $model->amount = round((float) $validated['amount'], 2);
+            $model->amount = (int) $validated['amount'];
         }
         if (array_key_exists('currency', $validated)) {
             $model->currency = $validated['currency'] !== null && trim((string) $validated['currency']) !== ''
@@ -564,7 +425,8 @@ class FinanceLedgerController extends Controller
     {
         $actor = $request->user();
         $model = $this->resolveTenantEntry($actor, $entry);
-        abort_if($model->source !== 'MANUAL', 403);
+        $editable = $model->source === 'MANUAL' || $model->reference_type === 'TRIP_NET_INCOME';
+        abort_if(! $editable, 403);
 
         $snapshot = [
             'direction' => $model->direction,
