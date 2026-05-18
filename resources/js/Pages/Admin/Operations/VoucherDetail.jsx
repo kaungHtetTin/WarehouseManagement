@@ -187,7 +187,7 @@ function LineCard({ item, lineNo }) {
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                     {item.qty} {item.unit}
-                    {item.from_warehouse?.code ? ` · From ${item.from_warehouse.code}` : ''}
+                    {item.from_warehouse?.display_name ? ` · From ${item.from_warehouse.display_name}` : ''}
                 </Typography>
                 <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
                     {item.is_fragile ? <Chip size="small" label="Fragile" color="warning" variant="outlined" /> : null}
@@ -344,7 +344,7 @@ export default function VoucherDetail() {
                                         label: 'Date',
                                         value: typeof voucher.voucher_date === 'string' ? voucher.voucher_date.slice(0, 10) : voucher.voucher_date,
                                     },
-                                    { label: 'Source warehouse', value: voucher.source_warehouse?.name },
+                                    { label: 'Source warehouse', value: voucher.source_warehouse?.display_name || '—' },
                                     { label: 'Total qty', value: voucher.total_qty != null ? String(voucher.total_qty) : null },
                                     { label: 'Weight', value: voucher.total_weight != null ? String(voucher.total_weight) : null },
                                     { label: 'Total amount', value: formatMoneyAmount(totalAmountDisplay) },
@@ -549,8 +549,6 @@ export default function VoucherDetail() {
                             rows={[
                                 { label: 'Name', value: voucher.merchant?.name },
                                 { label: 'Phone', value: voucher.merchant?.phone },
-                                { label: 'NRC / ID', value: voucher.merchant?.nrc_or_id },
-                                { label: 'Address', value: voucher.merchant?.address, preWrap: true },
                             ]}
                         />
                     </Paper>
@@ -563,11 +561,16 @@ export default function VoucherDetail() {
                             rows={[
                                 {
                                     label: 'To warehouse',
-                                    value: voucher.default_to_warehouse ? `${voucher.default_to_warehouse.name} (${voucher.default_to_warehouse.code})` : null,
+                                    value: voucher.default_to_warehouse?.display_name || null,
                                 },
                                 {
-                                    label: 'Shipping address',
-                                    value: [voucher.default_to_address_line1, voucher.default_to_city].filter(Boolean).join(' · '),
+                                    label: 'Destination address',
+                                    value: voucher.default_to_address_line1,
+                                    preWrap: true,
+                                },
+                                {
+                                    label: 'Destination remark',
+                                    value: voucher.default_destination_remark,
                                     preWrap: true,
                                 },
                                 { label: 'Recipient name', value: voucher.default_recipient_name },
@@ -622,7 +625,7 @@ export default function VoucherDetail() {
                                             <TableCell sx={{ fontWeight: 600 }}>{it.product?.name ?? '—'}</TableCell>
                                             <TableCell>{it.qty}</TableCell>
                                             <TableCell>{it.unit}</TableCell>
-                                            <TableCell>{it.from_warehouse?.code ?? '—'}</TableCell>
+                                            <TableCell>{it.from_warehouse?.display_name ?? '—'}</TableCell>
                                             <TableCell align="right">{formatMoneyAmount(it.freight_amount)}</TableCell>
                                             <TableCell align="center">{it.is_fragile ? 'Yes' : '—'}</TableCell>
                                         </TableRow>

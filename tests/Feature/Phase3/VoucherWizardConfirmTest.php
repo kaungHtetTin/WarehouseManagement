@@ -11,7 +11,6 @@ use App\Models\User;
 use App\Models\Voucher;
 use App\Models\VoucherItem;
 use App\Models\Warehouse;
-use App\Models\WarehouseStock;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -28,15 +27,6 @@ class VoucherWizardConfirmTest extends TestCase
         $response->assertRedirect(route('admin.vouchers.index'));
         $voucher->refresh();
         $this->assertSame('CONFIRMED', $voucher->status);
-
-        $line = VoucherItem::query()->where('voucher_id', $voucher->id)->firstOrFail();
-        $stock = WarehouseStock::query()
-            ->where('organization_id', $user->organization_id)
-            ->where('warehouse_id', $line->from_warehouse_id)
-            ->where('product_id', $line->product_id)
-            ->first();
-        $this->assertNotNull($stock);
-        $this->assertSame('1.000', (string) $stock->qty_on_hand);
     }
 
     public function test_wizard_finish_requires_at_least_one_line(): void
@@ -78,7 +68,6 @@ class VoucherWizardConfirmTest extends TestCase
         $organization = Organization::factory()->create();
         $warehouse = Warehouse::factory()->create([
             'organization_id' => $organization->id,
-            'status' => 'ACTIVE',
         ]);
         $user = User::factory()->create([
             'organization_id' => $organization->id,
@@ -150,7 +139,6 @@ class VoucherWizardConfirmTest extends TestCase
         $organization = Organization::factory()->create();
         $warehouse = Warehouse::factory()->create([
             'organization_id' => $organization->id,
-            'status' => 'ACTIVE',
         ]);
         $user = User::factory()->create([
             'organization_id' => $organization->id,

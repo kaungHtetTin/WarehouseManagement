@@ -10,7 +10,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -20,8 +19,9 @@ class WarehouseManagementController extends Controller
     {
         $user = $request->user();
         $warehouses = $this->scopedWarehouses($user)
-            ->orderBy('name')
-            ->get(['id', 'organization_id', 'code', 'name', 'city', 'address', 'phone', 'status', 'is_main', 'updated_at']);
+            ->orderBy('city')
+            ->orderBy('id')
+            ->get(['id', 'organization_id', 'city', 'address', 'updated_at']);
 
         return Inertia::render('Admin/Master/WarehousesIndex', [
             'warehouses' => $warehouses,
@@ -34,36 +34,15 @@ class WarehouseManagementController extends Controller
         $organizationId = $actor->organization_id;
 
         $validated = $request->validate([
-            'code' => [
-                'required',
-                'string',
-                'max:64',
-                Rule::unique('warehouses', 'code')->where(fn ($query) => $query->where('organization_id', $organizationId)),
-            ],
-            'name' => ['required', 'string', 'max:255'],
             'city' => ['required', 'string', 'max:255'],
             'address' => ['nullable', 'string', 'max:500'],
-            'phone' => ['nullable', 'string', 'max:64'],
-            'is_main' => ['sometimes', 'boolean'],
-            'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE'])],
         ]);
 
         $warehouse = DB::transaction(function () use ($validated, $organizationId, $actor) {
-            if (! empty($validated['is_main'])) {
-                Warehouse::query()
-                    ->where('organization_id', $organizationId)
-                    ->update(['is_main' => false]);
-            }
-
             $warehouse = Warehouse::query()->create([
                 'organization_id' => $organizationId,
-                'code' => strtoupper($validated['code']),
-                'name' => $validated['name'],
                 'city' => $validated['city'],
                 'address' => $validated['address'] ?? null,
-                'phone' => $validated['phone'] ?? null,
-                'is_main' => (bool) ($validated['is_main'] ?? false),
-                'status' => $validated['status'] ?? 'ACTIVE',
             ]);
 
             $this->autoAssignWarehouseAccess($warehouse, $actor);
@@ -72,8 +51,8 @@ class WarehouseManagementController extends Controller
         });
 
         AuditLogger::record($actor, 'warehouse.create', $warehouse, [
-            'code' => $warehouse->code,
-            'name' => $warehouse->name,
+            'city' => $warehouse->city,
+            'address' => $warehouse->address,
         ]);
 
         return Redirect::route('admin.warehouses.index')->with('success', 'Warehouse created successfully.');
@@ -84,38 +63,12 @@ class WarehouseManagementController extends Controller
         $actor = $request->user();
         $warehouseModel = $this->resolveTenantWarehouse($actor, $warehouse);
 
-        $organizationId = $actor->organization_id;
-
         $validated = $request->validate([
-            'code' => [
-                'sometimes',
-                'required',
-                'string',
-                'max:64',
-                Rule::unique('warehouses', 'code')
-                    ->ignore($warehouseModel->id)
-                    ->where(fn ($query) => $query->where('organization_id', $organizationId)),
-            ],
-            'name' => ['sometimes', 'required', 'string', 'max:255'],
             'city' => ['sometimes', 'required', 'string', 'max:255'],
             'address' => ['sometimes', 'nullable', 'string', 'max:500'],
-            'phone' => ['sometimes', 'nullable', 'string', 'max:64'],
-            'is_main' => ['sometimes', 'boolean'],
-            'status' => ['sometimes', Rule::in(['ACTIVE', 'INACTIVE'])],
         ]);
 
-        DB::transaction(function () use ($warehouseModel, $validated, $organizationId) {
-            if (array_key_exists('is_main', $validated) && $validated['is_main']) {
-                Warehouse::query()
-                    ->where('organization_id', $organizationId)
-                    ->whereKeyNot($warehouseModel->id)
-                    ->update(['is_main' => false]);
-            }
-
-            if (array_key_exists('code', $validated)) {
-                $validated['code'] = strtoupper($validated['code']);
-            }
-
+        DB::transaction(function () use ($warehouseModel, $validated) {
             $warehouseModel->fill($validated);
             $warehouseModel->save();
         });
@@ -123,8 +76,8 @@ class WarehouseManagementController extends Controller
         $warehouseModel->refresh();
 
         AuditLogger::record($actor, 'warehouse.update', $warehouseModel, [
-            'code' => $warehouseModel->code,
-            'name' => $warehouseModel->name,
+            'city' => $warehouseModel->city,
+            'address' => $warehouseModel->address,
         ]);
 
         return Redirect::route('admin.warehouses.index')->with('success', 'Warehouse updated successfully.');
@@ -136,8 +89,8 @@ class WarehouseManagementController extends Controller
         $warehouseModel = $this->resolveTenantWarehouse($actor, $warehouse);
 
         $snapshot = [
-            'code' => $warehouseModel->code,
-            'name' => $warehouseModel->name,
+            'city' => $warehouseModel->city,
+            'address' => $warehouseModel->address,
         ];
 
         $warehouseModel->delete();

@@ -347,8 +347,8 @@ export default function WarehouseFulfillmentInbox() {
                                             <Fragment key={g.key}>
                                                 <TableRow hover>
                                                 <TableCell sx={{ width: 160, whiteSpace: 'nowrap' }}>
-                                                    <Typography variant="body2" noWrap title={g.warehouse?.name ?? undefined}>
-                                                        {g.warehouse ? `${g.warehouse.name}` : '—'}
+                                                    <Typography variant="body2" noWrap title={g.warehouse?.display_name ?? undefined}>
+                                                        {g.warehouse ? `${g.warehouse.display_name}` : '—'}
                                                     </Typography>
                                                 </TableCell>
                                                     <TableCell sx={{ minWidth: 0 }}>
@@ -544,7 +544,7 @@ export default function WarehouseFulfillmentInbox() {
                                                 />
                                             </Box>
                                             <Typography variant="body2" color="text.secondary">
-                                                {g.warehouse ? `${g.warehouse.name}` : '—'}
+                                                {g.warehouse ? `${g.warehouse.display_name}` : '—'}
                                             </Typography>
                                             <Typography variant="body2">
                                                 <Link href={`${adminAppUrl}/operations/vouchers/${g.voucher_id}`}>{g.voucher_no}</Link>

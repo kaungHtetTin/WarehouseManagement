@@ -28,15 +28,12 @@ class WarehouseTenantIsolationTest extends TestCase
 
         $foreignWarehouse = Warehouse::query()->create([
             'organization_id' => $otherOrganization->id,
-            'code' => 'FOREIGN',
-            'name' => 'Foreign WH',
             'city' => 'Yangon',
-            'status' => 'ACTIVE',
-            'is_main' => false,
+            'address' => 'Foreign street',
         ]);
 
         $response = $this->actingAs($actingUser)->patch(route('admin.warehouses.update', $foreignWarehouse), [
-            'name' => 'Should not apply',
+            'city' => 'Should not apply',
         ]);
 
         $response->assertNotFound();

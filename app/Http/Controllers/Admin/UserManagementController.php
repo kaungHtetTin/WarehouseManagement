@@ -31,8 +31,9 @@ class UserManagementController extends Controller
             ->get();
         $warehouses = Warehouse::query()
             ->where('organization_id', $user->organization_id)
-            ->orderBy('name')
-            ->get(['id', 'name', 'code']);
+            ->orderBy('city')
+            ->orderBy('id')
+            ->get(['id', 'city', 'address']);
 
         return Inertia::render('Admin/Iam/UsersIndex', [
             'users' => $users,
@@ -223,4 +224,3 @@ class UserManagementController extends Controller
         $user->warehouses()->sync($syncPayload);
     }
 }
-

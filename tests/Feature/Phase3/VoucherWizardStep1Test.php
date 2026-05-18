@@ -19,9 +19,11 @@ class VoucherWizardStep1Test extends TestCase
     public function test_wizard_step1_creates_draft_voucher_and_merchant(): void
     {
         $organization = Organization::factory()->create();
-        $warehouse = Warehouse::factory()->create([
+        $sourceWarehouse = Warehouse::factory()->create([
             'organization_id' => $organization->id,
-            'status' => 'ACTIVE',
+        ]);
+        $destinationWarehouse = Warehouse::factory()->create([
+            'organization_id' => $organization->id,
         ]);
         $user = User::factory()->create([
             'organization_id' => $organization->id,
@@ -31,25 +33,18 @@ class VoucherWizardStep1Test extends TestCase
 
         $response = $this->actingAs($user)->post(route('admin.vouchers.wizard.step1'), [
             'voucher_date' => '2026-05-01',
-            'source_warehouse_id' => $warehouse->id,
+            'source_warehouse_id' => $sourceWarehouse->id,
             'remark' => 'Test remark',
             'payment_status' => 'PAID',
             'merchant_id' => null,
             'merchant' => [
                 'name' => 'Wizard Merchant',
                 'phone' => '0999000111',
-                'nrc_or_id' => null,
-                'address' => 'Yangon',
             ],
-            'default_to_warehouse_id' => null,
-            'default_to_city' => 'Mandalay',
-            'default_to_address_line1' => '42 Default Street',
-            'default_to_address_line2' => 'Building A',
-            'default_to_township' => null,
-            'default_to_region' => null,
-            'default_to_postal_code' => null,
+            'default_to_warehouse_id' => $destinationWarehouse->id,
             'default_recipient_name' => 'U Receiver',
             'default_recipient_phone' => '091234567',
+            'default_destination_remark' => 'Deliver to destination warehouse front desk.',
         ]);
 
         $response->assertRedirect();
@@ -62,9 +57,11 @@ class VoucherWizardStep1Test extends TestCase
         $voucher = Voucher::query()->where('organization_id', $organization->id)->first();
         $this->assertSame('DRAFT', $voucher->status);
         $this->assertSame('PAID', $voucher->payment_status);
-        $this->assertSame('Mandalay', $voucher->default_to_city);
-        $this->assertSame('42 Default Street', $voucher->default_to_address_line1);
+        $this->assertSame($destinationWarehouse->id, (int) $voucher->default_to_warehouse_id);
+        $this->assertSame($destinationWarehouse->city, $voucher->default_to_city);
+        $this->assertSame($destinationWarehouse->address, $voucher->default_to_address_line1);
         $this->assertSame('U Receiver', $voucher->default_recipient_name);
+        $this->assertSame('Deliver to destination warehouse front desk.', $voucher->default_destination_remark);
     }
 
     public function test_wizard_edit_page_loads_draft_voucher(): void
@@ -72,7 +69,6 @@ class VoucherWizardStep1Test extends TestCase
         $organization = Organization::factory()->create();
         $warehouse = Warehouse::factory()->create([
             'organization_id' => $organization->id,
-            'status' => 'ACTIVE',
         ]);
         $user = User::factory()->create([
             'organization_id' => $organization->id,
@@ -117,7 +113,6 @@ class VoucherWizardStep1Test extends TestCase
         $organization = Organization::factory()->create();
         $warehouse = Warehouse::factory()->create([
             'organization_id' => $organization->id,
-            'status' => 'ACTIVE',
         ]);
         $user = User::factory()->create([
             'organization_id' => $organization->id,

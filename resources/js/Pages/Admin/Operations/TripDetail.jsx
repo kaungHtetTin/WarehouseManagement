@@ -1,5 +1,5 @@
 import AdminLayout from '@/Layouts/AdminLayout';
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import {
     AddCircleOutlineOutlined as AddCircleOutlineIcon,
@@ -20,6 +20,7 @@ import {
     Alert,
     Box,
     Button,
+    Checkbox,
     Chip,
     Collapse,
     Dialog,
@@ -59,13 +60,6 @@ const TRIP_STATUS_COLOR = {
     AT_STOP: 'warning',
     COMPLETED: 'success',
     CANCELLED: 'error',
-};
-
-const STOP_STATUS_COLOR = {
-    PENDING: 'default',
-    ARRIVED: 'info',
-    COMPLETED: 'success',
-    SKIPPED: 'warning',
 };
 
 const TRIP_ITEM_STATUS_COLOR = {
@@ -127,28 +121,6 @@ function voucherLineFieldLabel(row) {
 
 function voucherLineDetailTitle(row) {
     return `${row.voucher_no} · line ${row.line_no} · ${row.product_name} — max ${row.remaining_qty} ${row.unit}`;
-}
-
-function planStopsFromTrip(stops) {
-    return (stops || []).map((s) => ({
-        id: s.id,
-        clientKey: `e-${s.id}`,
-        warehouse_id: s.warehouse_id != null ? String(s.warehouse_id) : '',
-        location_name: s.location_name ?? '',
-        city: s.city ?? '',
-        address: s.address ?? '',
-    }));
-}
-
-function newEmptyPlanStop() {
-    return {
-        id: null,
-        clientKey: `n-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-        warehouse_id: '',
-        location_name: '',
-        city: '',
-        address: '',
-    };
 }
 
 /** Max loaded qty allowed for this trip item row (same voucher line across non-cancelled trips). */
@@ -220,14 +192,13 @@ export default function TripDetail() {
     const flash = pageProps.flash ?? {};
     const errors = pageProps.errors ?? {};
     const canManageCargo = pageProps.can_manage_cargo ?? false;
-    /** Load / edit / remove cargo lines while trip is active (includes departed / at stop). */
+    /** Load / edit / remove cargo lines while trip is active (includes departed / in transit). */
     const canLoadCargo = pageProps.can_load_cargo ?? pageProps.can_manage_cargo ?? false;
     const canRecordDelivery = pageProps.can_record_delivery ?? false;
     const canManageTripCosts = pageProps.can_manage_trip_costs ?? false;
     const canMarkDeparted = pageProps.can_mark_departed ?? false;
     const canUndoDepart = pageProps.can_undo_depart ?? false;
     const loadableVouchers = pageProps.loadable_vouchers ?? [];
-    const warehouses = pageProps.warehouses ?? [];
     const tripTotalWeight = pageProps.trip_total_weight;
     const tripLaborCost = pageProps.trip_labor_cost;
     const tripCostCategories = pageProps.trip_cost_categories ?? [];
@@ -242,11 +213,6 @@ export default function TripDetail() {
         }
         return (Number.isFinite(labor) ? labor : 0) + (Number.isFinite(extra) ? extra : 0);
     }, [tripLaborCost, tripExtraCostTotal]);
-
-    const loadForm = useForm({
-        voucher_id: '',
-        trip_stop_id: '',
-    });
 
     const [tripCostDialogOpen, setTripCostDialogOpen] = useState(false);
     const [tripCostDialogProcessing, setTripCostDialogProcessing] = useState(false);
@@ -263,6 +229,83 @@ export default function TripDetail() {
         (loadableVouchers || []).forEach((r) => m.set(r.id, r));
         return m;
     }, [loadableVouchers]);
+
+    const vehicleMaxWeight = useMemo(() => {
+        const n = Number(trip?.vehicle?.capacity_weight);
+        return Number.isFinite(n) && n > 0.0001 ? n : null;
+    }, [trip?.vehicle?.capacity_weight]);
+
+    const [selectedVoucherMap, setSelectedVoucherMap] = useState(() => ({}));
+    const [loadBatchProcessing, setLoadBatchProcessing] = useState(false);
+
+    useEffect(() => {
+        const allowed = new Set((loadableVouchers || []).map((r) => Number(r.id)));
+        setSelectedVoucherMap((prev) => {
+            const next = {};
+            let changed = false;
+            for (const [k, v] of Object.entries(prev || {})) {
+                const id = Number(k);
+                if (!allowed.has(id) || !v) {
+                    changed = true;
+                    continue;
+                }
+                next[String(id)] = true;
+            }
+            return changed ? next : prev;
+        });
+    }, [loadableVouchers]);
+
+    const selectedVoucherIds = useMemo(
+        () => Object.keys(selectedVoucherMap || {}).filter((k) => selectedVoucherMap[k]).map((k) => Number(k)),
+        [selectedVoucherMap],
+    );
+
+    const selectedWeightSummary = useMemo(() => {
+        let knownSum = 0;
+        let unknownCount = 0;
+        for (const id of selectedVoucherIds) {
+            const row = loadableById.get(id);
+            const w = row?.total_weight;
+            if (w === null || w === undefined) {
+                unknownCount += 1;
+                continue;
+            }
+            const n = Number(w);
+            if (Number.isFinite(n) && n > 0.0001) {
+                knownSum += n;
+            }
+        }
+        knownSum = Math.round(knownSum * 1000) / 1000;
+        return { knownSum, unknownCount };
+    }, [selectedVoucherIds, loadableById]);
+
+    const allLoadableWeightSummary = useMemo(() => {
+        let knownSum = 0;
+        let unknownCount = 0;
+        for (const row of loadableVouchers || []) {
+            const w = row?.total_weight;
+            if (w === null || w === undefined) {
+                unknownCount += 1;
+                continue;
+            }
+            const n = Number(w);
+            if (Number.isFinite(n) && n > 0.0001) {
+                knownSum += n;
+            }
+        }
+        knownSum = Math.round(knownSum * 1000) / 1000;
+        return { knownSum, unknownCount };
+    }, [loadableVouchers]);
+
+    const selectedExceedsVehicleWeight = useMemo(() => {
+        if (vehicleMaxWeight === null) return false;
+        return selectedWeightSummary.knownSum > vehicleMaxWeight + 0.0001;
+    }, [selectedWeightSummary.knownSum, vehicleMaxWeight]);
+
+    const allExceedsVehicleWeight = useMemo(() => {
+        if (vehicleMaxWeight === null) return false;
+        return allLoadableWeightSummary.knownSum > vehicleMaxWeight + 0.0001;
+    }, [allLoadableWeightSummary.knownSum, vehicleMaxWeight]);
 
     const pendingDeliveryRows = useMemo(
         () => (trip?.items || []).filter((row) => remainingDeliverQty(row) > 0.0001),
@@ -284,8 +327,6 @@ export default function TripDetail() {
         return { linesWithCargo, totalLoaded };
     }, [trip?.items]);
 
-    const [planStops, setPlanStops] = useState(() => planStopsFromTrip(trip?.stops));
-    const [stopsSaving, setStopsSaving] = useState(false);
     const [itemDialog, setItemDialog] = useState(null);
     const [itemDialogSaving, setItemDialogSaving] = useState(false);
     const [tripDeliveryOpen, setTripDeliveryOpen] = useState(false);
@@ -298,7 +339,6 @@ export default function TripDetail() {
     const [itemDeliveryDialog, setItemDeliveryDialog] = useState(null);
     const [itemDeliverySaving, setItemDeliverySaving] = useState(false);
     const [voucherRowMenu, setVoucherRowMenu] = useState(null);
-    const [voucherStopDialog, setVoucherStopDialog] = useState(null);
     const [voucherExpanded, setVoucherExpanded] = useState(() => ({}));
 
     const showCargoActionsColumn = canLoadCargo || canRecordDelivery;
@@ -324,7 +364,6 @@ export default function TripDetail() {
                     lines: 0,
                     loaded_sum: 0,
                     delivered_sum: 0,
-                    stop_ids: new Set(),
                     line_rows: [],
                 });
             }
@@ -333,7 +372,6 @@ export default function TripDetail() {
             agg.lines += 1;
             agg.loaded_sum += Number(row?.loaded_qty ?? 0);
             agg.delivered_sum += Number(row?.delivered_qty ?? 0);
-            agg.stop_ids.add(row?.trip_stop?.id ?? null);
             agg.line_rows.push({
                 id: row?.id,
                 line_no: vi?.line_no ?? null,
@@ -342,7 +380,6 @@ export default function TripDetail() {
                 loaded_qty: Number(row?.loaded_qty ?? 0),
                 delivered_qty: Number(row?.delivered_qty ?? 0),
                 status: row?.status ?? 'LOADED',
-                stop: row?.trip_stop?.stop_order != null ? `Stop ${row.trip_stop.stop_order}` : '—',
             });
         }
 
@@ -355,116 +392,23 @@ export default function TripDetail() {
                 status = 'PARTIALLY_DELIVERED';
             }
 
-            let stop = { mode: 'NONE', id: null, label: '—' };
-            if (r.stop_ids.size === 1) {
-                const only = Array.from(r.stop_ids)[0];
-                if (only != null) {
-                    const s = (trip?.stops || []).find((x) => Number(x.id) === Number(only));
-                    stop = {
-                        mode: 'SINGLE',
-                        id: Number(only),
-                        label: s?.stop_order != null ? `Stop ${s.stop_order}` : `Stop ${only}`,
-                    };
-                }
-            } else if (r.stop_ids.size > 1) {
-                stop = { mode: 'MIXED', id: null, label: 'Mixed' };
-            }
-
             r.line_rows.sort((a, b) => Number(a.line_no ?? 0) - Number(b.line_no ?? 0));
 
             return {
                 ...r,
                 remaining_sum: remaining,
                 status,
-                stop,
             };
         });
 
         out.sort((a, b) => String(b.voucher_no).localeCompare(String(a.voucher_no)));
         return out;
-    }, [trip?.items, trip?.stops]);
-
-    const stopsServerSig = useMemo(
-        () =>
-            JSON.stringify(
-                (trip?.stops || []).map((s) => [s.id, s.stop_order, s.warehouse_id, s.location_name, s.city, s.address]),
-            ),
-        [trip?.stops],
-    );
-
-    useEffect(() => {
-        if (!canManageCargo) {
-            return;
-        }
-        setPlanStops(planStopsFromTrip(trip?.stops));
-    }, [canManageCargo, stopsServerSig, trip?.id]);
-
-    const stopsSyncError = useMemo(() => {
-        if (typeof errors.stops === 'string') {
-            return errors.stops;
-        }
-        const keys = Object.keys(errors).filter((k) => k.startsWith('stops.'));
-        for (const k of keys) {
-            const v = errors[k];
-            if (typeof v === 'string') {
-                return v;
-            }
-            if (Array.isArray(v) && v[0]) {
-                return v[0];
-            }
-        }
-        return null;
-    }, [errors]);
-
-    const updatePlanStop = useCallback((index, patch) => {
-        setPlanStops((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
-    }, []);
-
-    const addPlanStop = useCallback(() => {
-        setPlanStops((prev) => [...prev, newEmptyPlanStop()]);
-    }, []);
-
-    const removePlanStop = useCallback((index) => {
-        setPlanStops((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
-    }, []);
-
-    const movePlanStop = useCallback((index, dir) => {
-        setPlanStops((prev) => {
-            const j = index + dir;
-            if (j < 0 || j >= prev.length) {
-                return prev;
-            }
-            const next = [...prev];
-            [next[index], next[j]] = [next[j], next[index]];
-            return next;
-        });
-    }, []);
-
-    const submitPlanStops = useCallback(() => {
-        setStopsSaving(true);
-        router.put(
-            `${adminAppUrl}/operations/trips/${trip.id}/stops`,
-            {
-                stops: planStops.map((s) => ({
-                    ...(s.id != null && s.id !== '' ? { id: Number(s.id) } : {}),
-                    warehouse_id: s.warehouse_id ? Number(s.warehouse_id) : null,
-                    location_name: s.location_name?.trim() || null,
-                    city: s.city?.trim() || null,
-                    address: s.address?.trim() || null,
-                })),
-            },
-            {
-                preserveScroll: true,
-                onFinish: () => setStopsSaving(false),
-            },
-        );
-    }, [adminAppUrl, trip?.id, planStops]);
+    }, [trip?.items]);
 
     const openEditItem = useCallback((row) => {
         setItemDialog({
             row,
             loaded_qty: String(row.loaded_qty),
-            trip_stop_id: row.trip_stop?.id != null ? String(row.trip_stop.id) : '',
         });
     }, []);
 
@@ -477,7 +421,6 @@ export default function TripDetail() {
             `${adminAppUrl}/operations/trips/${trip.id}/items/${itemDialog.row.id}`,
             {
                 loaded_qty: Number(itemDialog.loaded_qty),
-                trip_stop_id: itemDialog.trip_stop_id === '' ? null : Number(itemDialog.trip_stop_id),
             },
             {
                 preserveScroll: true,
@@ -659,13 +602,25 @@ export default function TripDetail() {
         );
     }, [adminAppUrl, trip?.id, itemDeliveryDialog]);
 
-    const submitLoad = (e) => {
-        e.preventDefault();
-        loadForm.post(`${adminAppUrl}/operations/trips/${trip.id}/vouchers/load`, {
-            preserveScroll: true,
-            onSuccess: () => loadForm.reset(),
-        });
-    };
+    const submitLoadBatch = useCallback(
+        (ids) => {
+            if (!canLoadCargo || loadBatchProcessing) return;
+            const voucherIds = (ids || []).map((x) => Number(x)).filter((x) => Number.isFinite(x));
+            if (voucherIds.length === 0) return;
+
+            setLoadBatchProcessing(true);
+            router.post(
+                `${adminAppUrl}/operations/trips/${trip.id}/vouchers/load-batch`,
+                { voucher_ids: voucherIds },
+                {
+                    preserveScroll: true,
+                    onSuccess: () => setSelectedVoucherMap({}),
+                    onFinish: () => setLoadBatchProcessing(false),
+                },
+            );
+        },
+        [adminAppUrl, canLoadCargo, loadBatchProcessing, trip?.id],
+    );
 
     const submitMarkDeparted = useCallback(() => {
         setStatusActionSaving(true);
@@ -761,8 +716,8 @@ export default function TripDetail() {
                             </Button>
                         </Stack>
                         <Typography variant="body2" color="text.secondary">
-                            Trip summary. Load confirmed voucher lines from the source warehouse in partial quantities; totals
-                            cannot exceed each line&apos;s ordered quantity across non-cancelled trips.
+                            Trip summary. Load confirmed vouchers for this trip&apos;s destination warehouse; totals cannot exceed each line&apos;s ordered
+                            quantity across non-cancelled trips.
                         </Typography>
                         <Divider />
                         <Grid container spacing={2.5}>
@@ -776,10 +731,10 @@ export default function TripDetail() {
                             </Grid>
                             <Grid item xs={12} sm={6} md={4}>
                                 <Typography variant="caption" color="text.secondary">
-                                    Source warehouse
+                                    Destination warehouse
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
-                                    {trip.source_warehouse?.name ?? '—'}
+                                    {trip?.stops?.[0]?.warehouse?.display_name || trip?.source_warehouse?.display_name || '—'}
                                 </Typography>
                             </Grid>
                             <Grid item xs={12} sm={6} md={4}>
@@ -981,7 +936,7 @@ export default function TripDetail() {
                             (trip.status === 'PLANNED' || trip.status === 'LOADING') &&
                             loadedCargoSummary.linesWithCargo === 0 ? (
                                 <Typography variant="body2" color="text.secondary">
-                                    Load at least one cargo line, then use <strong>Mark as departed</strong> when the vehicle leaves the source warehouse.
+                                    Load at least one cargo line, then use <strong>Mark as departed</strong> when the vehicle leaves for delivery.
                                 </Typography>
                             ) : null}
                             {!canMarkDeparted && !canUndoDepart && (trip.status === 'DEPARTED' || trip.status === 'AT_STOP') ? (
@@ -994,261 +949,6 @@ export default function TripDetail() {
                                     This trip is completed.
                                 </Typography>
                             ) : null}
-                        </Stack>
-                    )}
-                </Paper>
-
-                <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
-                        Stops
-                    </Typography>
-                    {canManageCargo ? (
-                        <Stack spacing={2}>
-                            <Typography variant="body2" color="text.secondary">
-                                While the trip is planned or loading, you can add, reorder, or remove stops (removal is blocked if cargo is still assigned to that stop). Save
-                                when you are done editing.
-                            </Typography>
-                            {stopsSyncError ? <Alert severity="error">{stopsSyncError}</Alert> : null}
-                            <Stack
-                                direction={{ xs: 'column', sm: 'row' }}
-                                alignItems={{ xs: 'stretch', sm: 'center' }}
-                                spacing={1.5}
-                                flexWrap="wrap"
-                            >
-                                <Button
-                                    size="small"
-                                    startIcon={<AddCircleOutlineIcon />}
-                                    onClick={addPlanStop}
-                                    sx={{ alignSelf: { xs: 'stretch', sm: 'center' } }}
-                                >
-                                    Add stop
-                                </Button>
-                                <Button
-                                    variant="contained"
-                                    size="small"
-                                    disabled={stopsSaving}
-                                    onClick={submitPlanStops}
-                                    sx={{ ml: { sm: 'auto' }, alignSelf: { xs: 'stretch', sm: 'center' } }}
-                                >
-                                    Save stops
-                                </Button>
-                            </Stack>
-                            <Stack spacing={2}>
-                                {planStops.map((stop, index) => {
-                                    const serverStop = stop.id != null ? (trip.stops || []).find((x) => Number(x.id) === Number(stop.id)) : null;
-                                    return (
-                                        <Box key={stop.clientKey}>
-                                            {index > 0 && <Divider sx={{ mb: 2 }} />}
-                                            <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'stretch', sm: 'flex-start' }} spacing={1}>
-                                                <Stack spacing={0.5} sx={{ minWidth: { sm: 72 } }}>
-                                                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, mt: { sm: 1 } }}>
-                                                        Stop {index + 1}
-                                                    </Typography>
-                                                    {serverStop ? (
-                                                        <Chip
-                                                            size="small"
-                                                            label={serverStop.status}
-                                                            color={STOP_STATUS_COLOR[serverStop.status] ?? 'default'}
-                                                            variant="outlined"
-                                                            sx={{ alignSelf: 'flex-start' }}
-                                                        />
-                                                    ) : (
-                                                        <Typography variant="caption" color="text.secondary">
-                                                            New
-                                                        </Typography>
-                                                    )}
-                                                    <Stack direction="row" spacing={0.5} sx={{ display: { xs: 'flex', sm: 'none' }, flexWrap: 'wrap' }}>
-                                                        <IconButton size="small" aria-label="Move up" disabled={index === 0} onClick={() => movePlanStop(index, -1)}>
-                                                            <ArrowUpwardIcon fontSize="small" />
-                                                        </IconButton>
-                                                        <IconButton
-                                                            size="small"
-                                                            aria-label="Move down"
-                                                            disabled={index >= planStops.length - 1}
-                                                            onClick={() => movePlanStop(index, 1)}
-                                                        >
-                                                            <ArrowDownwardIcon fontSize="small" />
-                                                        </IconButton>
-                                                        <IconButton
-                                                            size="small"
-                                                            aria-label="Remove stop"
-                                                            disabled={planStops.length <= 1}
-                                                            onClick={() => removePlanStop(index)}
-                                                        >
-                                                            <DeleteOutlineIcon fontSize="small" />
-                                                        </IconButton>
-                                                    </Stack>
-                                                </Stack>
-                                                <Stack spacing={1.5} sx={{ flex: 1, minWidth: 0 }}>
-                                                    <FormControl fullWidth size="small">
-                                                        <InputLabel id={`plan-wh-${stop.clientKey}`}>Warehouse (optional)</InputLabel>
-                                                        <Select
-                                                            labelId={`plan-wh-${stop.clientKey}`}
-                                                            label="Warehouse (optional)"
-                                                            value={stop.warehouse_id}
-                                                            onChange={(e) => updatePlanStop(index, { warehouse_id: e.target.value })}
-                                                        >
-                                                            <MenuItem value="">
-                                                                <em>—</em>
-                                                            </MenuItem>
-                                                            {warehouses.map((w) => (
-                                                                <MenuItem key={w.id} value={String(w.id)}>
-                                                                    {w.code} · {w.name}
-                                                                </MenuItem>
-                                                            ))}
-                                                        </Select>
-                                                    </FormControl>
-                                                    <TextField
-                                                        label="Location name"
-                                                        size="small"
-                                                        fullWidth
-                                                        value={stop.location_name}
-                                                        onChange={(e) => updatePlanStop(index, { location_name: e.target.value })}
-                                                        error={Boolean(errors[`stops.${index}`])}
-                                                        helperText={errors[`stops.${index}`]}
-                                                    />
-                                                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-                                                        <TextField
-                                                            label="City"
-                                                            size="small"
-                                                            fullWidth
-                                                            value={stop.city}
-                                                            onChange={(e) => updatePlanStop(index, { city: e.target.value })}
-                                                        />
-                                                        <TextField
-                                                            label="Address"
-                                                            size="small"
-                                                            fullWidth
-                                                            value={stop.address}
-                                                            onChange={(e) => updatePlanStop(index, { address: e.target.value })}
-                                                            multiline
-                                                            minRows={2}
-                                                        />
-                                                    </Stack>
-                                                    <Typography variant="caption" color="text.secondary">
-                                                        Provide a warehouse <strong>or</strong> location / city / address for this stop.
-                                                    </Typography>
-                                                </Stack>
-                                                <Stack direction="column" spacing={0.5} sx={{ display: { xs: 'none', sm: 'flex' }, mt: 0.5 }}>
-                                                    <IconButton size="small" aria-label="Move up" disabled={index === 0} onClick={() => movePlanStop(index, -1)}>
-                                                        <ArrowUpwardIcon fontSize="small" />
-                                                    </IconButton>
-                                                    <IconButton
-                                                        size="small"
-                                                        aria-label="Move down"
-                                                        disabled={index >= planStops.length - 1}
-                                                        onClick={() => movePlanStop(index, 1)}
-                                                    >
-                                                        <ArrowDownwardIcon fontSize="small" />
-                                                    </IconButton>
-                                                    <IconButton
-                                                        size="small"
-                                                        aria-label="Remove stop"
-                                                        disabled={planStops.length <= 1}
-                                                        onClick={() => removePlanStop(index)}
-                                                    >
-                                                        <DeleteOutlineIcon fontSize="small" />
-                                                    </IconButton>
-                                                </Stack>
-                                            </Stack>
-                                        </Box>
-                                    );
-                                })}
-                            </Stack>
-                        </Stack>
-                    ) : isSmUp ? (
-                        <Box sx={{ overflowX: 'auto' }}>
-                            <Table size="small" sx={{ minWidth: 480 }}>
-                                <TableHead>
-                                    <TableRow sx={{ bgcolor: (th) => (th.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>
-                                        <TableCell width={56}>#</TableCell>
-                                        <TableCell>Status</TableCell>
-                                        <TableCell>Warehouse</TableCell>
-                                        <TableCell>Location</TableCell>
-                                        <TableCell>City</TableCell>
-                                        <TableCell sx={{ minWidth: 180 }}>Address</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {(trip.stops || []).map((s) => (
-                                        <TableRow key={s.id}>
-                                            <TableCell>{s.stop_order}</TableCell>
-                                            <TableCell>
-                                                <Chip
-                                                    size="small"
-                                                    label={s.status}
-                                                    color={STOP_STATUS_COLOR[s.status] ?? 'default'}
-                                                    variant="outlined"
-                                                />
-                                            </TableCell>
-                                            <TableCell>{s.warehouse ? `${s.warehouse.code}` : '—'}</TableCell>
-                                            <TableCell>{s.location_name ?? '—'}</TableCell>
-                                            <TableCell>{s.city ?? '—'}</TableCell>
-                                            <TableCell sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{s.address ?? '—'}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                    {(trip.stops || []).length === 0 && (
-                                        <TableRow>
-                                            <TableCell colSpan={6}>
-                                                <Typography variant="body2" color="text.secondary">
-                                                    No stops.
-                                                </Typography>
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </Box>
-                    ) : (
-                        <Stack spacing={1.5}>
-                            {(trip.stops || []).map((s) => (
-                                <Paper key={s.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
-                                    <Stack spacing={1}>
-                                        <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
-                                            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                                                Stop {s.stop_order}
-                                            </Typography>
-                                            <Chip
-                                                size="small"
-                                                label={s.status}
-                                                color={STOP_STATUS_COLOR[s.status] ?? 'default'}
-                                                variant="outlined"
-                                            />
-                                        </Stack>
-                                        <Divider />
-                                        <Typography variant="body2" color="text.secondary">
-                                            <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                                                Warehouse
-                                            </Box>{' '}
-                                            · {s.warehouse ? s.warehouse.code : '—'}
-                                        </Typography>
-                                        <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
-                                            <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                                                Location
-                                            </Box>{' '}
-                                            · {s.location_name ?? '—'}
-                                        </Typography>
-                                        <Typography variant="body2" color="text.secondary">
-                                            <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                                                City
-                                            </Box>{' '}
-                                            · {s.city ?? '—'}
-                                        </Typography>
-                                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                                            <Box component="span" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-                                                Address
-                                            </Box>
-                                            <br />
-                                            {s.address ?? '—'}
-                                        </Typography>
-                                    </Stack>
-                                </Paper>
-                            ))}
-                            {(trip.stops || []).length === 0 && (
-                                <Typography variant="body2" color="text.secondary">
-                                    No stops.
-                                </Typography>
-                            )}
                         </Stack>
                     )}
                 </Paper>
@@ -1271,229 +971,231 @@ export default function TripDetail() {
                             </Button>
                         ) : null}
                     </Stack>
-                    {canRecordDelivery ? (
-                        <Alert severity="info" sx={{ mb: 1.5 }}>
-                            Destination and recipient come from each voucher (shown below). Use one <strong>Confirm trip delivery</strong> action to record the full remaining
-                            quantity on every cargo line at once. For vouchers with a destination warehouse, stock is received there and then processed from the
-                            Warehouse Fulfillment Inbox (owner pickup/direct delivery/forward).
-                        </Alert>
-                    ) : null}
 
-                    {canLoadCargo && (
-                        <Box component="form" onSubmit={submitLoad} sx={{ mb: 2.5 }}>
-                            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'flex-end' }} flexWrap="wrap">
-                                <FormControl sx={{ minWidth: { xs: '100%', sm: 280 }, maxWidth: '100%' }} size="small" error={Boolean(loadForm.errors.voucher_id)}>
-                                    {/* shrink: required with displayEmpty + renderValue so notch + label stay in sync (MUI) */}
-                                    <InputLabel id="load-line-label" shrink>
-                                        Voucher
-                                    </InputLabel>
-                                    <Select
-                                        labelId="load-line-label"
-                                        label="Voucher"
-                                        displayEmpty
-                                        value={loadForm.data.voucher_id === '' ? '' : String(loadForm.data.voucher_id)}
-                                        onChange={(ev) =>
-                                            loadForm.setData('voucher_id', ev.target.value === '' ? '' : Number(ev.target.value))
-                                        }
-                                        renderValue={(selected) => {
-                                            if (selected === '') {
-                                                return (
-                                                    <Typography component="span" variant="body2" color="text.secondary">
-                                                        Select…
-                                                    </Typography>
-                                                );
-                                            }
-                                            const row = loadableById.get(Number(selected));
-                                            if (!row) {
-                                                return selected;
-                                            }
-                                            const primary = row.merchant_name || row.voucher_no;
-                                            const secondary = row.merchant_name ? row.voucher_no : '';
-                                            return (
-                                                <Box component="span" sx={{ display: 'block', width: '100%', maxWidth: '100%', minWidth: 0 }}>
-                                                    <Typography
-                                                        component="span"
-                                                        variant="body2"
-                                                        title={secondary ? `${primary} · ${secondary}` : primary}
-                                                        sx={{
-                                                            display: 'block',
-                                                            overflow: 'hidden',
-                                                            textOverflow: 'ellipsis',
-                                                            whiteSpace: 'nowrap',
-                                                            width: '100%',
-                                                            maxWidth: '100%',
-                                                            textAlign: 'left',
-                                                            fontWeight: 700,
-                                                        }}
-                                                    >
-                                                        {primary}
-                                                    </Typography>
-                                                    {secondary ? (
-                                                        <Typography
-                                                            component="span"
-                                                            variant="caption"
-                                                            color="text.secondary"
-                                                            sx={{
-                                                                display: 'block',
-                                                                overflow: 'hidden',
-                                                                textOverflow: 'ellipsis',
-                                                                whiteSpace: 'nowrap',
-                                                                width: '100%',
-                                                                maxWidth: '100%',
+                    {canLoadCargo ? (
+                        <Box sx={{ mb: 2.5 }}>
+                            <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                                    Load vouchers
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    Shows vouchers matching this trip&apos;s destination warehouse.
+                                </Typography>
+                            </Box>
+                            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'center' }} justifyContent="space-between" sx={{ mb: 1 }}>
+                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ flexShrink: 0, width: { xs: '100%', md: 'auto' } }} alignItems={{ sm: 'center' }}>
+                                    <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: { sm: 'nowrap' }, flex: { sm: '1 1 auto' } }}>
+                                        Vehicle max weight: <Box component="span" sx={{ fontWeight: 800, color: 'text.primary' }}>{vehicleMaxWeight === null ? '—' : formatFixed(vehicleMaxWeight, 3)}</Box>
+                                        {' · '}
+                                        Selected weight: <Box component="span" sx={{ fontWeight: 800, color: selectedExceedsVehicleWeight ? 'error.main' : 'text.primary' }}>{formatFixed(selectedWeightSummary.knownSum, 3)}</Box>
+                                        {selectedWeightSummary.unknownCount > 0 ? ` (+ ${selectedWeightSummary.unknownCount} unknown)` : ''}
+                                    </Typography>
+                                    <Box
+                                        sx={{
+                                            display: 'flex',
+                                            gap: 1,
+                                            flexDirection: { xs: 'column', sm: 'row' },
+                                            justifyContent: { sm: 'flex-end' },
+                                            width: { xs: '100%', sm: 'auto' },
+                                            flexShrink: 0,
+                                        }}
+                                    >
+                                        <Button
+                                            variant="contained"
+                                            onClick={() => submitLoadBatch(selectedVoucherIds)}
+                                            disabled={loadBatchProcessing || selectedVoucherIds.length === 0 || selectedExceedsVehicleWeight}
+                                            fullWidth={!isSmUp}
+                                        >
+                                            Load selected
+                                        </Button>
+                                        <Button
+                                            variant="outlined"
+                                            onClick={() => submitLoadBatch((loadableVouchers || []).map((r) => r.id))}
+                                            disabled={loadBatchProcessing || (loadableVouchers || []).length === 0 || allExceedsVehicleWeight}
+                                            fullWidth={!isSmUp}
+                                        >
+                                            Load all
+                                        </Button>
+                                    </Box>
+                                </Stack>
+                            </Stack>
+
+                            {errors.voucher_ids || errors.voucher_id ? (
+                                <Alert severity="error" sx={{ mb: 1.5 }}>
+                                    {Array.isArray(errors.voucher_ids)
+                                        ? errors.voucher_ids[0]
+                                        : errors.voucher_ids ||
+                                          (Array.isArray(errors.voucher_id) ? errors.voucher_id[0] : errors.voucher_id)}
+                                </Alert>
+                            ) : null}
+
+                            {(loadableVouchers || []).length === 0 ? (
+                                <Typography variant="body2" color="text.secondary">
+                                    No vouchers available: need confirmed vouchers with remaining quantity for this trip&apos;s destination warehouse.
+                                </Typography>
+                            ) : (
+                                isSmUp ? (
+                                    <Paper variant="outlined" sx={{ overflowX: 'auto', borderRadius: 2 }}>
+                                        <Table size="small" sx={{ minWidth: 720 }}>
+                                            <TableHead>
+                                                <TableRow>
+                                                    <TableCell sx={{ width: 140 }}>Voucher ID</TableCell>
+                                                    <TableCell>Receipt name</TableCell>
+                                                    <TableCell align="right" sx={{ width: 140 }}>
+                                                        Weight
+                                                    </TableCell>
+                                                    <TableCell align="right" sx={{ width: 160 }}>
+                                                        Items (total line)
+                                                    </TableCell>
+                                                    <TableCell align="right" sx={{ width: 120 }}>
+                                                        <Checkbox
+                                                            size="small"
+                                                            disabled={loadBatchProcessing}
+                                                            checked={(loadableVouchers || []).length > 0 && selectedVoucherIds.length === (loadableVouchers || []).length}
+                                                            indeterminate={selectedVoucherIds.length > 0 && selectedVoucherIds.length < (loadableVouchers || []).length}
+                                                            onChange={(e) => {
+                                                                const checked = e.target.checked;
+                                                                setSelectedVoucherMap(() => {
+                                                                    if (!checked) return {};
+                                                                    const next = {};
+                                                                    (loadableVouchers || []).forEach((r) => {
+                                                                        next[String(r.id)] = true;
+                                                                    });
+                                                                    return next;
+                                                                });
                                                             }}
-                                                        >
-                                                            {secondary}
-                                                        </Typography>
-                                                    ) : null}
-                                                </Box>
-                                            );
-                                        }}
-                                        MenuProps={{
-                                            PaperProps: {
-                                                sx: {
-                                                    maxWidth: 'min(100vw - 24px, 420px)',
-                                                },
-                                            },
-                                        }}
-                                    >
-                                        <MenuItem value="">
-                                            <Typography component="span" variant="body2" color="text.secondary">
-                                                Select…
-                                            </Typography>
-                                        </MenuItem>
-                                        {(loadableVouchers || []).map((row) => (
-                                            <MenuItem
-                                                key={row.id}
-                                                value={String(row.id)}
-                                                sx={{ alignItems: 'flex-start', whiteSpace: 'normal', py: 1 }}
-                                            >
-                                                <Stack spacing={0.35} sx={{ width: '100%', minWidth: 0 }}>
-                                                    <Stack direction="row" alignItems="baseline" justifyContent="space-between" spacing={1} sx={{ width: '100%', minWidth: 0 }}>
-                                                        <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.3, minWidth: 0, flex: '1 1 auto' }} noWrap>
-                                                            {row.merchant_name || '—'}
-                                                        </Typography>
-                                                        <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
-                                                            {row.voucher_no}
-                                                        </Typography>
-                                                    </Stack>
-                                                    <Typography variant="caption" color="text.secondary">
-                                                        Loads all remaining lines ({row.lines})
-                                                    </Typography>
-                                                </Stack>
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                    {loadForm.errors.voucher_id ? (
-                                        <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
-                                            {loadForm.errors.voucher_id}
-                                        </Typography>
-                                    ) : null}
-                                </FormControl>
-                                <FormControl sx={{ minWidth: { xs: '100%', sm: 200 }, maxWidth: '100%' }} size="small" error={Boolean(loadForm.errors.trip_stop_id)}>
-                                    <InputLabel id="load-stop-label" shrink>
-                                        Drop stop (optional)
-                                    </InputLabel>
-                                    <Select
-                                        labelId="load-stop-label"
-                                        label="Drop stop (optional)"
-                                        displayEmpty
-                                        value={loadForm.data.trip_stop_id === '' ? '' : String(loadForm.data.trip_stop_id)}
-                                        onChange={(ev) =>
-                                            loadForm.setData('trip_stop_id', ev.target.value === '' ? '' : Number(ev.target.value))
-                                        }
-                                        renderValue={(selected) => {
-                                            if (selected === '') {
-                                                return (
-                                                    <Typography component="span" variant="body2" color="text.secondary">
-                                                        Not set
-                                                    </Typography>
-                                                );
-                                            }
-                                            const s = (trip.stops || []).find((st) => String(st.id) === String(selected));
-                                            if (!s) {
-                                                return selected;
-                                            }
-                                            const parts = [s.warehouse?.code, s.location_name, s.city].filter(Boolean);
-                                            const secondary = parts.join(' · ');
-                                            const title = `Stop ${s.stop_order}${secondary ? ` — ${secondary}` : ''}${s.address ? ` — ${s.address}` : ''}`;
-                                            const oneLine = `Stop ${s.stop_order}${secondary ? ` · ${secondary}` : ''}`;
-                                            return (
-                                                <Box
-                                                    component="span"
-                                                    title={title}
-                                                    sx={{
-                                                        display: 'block',
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                        whiteSpace: 'nowrap',
-                                                        width: '100%',
-                                                        maxWidth: '100%',
-                                                        textAlign: 'left',
+                                                        />
+                                                    </TableCell>
+                                                </TableRow>
+                                            </TableHead>
+                                            <TableBody>
+                                                {(loadableVouchers || []).map((row) => {
+                                                    const checked = Boolean(selectedVoucherMap[String(row.id)]);
+                                                    const w = row.total_weight;
+                                                    return (
+                                                        <TableRow key={row.id} hover>
+                                                            <TableCell>{row.id}</TableCell>
+                                                            <TableCell sx={{ minWidth: 240 }}>
+                                                                <Stack spacing={0.25} sx={{ minWidth: 0 }}>
+                                                                    <Typography variant="body2" sx={{ fontWeight: 800 }} noWrap title={row.recipient_name || undefined}>
+                                                                        {row.recipient_name || '—'}
+                                                                    </Typography>
+                                                                    <Typography variant="caption" color="text.secondary" noWrap title={row.voucher_no || undefined}>
+                                                                        {row.voucher_no || '—'}
+                                                                    </Typography>
+                                                                </Stack>
+                                                            </TableCell>
+                                                            <TableCell align="right">{w === null || w === undefined ? '—' : formatFixed(w, 3)}</TableCell>
+                                                            <TableCell align="right">{row.lines ?? 0}</TableCell>
+                                                            <TableCell align="right">
+                                                                <Checkbox
+                                                                    size="small"
+                                                                    disabled={loadBatchProcessing}
+                                                                    checked={checked}
+                                                                    onChange={(e) => {
+                                                                        const nextChecked = e.target.checked;
+                                                                        setSelectedVoucherMap((prev) => {
+                                                                            const next = { ...(prev || {}) };
+                                                                            if (nextChecked) {
+                                                                                next[String(row.id)] = true;
+                                                                            } else {
+                                                                                delete next[String(row.id)];
+                                                                            }
+                                                                            return next;
+                                                                        });
+                                                                    }}
+                                                                />
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    </Paper>
+                                ) : (
+                                    <Stack spacing={1}>
+                                        <Paper variant="outlined" sx={{ px: 1.5, py: 1, borderRadius: 2 }}>
+                                            <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+                                                <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                                                    Select all
+                                                </Typography>
+                                                <Checkbox
+                                                    size="small"
+                                                    disabled={loadBatchProcessing}
+                                                    checked={(loadableVouchers || []).length > 0 && selectedVoucherIds.length === (loadableVouchers || []).length}
+                                                    indeterminate={selectedVoucherIds.length > 0 && selectedVoucherIds.length < (loadableVouchers || []).length}
+                                                    onChange={(e) => {
+                                                        const checked = e.target.checked;
+                                                        setSelectedVoucherMap(() => {
+                                                            if (!checked) return {};
+                                                            const next = {};
+                                                            (loadableVouchers || []).forEach((r) => {
+                                                                next[String(r.id)] = true;
+                                                            });
+                                                            return next;
+                                                        });
                                                     }}
-                                                >
-                                                    {oneLine}
-                                                </Box>
-                                            );
-                                        }}
-                                        MenuProps={{
-                                            PaperProps: {
-                                                sx: {
-                                                    maxWidth: 'min(100vw - 24px, 360px)',
-                                                },
-                                            },
-                                        }}
-                                    >
-                                        <MenuItem value="">
-                                            <Typography component="span" variant="body2" color="text.secondary">
-                                                Not set
-                                            </Typography>
-                                        </MenuItem>
-                                        {(trip.stops || []).map((s) => {
-                                            const parts = [s.warehouse?.code, s.location_name, s.city].filter(Boolean);
-                                            const line2 = parts.join(' · ');
+                                                />
+                                            </Stack>
+                                        </Paper>
+                                        {(loadableVouchers || []).map((row) => {
+                                            const checked = Boolean(selectedVoucherMap[String(row.id)]);
+                                            const w = row.total_weight;
                                             return (
-                                                <MenuItem key={s.id} value={String(s.id)} sx={{ alignItems: 'flex-start', whiteSpace: 'normal', py: 1 }}>
-                                                    <Stack spacing={0.35} sx={{ width: '100%', minWidth: 0 }}>
-                                                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                                                            Stop {s.stop_order}
-                                                        </Typography>
-                                                        {line2 ? (
-                                                            <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word', lineHeight: 1.35 }}>
-                                                                {line2}
+                                                <Paper key={row.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                                                    <Stack spacing={1}>
+                                                        <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
+                                                            <Box sx={{ minWidth: 0 }}>
+                                                                <Typography variant="body2" sx={{ fontWeight: 900 }}>
+                                                                    {row.recipient_name || '—'}
+                                                                </Typography>
+                                                                <Typography variant="caption" color="text.secondary">
+                                                                    {row.voucher_no || '—'} · ID {row.id}
+                                                                </Typography>
+                                                            </Box>
+                                                            <Checkbox
+                                                                size="small"
+                                                                disabled={loadBatchProcessing}
+                                                                checked={checked}
+                                                                onChange={(e) => {
+                                                                    const nextChecked = e.target.checked;
+                                                                    setSelectedVoucherMap((prev) => {
+                                                                        const next = { ...(prev || {}) };
+                                                                        if (nextChecked) {
+                                                                            next[String(row.id)] = true;
+                                                                        } else {
+                                                                            delete next[String(row.id)];
+                                                                        }
+                                                                        return next;
+                                                                    });
+                                                                }}
+                                                            />
+                                                        </Stack>
+                                                        <Stack direction="row" justifyContent="space-between" spacing={1}>
+                                                            <Typography variant="body2" color="text.secondary">
+                                                                Weight
                                                             </Typography>
-                                                        ) : null}
-                                                        {s.address ? (
-                                                            <Typography variant="caption" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
-                                                                {s.address}
+                                                            <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                                                                {w === null || w === undefined ? '—' : formatFixed(w, 3)}
                                                             </Typography>
-                                                        ) : null}
+                                                        </Stack>
+                                                        <Stack direction="row" justifyContent="space-between" spacing={1}>
+                                                            <Typography variant="body2" color="text.secondary">
+                                                                Items (total line)
+                                                            </Typography>
+                                                            <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                                                                {row.lines ?? 0}
+                                                            </Typography>
+                                                        </Stack>
                                                     </Stack>
-                                                </MenuItem>
+                                                </Paper>
                                             );
                                         })}
-                                    </Select>
-                                    {loadForm.errors.trip_stop_id ? (
-                                        <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
-                                            {loadForm.errors.trip_stop_id}
-                                        </Typography>
-                                    ) : null}
-                                </FormControl>
-                                <Button
-                                    type="submit"
-                                    variant="contained"
-                                    disabled={loadForm.processing}
-                                    sx={{ alignSelf: { xs: 'stretch', sm: 'center' }, width: { xs: '100%', sm: 'auto' } }}
-                                >
-                                    Add to trip
-                                </Button>
-                            </Stack>
-                            {(loadableVouchers || []).length === 0 ? (
-                                <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-                                    No vouchers available: need confirmed vouchers with remaining quantity from this trip&apos;s source warehouse.
-                                </Typography>
-                            ) : null}
+                                    </Stack>
+                                )
+                            )}
                         </Box>
-                    )}
+                    ) : null}
 
                     {(trip.items || []).length === 0 ? (
                         <Typography variant="body2" color="text.secondary">
@@ -1501,11 +1203,10 @@ export default function TripDetail() {
                         </Typography>
                     ) : isSmUp ? (
                         <Box sx={{ overflowX: 'auto' }}>
-                            <Table size="small" sx={{ minWidth: showCargoActionsColumn || canManageCargo ? 760 : 520 }}>
+                            <Table size="small" sx={{ minWidth: showCargoActionsColumn || canManageCargo ? 680 : 480 }}>
                                 <TableHead>
                                     <TableRow sx={{ bgcolor: (th) => (th.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>
                                         <TableCell sx={{ width: 520 }}>Voucher</TableCell>
-                                        <TableCell sx={{ width: 120 }}>Stop</TableCell>
                                         <TableCell width={64} align="right">
                                             Lines
                                         </TableCell>
@@ -1588,13 +1289,6 @@ export default function TripDetail() {
                                                             </Stack>
                                                         </Stack>
                                                     </TableCell>
-                                                    <TableCell>
-                                                        {row.stop?.label && row.stop.label !== '—' ? (
-                                                            <Chip size="small" label={row.stop.label} variant="outlined" sx={{ height: 20 }} />
-                                                        ) : (
-                                                            '—'
-                                                        )}
-                                                    </TableCell>
                                                     <TableCell align="right">{row.lines}</TableCell>
                                                     <TableCell>
                                                         <Chip
@@ -1617,7 +1311,7 @@ export default function TripDetail() {
                                                     ) : null}
                                                 </TableRow>
                                                 <TableRow>
-                                                    <TableCell colSpan={showCargoActionsColumn ? 5 : 4} sx={{ py: 0, borderBottom: isOpen ? undefined : 0 }}>
+                                                    <TableCell colSpan={showCargoActionsColumn ? 4 : 3} sx={{ py: 0, borderBottom: isOpen ? undefined : 0 }}>
                                                         <Collapse in={isOpen} timeout="auto" unmountOnExit>
                                                             <Box sx={{ py: 1.25, pl: 5, pr: 1 }}>
                                                                 <Stack spacing={0.5} sx={{ minWidth: 0 }}>
@@ -1708,14 +1402,6 @@ export default function TripDetail() {
                                                     {dest}
                                                 </Typography>
                                             ) : null}
-                                            {row.stop?.label && row.stop.label !== '—' ? (
-                                                <Typography variant="body2" color="text.secondary">
-                                                    <Box component="span" sx={{ fontWeight: 700, color: 'text.primary' }}>
-                                                        Stop
-                                                    </Box>{' '}
-                                                    · {row.stop.label}
-                                                </Typography>
-                                            ) : null}
                                             <Collapse in={isOpen} timeout="auto" unmountOnExit>
                                                 <Divider sx={{ my: 0.5 }} />
                                                 <Stack spacing={0.75} sx={{ pt: 0.5 }}>
@@ -1767,20 +1453,6 @@ export default function TripDetail() {
                         }}
                     >
                         Confirm delivery
-                    </MenuItem>
-                    <MenuItem
-                        disabled={!canLoadCargo}
-                        onClick={() => {
-                            const r = voucherRowMenu?.row;
-                            setVoucherRowMenu(null);
-                            if (!r) return;
-                            setVoucherStopDialog({
-                                row: r,
-                                trip_stop_id: r.stop.mode === 'SINGLE' && r.stop.id != null ? String(r.stop.id) : '',
-                            });
-                        }}
-                    >
-                        Edit stop
                     </MenuItem>
                     <MenuItem
                         disabled={!canLoadCargo}
@@ -1851,63 +1523,6 @@ export default function TripDetail() {
                     </DialogActions>
                 </Dialog>
 
-                <Dialog open={Boolean(voucherStopDialog)} onClose={() => setVoucherStopDialog(null)} fullWidth maxWidth="xs">
-                    <DialogTitle>Edit voucher stop</DialogTitle>
-                    <DialogContent>
-                        {voucherStopDialog?.row ? (
-                            <Stack spacing={2} sx={{ mt: 1 }}>
-                                <Typography variant="body2" color="text.secondary">
-                                    {voucherStopDialog.row.voucher_no}
-                                    {voucherStopDialog.row.merchant_name ? ` · ${voucherStopDialog.row.merchant_name}` : ''}
-                                </Typography>
-                                <FormControl fullWidth size="small">
-                                    <InputLabel id="voucher-stop-label">Drop stop</InputLabel>
-                                    <Select
-                                        labelId="voucher-stop-label"
-                                        label="Drop stop"
-                                        value={voucherStopDialog.trip_stop_id}
-                                        onChange={(e) => setVoucherStopDialog((p) => ({ ...p, trip_stop_id: e.target.value }))}
-                                    >
-                                        <MenuItem value="">
-                                            <Typography variant="body2" color="text.secondary">
-                                                Not set
-                                            </Typography>
-                                        </MenuItem>
-                                        {(trip.stops || []).map((s) => (
-                                            <MenuItem key={s.id} value={String(s.id)}>
-                                                Stop {s.stop_order}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </FormControl>
-                                {voucherStopDialog.row.stop.mode === 'MIXED' ? (
-                                    <Typography variant="caption" color="text.secondary">
-                                        Current stop is mixed across lines. Saving will set one stop for all lines.
-                                    </Typography>
-                                ) : null}
-                            </Stack>
-                        ) : null}
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setVoucherStopDialog(null)}>Cancel</Button>
-                        <Button
-                            variant="contained"
-                            onClick={() => {
-                                const r = voucherStopDialog?.row;
-                                if (!r) return;
-                                const val = voucherStopDialog.trip_stop_id;
-                                router.patch(
-                                    `${adminAppUrl}/operations/trips/${trip.id}/vouchers/${r.voucher_id}/stop`,
-                                    { trip_stop_id: val === '' ? null : Number(val) },
-                                    { preserveScroll: true, onSuccess: () => setVoucherStopDialog(null) },
-                                );
-                            }}
-                        >
-                            Save
-                        </Button>
-                    </DialogActions>
-                </Dialog>
-
                 <Dialog open={Boolean(itemDialog)} onClose={() => !itemDialogSaving && setItemDialog(null)} fullWidth maxWidth="xs">
                     <DialogTitle>Edit cargo</DialogTitle>
                     <DialogContent>
@@ -1937,31 +1552,6 @@ export default function TripDetail() {
                                         `Max for this line on this trip: ${formatInt(maxLoadedQtyForTripItem(itemDialog.row, trip.items || []))} ${itemDialog.row.voucher_item?.product?.unit ?? itemDialog.row.voucher_item?.unit ?? ''}`
                                     }
                                 />
-                                <FormControl fullWidth size="small" error={Boolean(errors.trip_stop_id)}>
-                                    <InputLabel id="edit-item-stop" shrink>
-                                        Drop stop
-                                    </InputLabel>
-                                    <Select
-                                        labelId="edit-item-stop"
-                                        label="Drop stop"
-                                        displayEmpty
-                                        value={itemDialog.trip_stop_id}
-                                        onChange={(e) => setItemDialog((d) => (d ? { ...d, trip_stop_id: e.target.value } : d))}
-                                    >
-                                        <MenuItem value="">
-                                            <Typography component="span" variant="body2" color="text.secondary">
-                                                Not set
-                                            </Typography>
-                                        </MenuItem>
-                                        {(trip.stops || []).map((s) => (
-                                            <MenuItem key={s.id} value={String(s.id)}>
-                                                Stop {s.stop_order}
-                                                {s.warehouse?.code ? ` · ${s.warehouse.code}` : ''}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                    {errors.trip_stop_id ? <FormHelperText error>{errors.trip_stop_id}</FormHelperText> : null}
-                                </FormControl>
                             </Stack>
                         ) : null}
                     </DialogContent>
@@ -2262,7 +1852,7 @@ export default function TripDetail() {
                     <DialogContent>
                         <Stack spacing={2} sx={{ mt: 0.5 }}>
                             <Typography variant="body2" color="text.secondary">
-                                Confirms the vehicle has left the source warehouse. Voucher lines on this trip will move to <strong>In transit</strong> when applicable.
+                                Confirms the vehicle has departed. Voucher lines on this trip will move to <strong>In transit</strong> when applicable.
                             </Typography>
                             <Typography variant="body2">
                                 Cargo lines with load:{' '}
@@ -2302,7 +1892,7 @@ export default function TripDetail() {
                     <DialogTitle>Undo departure?</DialogTitle>
                     <DialogContent>
                         <Typography variant="body2" color="text.secondary">
-                            Sets the trip back to <strong>planned</strong> so stops and loading can be adjusted again. Only available before any delivery has been recorded.
+                            Sets the trip back to <strong>planned</strong> so cargo loading can be adjusted again. Only available before any delivery has been recorded.
                         </Typography>
                     </DialogContent>
                     <DialogActions sx={{ flexWrap: 'wrap', gap: 1, px: 3, pb: 2 }}>

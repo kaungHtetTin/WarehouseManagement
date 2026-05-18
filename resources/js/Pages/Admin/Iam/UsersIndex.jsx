@@ -382,14 +382,14 @@ export default function UsersIndex() {
                                 onChange={(e) => setForm((prev) => ({ ...prev, warehouse_ids: e.target.value }))}
                                 renderValue={(selected) =>
                                     selected
-                                        .map((id) => warehouses.find((w) => w.id === id)?.name || id)
+                                        .map((id) => warehouses.find((w) => w.id === id)?.display_name || id)
                                         .join(', ')
                                 }
                                 disabled={warehouses.length === 0}
                             >
                                 {warehouses.map((warehouse) => (
                                     <MenuItem key={warehouse.id} value={warehouse.id}>
-                                        {warehouse.name} ({warehouse.code})
+                                        {warehouse.display_name || warehouse.city}
                                     </MenuItem>
                                 ))}
                             </Select>
@@ -424,4 +424,3 @@ export default function UsersIndex() {
         </AdminLayout>
     );
 }
-

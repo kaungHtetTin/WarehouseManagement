@@ -17,7 +17,6 @@ use App\Models\VoucherItem;
 use App\Models\Warehouse;
 use App\Models\WarehouseFulfillmentInstruction;
 use App\Services\Audit\AuditLogger;
-use App\Services\Inventory\StockLedgerService;
 use App\Services\Tenant\OperationalWarehouseContext;
 use App\Services\Vouchers\VoucherOperationalStatusSync;
 use Illuminate\Http\JsonResponse;
@@ -44,7 +43,6 @@ class TripManagementController extends Controller
     ];
 
     public function __construct(
-        private StockLedgerService $stockLedger,
         private VoucherOperationalStatusSync $voucherOperationalStatusSync,
         private OperationalWarehouseContext $operationalContext,
     ) {}
@@ -58,13 +56,13 @@ class TripManagementController extends Controller
 
         $filterWarehouses = $this->operationalContext->assignedWarehousesOnly($actor);
 
-        $allowedSourceIds = $filterWarehouses->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $allowedDestinationIds = $filterWarehouses->pluck('id')->map(fn ($id) => (int) $id)->all();
 
-        $rawFilter = $request->query('source_warehouse_id', 'all');
+        $rawFilter = $request->query('destination_warehouse_id', $request->query('source_warehouse_id', 'all'));
         $selectedFilter = 'all';
         if ($rawFilter !== null && $rawFilter !== '' && (string) $rawFilter !== 'all') {
             $candidate = (int) $rawFilter;
-            if (in_array($candidate, $allowedSourceIds, true)) {
+            if (in_array($candidate, $allowedDestinationIds, true)) {
                 $selectedFilter = (string) $candidate;
             }
         }
@@ -72,10 +70,10 @@ class TripManagementController extends Controller
         $trips = Trip::query()
             ->where('organization_id', $organizationId);
 
-        if ($allowedSourceIds === []) {
+        if ($allowedDestinationIds === []) {
             $trips->whereRaw('1 = 0');
         } else {
-            $trips->whereIn('source_warehouse_id', $allowedSourceIds);
+            $trips->whereIn('source_warehouse_id', $allowedDestinationIds);
         }
 
         if ($selectedFilter !== 'all') {
@@ -85,15 +83,14 @@ class TripManagementController extends Controller
         $trips = $trips
             ->with([
                 'vehicle:id,vehicle_no',
-                'sourceWarehouse:id,name,code',
+                'sourceWarehouse:id,city,address',
             ])
-            ->withCount('stops')
             ->orderByDesc('id')
             ->get();
 
         return Inertia::render('Admin/Operations/TripsIndex', [
             'trips' => $trips,
-            'trip_source_filter' => $selectedFilter,
+            'trip_destination_filter' => $selectedFilter,
             'trip_filter_warehouses' => $filterWarehouses->values(),
         ]);
     }
@@ -110,7 +107,7 @@ class TripManagementController extends Controller
         return Inertia::render('Admin/Operations/TripCreate', [
             'operatingWarehouses' => $assigned,
             'routingWarehouses' => $assigned,
-            'defaultSourceWarehouseId' => $this->operationalContext->resolveCurrentWarehouseId($user, $request),
+            'defaultDestinationWarehouseId' => $this->operationalContext->resolveCurrentWarehouseId($user, $request),
         ]);
     }
 
@@ -151,18 +148,6 @@ class TripManagementController extends Controller
         $organizationId = $actor->organization_id;
         abort_if($organizationId === null, 404);
 
-        $request->merge([
-            'vehicle.capacity_weight' => $request->input('vehicle.capacity_weight') === '' || $request->input('vehicle.capacity_weight') === null
-                ? null
-                : $request->input('vehicle.capacity_weight'),
-            'vehicle.capacity_volume' => $request->input('vehicle.capacity_volume') === '' || $request->input('vehicle.capacity_volume') === null
-                ? null
-                : $request->input('vehicle.capacity_volume'),
-            'vehicle.warehouse_id' => $request->input('vehicle.warehouse_id') === '' || $request->input('vehicle.warehouse_id') === null
-                ? null
-                : $request->input('vehicle.warehouse_id'),
-        ]);
-
         $validated = $request->validate([
             'vehicle_id' => [
                 'nullable',
@@ -173,55 +158,16 @@ class TripManagementController extends Controller
             ],
             'vehicle' => ['required', 'array'],
             'vehicle.vehicle_no' => ['required', 'string', 'max:64'],
-            'vehicle.vehicle_type' => ['required', 'string', 'max:64'],
-            'vehicle.warehouse_id' => [
-                'nullable',
-                'integer',
-                Rule::exists('warehouses', 'id')->where(fn ($q) => $q->where('organization_id', $organizationId)),
-            ],
             'vehicle.capacity_weight' => ['nullable', 'numeric', 'min:0'],
-            'vehicle.capacity_volume' => ['nullable', 'numeric', 'min:0'],
-            'source_warehouse_id' => [
+            'destination_warehouse_id' => [
                 'required',
                 Rule::exists('warehouses', 'id')->where(fn ($q) => $q->where('organization_id', $organizationId)),
             ],
             'driver_name' => ['nullable', 'string', 'max:255'],
             'driver_phone' => ['nullable', 'string', 'max:64'],
-            'stops' => ['required', 'array', 'min:1'],
-            'stops.*.warehouse_id' => [
-                'nullable',
-                Rule::exists('warehouses', 'id')->where(fn ($q) => $q->where('organization_id', $organizationId)),
-            ],
-            'stops.*.location_name' => ['nullable', 'string', 'max:255'],
-            'stops.*.city' => ['nullable', 'string', 'max:128'],
-            'stops.*.address' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $this->validateTripOperationalWarehouses($actor, (int) $validated['source_warehouse_id'], $validated['stops']);
-
-        $vehWh = isset($validated['vehicle']['warehouse_id']) && $validated['vehicle']['warehouse_id'] !== null && $validated['vehicle']['warehouse_id'] !== ''
-            ? (int) $validated['vehicle']['warehouse_id']
-            : null;
-        if ($vehWh !== null) {
-            $routingIds = $this->operationalContext->routingWarehouseIds($actor);
-            if (! in_array($vehWh, $routingIds, true)) {
-                throw ValidationException::withMessages([
-                    'vehicle.warehouse_id' => ['Select an active warehouse in your organization.'],
-                ]);
-            }
-        }
-
-        foreach ($validated['stops'] as $index => $stop) {
-            $hasWarehouse = filled($stop['warehouse_id'] ?? null);
-            $hasPlace = filled($stop['location_name'] ?? null)
-                || filled($stop['city'] ?? null)
-                || filled($stop['address'] ?? null);
-            if (! $hasWarehouse && ! $hasPlace) {
-                return Redirect::back()
-                    ->withInput()
-                    ->withErrors(['stops.'.$index => 'Each stop needs a warehouse or at least one of location name, city, or address.']);
-            }
-        }
+        $this->validateTripDestinationWarehouse($actor, (int) $validated['destination_warehouse_id']);
 
         try {
             $trip = DB::transaction(function () use ($actor, $organizationId, $validated) {
@@ -232,29 +178,28 @@ class TripManagementController extends Controller
                     $validated['vehicle_id'] ?? null
                 );
 
+                $destinationWarehouseId = (int) $validated['destination_warehouse_id'];
                 $trip = Trip::query()->create([
                     'organization_id' => $organizationId,
                     'trip_no' => $this->nextTripNo($organizationId),
                     'vehicle_id' => $vehicle->id,
                     'driver_name' => $validated['driver_name'] ?? null,
                     'driver_phone' => $validated['driver_phone'] ?? null,
-                    'source_warehouse_id' => $validated['source_warehouse_id'],
+                    'source_warehouse_id' => $destinationWarehouseId,
                     'status' => 'PLANNED',
                     'created_by' => $actor->id,
                 ]);
 
-                foreach (array_values($validated['stops']) as $order => $row) {
-                    TripStop::query()->create([
-                        'organization_id' => $organizationId,
-                        'trip_id' => $trip->id,
-                        'stop_order' => $order + 1,
-                        'warehouse_id' => $row['warehouse_id'] ?? null,
-                        'location_name' => $row['location_name'] ?? null,
-                        'city' => $row['city'] ?? null,
-                        'address' => $row['address'] ?? null,
-                        'status' => 'PENDING',
-                    ]);
-                }
+                TripStop::query()->create([
+                    'organization_id' => $organizationId,
+                    'trip_id' => $trip->id,
+                    'stop_order' => 1,
+                    'warehouse_id' => $destinationWarehouseId,
+                    'location_name' => null,
+                    'city' => null,
+                    'address' => null,
+                    'status' => 'PENDING',
+                ]);
 
                 return $trip;
             });
@@ -264,7 +209,7 @@ class TripManagementController extends Controller
 
         AuditLogger::record($actor, 'trip.create', $trip, [
             'trip_no' => $trip->trip_no,
-            'stops' => count($validated['stops']),
+            'stops' => 1,
         ]);
 
         return Redirect::route('admin.trips.show', $trip)
@@ -280,10 +225,10 @@ class TripManagementController extends Controller
             ->whereKey($trip)
             ->where('organization_id', $organizationId)
             ->with([
-                'vehicle:id,vehicle_no,vehicle_type',
-                'sourceWarehouse:id,name,code',
+                'vehicle:id,vehicle_no,vehicle_type,capacity_weight',
+                'sourceWarehouse:id,city,address',
                 'creator:id,name',
-                'stops' => fn ($q) => $q->orderBy('stop_order')->with('warehouse:id,name,code'),
+                'stops' => fn ($q) => $q->orderBy('stop_order')->with('warehouse:id,city,address'),
                 'items' => fn ($q) => $q->with([
                     'tripStop:id,stop_order',
                     'deliveryConfirmations' => fn ($q2) => $q2
@@ -294,7 +239,7 @@ class TripManagementController extends Controller
                     'product:id,name,unit,default_weight',
                     'voucher:id,voucher_no,total_weight,additional_costs,merchant_id,default_to_warehouse_id,default_to_city,default_to_address_line1,default_to_address_line2,default_to_township,default_to_region,default_to_postal_code,default_recipient_name,default_recipient_phone',
                     'voucher.merchant:id,name',
-                        'voucher.defaultToWarehouse:id,name,code',
+                        'voucher.defaultToWarehouse:id,city,address',
                     ]),
                 ]),
             ])
@@ -739,7 +684,6 @@ class TripManagementController extends Controller
         $validated = $request->validate([
             'voucher_item_id' => ['required', 'integer'],
             'loaded_qty' => ['required', 'numeric', 'min:0.001'],
-            'trip_stop_id' => ['nullable', 'integer'],
         ]);
 
         try {
@@ -759,7 +703,7 @@ class TripManagementController extends Controller
             $voucherItem = VoucherItem::query()
                 ->whereKey($validated['voucher_item_id'])
                 ->where('organization_id', $organizationId)
-                ->with('voucher:id,status')
+                ->with('voucher:id,status,default_to_warehouse_id,total_weight')
                 ->lockForUpdate()
                 ->first();
 
@@ -769,20 +713,20 @@ class TripManagementController extends Controller
                 ]);
             }
 
-            if ((int) $voucherItem->from_warehouse_id !== (int) $tripLocked->source_warehouse_id) {
+            $destinationWarehouseId = TripStop::query()
+                ->where('trip_id', $tripLocked->id)
+                ->where('organization_id', $organizationId)
+                ->orderBy('stop_order')
+                ->value('warehouse_id');
+            if ($destinationWarehouseId === null) {
                 throw ValidationException::withMessages([
-                    'voucher_item_id' => ['This voucher line ships from a different warehouse than this trip\'s source warehouse.'],
+                    'voucher_item_id' => ['Trip destination warehouse is not set.'],
                 ]);
             }
 
-            $tripStopId = $validated['trip_stop_id'] ?? null;
-            if ($tripStopId !== null && ! TripStop::query()
-                ->whereKey($tripStopId)
-                ->where('trip_id', $tripLocked->id)
-                ->where('organization_id', $organizationId)
-                ->exists()) {
+            if ((int) ($voucherItem->voucher?->default_to_warehouse_id ?? 0) !== (int) $destinationWarehouseId) {
                 throw ValidationException::withMessages([
-                    'trip_stop_id' => ['Pick a stop that belongs to this trip.'],
+                    'voucher_item_id' => ['This voucher is for a different destination warehouse than this trip.'],
                 ]);
             }
 
@@ -804,22 +748,55 @@ class TripManagementController extends Controller
                 ]);
             }
 
+            $voucherId = (int) $voucherItem->voucher_id;
+            $alreadyOnTrip = TripItem::query()
+                ->where('trip_id', $tripLocked->id)
+                ->where('organization_id', $organizationId)
+                ->whereHas('voucherItem', fn ($q) => $q->where('voucher_id', $voucherId))
+                ->exists();
+
+            if (! $alreadyOnTrip) {
+                $capW = (float) (Vehicle::query()
+                    ->whereKey($tripLocked->vehicle_id)
+                    ->where('organization_id', $organizationId)
+                    ->whereNull('deleted_at')
+                    ->value('capacity_weight') ?? 0);
+                if ($capW > 0.0001) {
+                    $tripVoucherIds = TripItem::query()
+                        ->where('trip_id', $tripLocked->id)
+                        ->where('trip_items.organization_id', $organizationId)
+                        ->join('voucher_items', 'voucher_items.id', '=', 'trip_items.voucher_item_id')
+                        ->selectRaw('DISTINCT voucher_items.voucher_id as voucher_id')
+                        ->pluck('voucher_id')
+                        ->map(fn ($id) => (int) $id)
+                        ->all();
+
+                    $knownSum = $tripVoucherIds !== []
+                        ? (float) Voucher::query()
+                            ->where('organization_id', $organizationId)
+                            ->whereIn('id', $tripVoucherIds)
+                            ->whereNotNull('total_weight')
+                            ->sum('total_weight')
+                        : 0.0;
+                    $knownSum = round($knownSum, 3);
+
+                    $vw = $voucherItem->voucher?->total_weight !== null ? (float) $voucherItem->voucher->total_weight : null;
+                    if ($vw !== null && $vw > 0.0001 && $knownSum + $vw > $capW + 0.0001) {
+                        throw ValidationException::withMessages([
+                            'voucher_item_id' => ['Vehicle capacity weight exceeded.'],
+                        ]);
+                    }
+                }
+            }
+
             $existing = TripItem::query()
                 ->where('trip_id', $tripLocked->id)
                 ->where('voucher_item_id', $voucherItem->id)
-                ->when(
-                    $tripStopId !== null,
-                    fn ($q) => $q->where('trip_stop_id', $tripStopId),
-                    fn ($q) => $q->whereNull('trip_stop_id')
-                )
                 ->lockForUpdate()
                 ->first();
 
             if ($existing) {
                 $existing->loaded_qty = round((float) $existing->loaded_qty + $delta, 3);
-                if ($tripStopId !== null) {
-                    $existing->trip_stop_id = $tripStopId;
-                }
                 $existing->save();
                 $tripItem = $existing;
             } else {
@@ -827,7 +804,7 @@ class TripManagementController extends Controller
                     'organization_id' => $organizationId,
                     'trip_id' => $tripLocked->id,
                     'voucher_item_id' => $voucherItem->id,
-                    'trip_stop_id' => $tripStopId,
+                    'trip_stop_id' => null,
                     'loaded_qty' => $delta,
                     'delivered_qty' => 0,
                     'status' => 'LOADED',
@@ -835,8 +812,6 @@ class TripManagementController extends Controller
             }
 
             $this->refreshVoucherItemLoadedQty($voucherItem);
-
-            $this->stockLedger->applyTripLoadOutbound($voucherItem, $delta, (int) $tripItem->id, $actor);
 
             AuditLogger::record($actor, 'trip_item.load', $tripItem, [
                 'trip_no' => $tripLocked->trip_no,
@@ -862,15 +837,15 @@ class TripManagementController extends Controller
 
         $validated = $request->validate([
             'voucher_id' => ['required', 'integer'],
-            'trip_stop_id' => ['nullable', 'integer'],
         ]);
 
         $voucherId = (int) $validated['voucher_id'];
 
         try {
             $loadedLines = 0;
+            $weightWarning = false;
 
-            DB::transaction(function () use ($voucherId, $organizationId, $trip, $actor, $validated, &$loadedLines) {
+            DB::transaction(function () use ($voucherId, $organizationId, $trip, $actor, &$loadedLines, &$weightWarning) {
                 $tripLocked = Trip::query()
                     ->whereKey($trip)
                     ->where('organization_id', $organizationId)
@@ -895,113 +870,285 @@ class TripManagementController extends Controller
                     ]);
                 }
 
-                if ((int) $voucher->source_warehouse_id !== (int) $tripLocked->source_warehouse_id) {
-                    throw ValidationException::withMessages([
-                        'voucher_id' => ['This voucher ships from a different warehouse than this trip\'s source warehouse.'],
-                    ]);
-                }
-
-                $tripStopId = $validated['trip_stop_id'] ?? null;
-                if ($tripStopId !== null && ! TripStop::query()
-                    ->whereKey($tripStopId)
+                $destinationWarehouseId = TripStop::query()
                     ->where('trip_id', $tripLocked->id)
                     ->where('organization_id', $organizationId)
-                    ->exists()) {
+                    ->orderBy('stop_order')
+                    ->value('warehouse_id');
+                if ($destinationWarehouseId === null) {
                     throw ValidationException::withMessages([
-                        'trip_stop_id' => ['Pick a stop that belongs to this trip.'],
+                        'voucher_id' => ['Trip destination warehouse is not set.'],
                     ]);
                 }
 
-                $items = VoucherItem::query()
-                    ->where('organization_id', $organizationId)
-                    ->where('voucher_id', $voucher->id)
-                    ->orderBy('line_no')
-                    ->lockForUpdate()
-                    ->get();
-
-                if ($items->isEmpty()) {
+                if ((int) ($voucher->default_to_warehouse_id ?? 0) !== (int) $destinationWarehouseId) {
                     throw ValidationException::withMessages([
-                        'voucher_id' => ['This voucher has no lines to load.'],
+                        'voucher_id' => ['This voucher is for a different destination warehouse than this trip.'],
                     ]);
                 }
 
-                $allocMap = TripItem::query()
+                $alreadyOnTrip = TripItem::query()
+                    ->where('trip_id', $tripLocked->id)
                     ->where('organization_id', $organizationId)
-                    ->whereIn('voucher_item_id', $items->pluck('id'))
-                    ->whereHas('trip', fn ($q) => $q->where('status', '!=', 'CANCELLED'))
-                    ->selectRaw('voucher_item_id, SUM(loaded_qty) as allocated')
-                    ->groupBy('voucher_item_id')
-                    ->pluck('allocated', 'voucher_item_id');
+                    ->whereHas('voucherItem', fn ($q) => $q->where('voucher_id', $voucher->id))
+                    ->exists();
 
-                foreach ($items as $voucherItem) {
-                    $qty = (float) $voucherItem->qty;
-                    $allocated = (float) ($allocMap[$voucherItem->id] ?? 0);
-                    $remaining = round(max(0, $qty - $allocated), 3);
-                    if ($remaining < 0.0001) {
-                        continue;
-                    }
-
-                    $existing = TripItem::query()
-                        ->where('trip_id', $tripLocked->id)
+                if (! $alreadyOnTrip) {
+                    $capW = (float) (Vehicle::query()
+                        ->whereKey($tripLocked->vehicle_id)
                         ->where('organization_id', $organizationId)
-                        ->where('voucher_item_id', $voucherItem->id)
-                        ->when(
-                            $tripStopId !== null,
-                            fn ($q) => $q->where('trip_stop_id', $tripStopId),
-                            fn ($q) => $q->whereNull('trip_stop_id')
-                        )
-                        ->lockForUpdate()
-                        ->first();
+                        ->whereNull('deleted_at')
+                        ->value('capacity_weight') ?? 0);
+                    if ($capW > 0.0001) {
+                        $tripVoucherIds = TripItem::query()
+                            ->where('trip_id', $tripLocked->id)
+                            ->where('trip_items.organization_id', $organizationId)
+                            ->join('voucher_items', 'voucher_items.id', '=', 'trip_items.voucher_item_id')
+                            ->selectRaw('DISTINCT voucher_items.voucher_id as voucher_id')
+                            ->pluck('voucher_id')
+                            ->map(fn ($id) => (int) $id)
+                            ->all();
 
-                    if ($existing) {
-                        $existing->loaded_qty = round((float) $existing->loaded_qty + $remaining, 3);
-                        if ($tripStopId !== null) {
-                            $existing->trip_stop_id = $tripStopId;
+                        $knownSum = $tripVoucherIds !== []
+                            ? (float) Voucher::query()
+                                ->where('organization_id', $organizationId)
+                                ->whereIn('id', $tripVoucherIds)
+                                ->whereNotNull('total_weight')
+                                ->sum('total_weight')
+                            : 0.0;
+                        $knownSum = round($knownSum, 3);
+
+                        $vw = $voucher->total_weight !== null ? (float) $voucher->total_weight : null;
+                        if ($vw !== null && $vw > 0.0001 && $knownSum + $vw > $capW + 0.0001) {
+                            throw ValidationException::withMessages([
+                                'voucher_id' => ['Vehicle capacity weight exceeded.'],
+                            ]);
                         }
-                        $existing->save();
-                        $tripItem = $existing;
-                    } else {
-                        $tripItem = TripItem::query()->create([
-                            'organization_id' => $organizationId,
-                            'trip_id' => $tripLocked->id,
-                            'voucher_item_id' => $voucherItem->id,
-                            'trip_stop_id' => $tripStopId,
-                            'loaded_qty' => $remaining,
-                            'delivered_qty' => 0,
-                            'status' => 'LOADED',
-                        ]);
                     }
 
-                    $this->refreshVoucherItemLoadedQty($voucherItem);
-                    $this->stockLedger->applyTripLoadOutbound($voucherItem, $remaining, (int) $tripItem->id, $actor);
-                    $loadedLines++;
+                    if ($voucher->total_weight === null) {
+                        $weightWarning = true;
+                    }
                 }
 
-                if ($loadedLines === 0) {
-                    throw ValidationException::withMessages([
-                        'voucher_id' => ['There is no remaining quantity to load on this voucher.'],
-                    ]);
-                }
-
-                AuditLogger::record($actor, 'trip.voucher_load', $tripLocked, [
-                    'trip_no' => $tripLocked->trip_no,
-                    'voucher_id' => $voucher->id,
-                    'voucher_no' => $voucher->voucher_no,
-                    'loaded_lines' => $loadedLines,
-                ]);
-
-                $this->voucherOperationalStatusSync->syncForVoucherIds($organizationId, [(int) $voucher->id], $actor);
+                $loadedLines += $this->loadVoucherLinesOntoTrip($tripLocked, $voucher, $organizationId, $actor);
             });
         } catch (ValidationException $e) {
             return Redirect::back()->withErrors($e->errors())->withInput();
         }
 
         return Redirect::route('admin.trips.show', $trip)
-            ->with('success', $loadedLines === 1 ? 'Loaded 1 voucher line onto trip.' : "Loaded {$loadedLines} voucher lines onto trip.");
+            ->with($weightWarning ? 'warning' : 'success', $weightWarning
+                ? 'Loaded voucher onto trip. Warning: voucher total weight is missing, so capacity check may be incomplete.'
+                : ($loadedLines === 1 ? 'Loaded 1 voucher line onto trip.' : "Loaded {$loadedLines} voucher lines onto trip."));
+    }
+
+    public function storeVoucherLoadBatch(Request $request, string $trip): RedirectResponse
+    {
+        $actor = $request->user();
+        $organizationId = $actor->organization_id;
+        abort_if($organizationId === null, 404);
+
+        $validated = $request->validate([
+            'voucher_ids' => ['required', 'array', 'min:1'],
+            'voucher_ids.*' => ['required', 'integer'],
+        ]);
+
+        $voucherIds = collect($validated['voucher_ids'])
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        try {
+            $loadedLines = 0;
+            $loadedVouchers = 0;
+            $weightWarning = false;
+
+            DB::transaction(function () use ($voucherIds, $organizationId, $trip, $actor, &$loadedLines, &$loadedVouchers, &$weightWarning) {
+                $tripLocked = Trip::query()
+                    ->whereKey($trip)
+                    ->where('organization_id', $organizationId)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if (! in_array($tripLocked->status, ['PLANNED', 'LOADING', 'DEPARTED', 'AT_STOP'], true)) {
+                    throw ValidationException::withMessages([
+                        'voucher_ids' => ['Cargo cannot be loaded onto this trip in its current status.'],
+                    ]);
+                }
+
+                $destinationWarehouseId = TripStop::query()
+                    ->where('trip_id', $tripLocked->id)
+                    ->where('organization_id', $organizationId)
+                    ->orderBy('stop_order')
+                    ->value('warehouse_id');
+                if ($destinationWarehouseId === null) {
+                    throw ValidationException::withMessages([
+                        'voucher_ids' => ['Trip destination warehouse is not set.'],
+                    ]);
+                }
+
+                $vouchers = Voucher::query()
+                    ->where('organization_id', $organizationId)
+                    ->whereIn('id', $voucherIds)
+                    ->lockForUpdate()
+                    ->get();
+
+                if ($vouchers->count() !== count($voucherIds)) {
+                    throw ValidationException::withMessages([
+                        'voucher_ids' => ['Some selected vouchers were not found.'],
+                    ]);
+                }
+
+                foreach ($vouchers as $voucher) {
+                    if (! in_array($voucher->status, self::VOUCHER_STATUSES_ALLOWING_TRIP_LOAD, true)) {
+                        throw ValidationException::withMessages([
+                            'voucher_ids' => ['Select only confirmed vouchers that still allow trip loading.'],
+                        ]);
+                    }
+                    if ((int) ($voucher->default_to_warehouse_id ?? 0) !== (int) $destinationWarehouseId) {
+                        throw ValidationException::withMessages([
+                            'voucher_ids' => ['One or more selected vouchers are for a different destination warehouse than this trip.'],
+                        ]);
+                    }
+                    if ($voucher->total_weight === null) {
+                        $weightWarning = true;
+                    }
+                }
+
+                $capW = (float) (Vehicle::query()
+                    ->whereKey($tripLocked->vehicle_id)
+                    ->where('organization_id', $organizationId)
+                    ->whereNull('deleted_at')
+                    ->value('capacity_weight') ?? 0);
+                if ($capW > 0.0001) {
+                    $tripVoucherIds = TripItem::query()
+                        ->where('trip_id', $tripLocked->id)
+                        ->where('trip_items.organization_id', $organizationId)
+                        ->join('voucher_items', 'voucher_items.id', '=', 'trip_items.voucher_item_id')
+                        ->selectRaw('DISTINCT voucher_items.voucher_id as voucher_id')
+                        ->pluck('voucher_id')
+                        ->map(fn ($id) => (int) $id)
+                        ->all();
+
+                    $existingKnownSum = $tripVoucherIds !== []
+                        ? (float) Voucher::query()
+                            ->where('organization_id', $organizationId)
+                            ->whereIn('id', $tripVoucherIds)
+                            ->whereNotNull('total_weight')
+                            ->sum('total_weight')
+                        : 0.0;
+
+                    $selectedKnownSum = (float) $vouchers
+                        ->filter(fn ($v) => $v->total_weight !== null)
+                        ->sum('total_weight');
+
+                    $knownSum = round($existingKnownSum + $selectedKnownSum, 3);
+
+                    if ($knownSum > $capW + 0.0001) {
+                        throw ValidationException::withMessages([
+                            'voucher_ids' => ['Vehicle capacity weight exceeded.'],
+                        ]);
+                    }
+                }
+
+                foreach ($vouchers as $voucher) {
+                    $loadedLines += $this->loadVoucherLinesOntoTrip($tripLocked, $voucher, $organizationId, $actor);
+                    $loadedVouchers++;
+                }
+            });
+        } catch (ValidationException $e) {
+            return Redirect::back()->withErrors($e->errors())->withInput();
+        }
+
+        return Redirect::route('admin.trips.show', $trip)
+            ->with($weightWarning ? 'warning' : 'success', $weightWarning
+                ? "Loaded {$loadedVouchers} vouchers onto trip. Warning: one or more voucher total weights are missing, so capacity check may be incomplete."
+                : "Loaded {$loadedVouchers} vouchers ({$loadedLines} lines) onto trip.");
+    }
+
+    private function loadVoucherLinesOntoTrip(Trip $tripLocked, Voucher $voucher, int $organizationId, User $actor): int
+    {
+        $items = VoucherItem::query()
+            ->where('organization_id', $organizationId)
+            ->where('voucher_id', $voucher->id)
+            ->orderBy('line_no')
+            ->lockForUpdate()
+            ->get();
+
+        if ($items->isEmpty()) {
+            throw ValidationException::withMessages([
+                'voucher_id' => ['This voucher has no lines to load.'],
+            ]);
+        }
+
+        $allocMap = TripItem::query()
+            ->where('organization_id', $organizationId)
+            ->whereIn('voucher_item_id', $items->pluck('id'))
+            ->whereHas('trip', fn ($q) => $q->where('status', '!=', 'CANCELLED'))
+            ->selectRaw('voucher_item_id, SUM(loaded_qty) as allocated')
+            ->groupBy('voucher_item_id')
+            ->pluck('allocated', 'voucher_item_id');
+
+        $loadedLines = 0;
+
+        foreach ($items as $voucherItem) {
+            $qty = (float) $voucherItem->qty;
+            $allocated = (float) ($allocMap[$voucherItem->id] ?? 0);
+            $remaining = round(max(0, $qty - $allocated), 3);
+            if ($remaining < 0.0001) {
+                continue;
+            }
+
+            $existing = TripItem::query()
+                ->where('trip_id', $tripLocked->id)
+                ->where('organization_id', $organizationId)
+                ->where('voucher_item_id', $voucherItem->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($existing) {
+                $existing->loaded_qty = round((float) $existing->loaded_qty + $remaining, 3);
+                $existing->save();
+            } else {
+                TripItem::query()->create([
+                    'organization_id' => $organizationId,
+                    'trip_id' => $tripLocked->id,
+                    'voucher_item_id' => $voucherItem->id,
+                    'trip_stop_id' => null,
+                    'loaded_qty' => $remaining,
+                    'delivered_qty' => 0,
+                    'status' => 'LOADED',
+                ]);
+            }
+
+            $this->refreshVoucherItemLoadedQty($voucherItem);
+            $loadedLines++;
+        }
+
+        if ($loadedLines === 0) {
+            throw ValidationException::withMessages([
+                'voucher_id' => ['There is no remaining quantity to load on this voucher.'],
+            ]);
+        }
+
+        AuditLogger::record($actor, 'trip.voucher_load', $tripLocked, [
+            'trip_no' => $tripLocked->trip_no,
+            'voucher_id' => $voucher->id,
+            'voucher_no' => $voucher->voucher_no,
+            'loaded_lines' => $loadedLines,
+        ]);
+
+        $this->voucherOperationalStatusSync->syncForVoucherIds($organizationId, [(int) $voucher->id], $actor);
+
+        return $loadedLines;
     }
 
     public function syncStops(Request $request, string $trip): RedirectResponse
     {
+        abort(404);
+
         $actor = $request->user();
         $organizationId = $actor->organization_id;
         abort_if($organizationId === null, 404);
@@ -1243,11 +1390,6 @@ class TripManagementController extends Controller
                 $this->refreshVoucherItemLoadedQty($voucherItem);
 
                 $delta = round($newQty - $oldLoaded, 3);
-                if ($delta > 0.0001) {
-                    $this->stockLedger->applyTripLoadOutbound($voucherItem, $delta, (int) $item->id, $actor);
-                } elseif ($delta < -0.0001) {
-                    $this->stockLedger->applyTripLoadReturnToWarehouse($voucherItem, abs($delta), (int) $item->id, $actor);
-                }
 
                 AuditLogger::record($actor, 'trip_item.update', $item->fresh(), [
                     'trip_no' => $tripLocked->trip_no,
@@ -1312,8 +1454,6 @@ class TripManagementController extends Controller
 
                 $this->refreshVoucherItemLoadedQty($voucherItem);
 
-                $this->stockLedger->applyTripLoadReturnToWarehouse($voucherItem, $loadedBeforeRemove, $tripItemIdForStock, $actor);
-
                 AuditLogger::record($actor, 'trip_item.remove', $tripLocked, [
                     'trip_no' => $tripLocked->trip_no,
                     'voucher_item_id' => $voucherItemId,
@@ -1332,6 +1472,8 @@ class TripManagementController extends Controller
 
     public function updateVoucherStop(Request $request, string $trip, string $voucher): RedirectResponse
     {
+        abort(404);
+
         $actor = $request->user();
         $organizationId = $actor->organization_id;
         abort_if($organizationId === null, 404);
@@ -1458,10 +1600,6 @@ class TripManagementController extends Controller
                         ->firstOrFail();
 
                     $this->refreshVoucherItemLoadedQty($voucherItem);
-
-                    if ($loadedBeforeRemove > 0.0001) {
-                        $this->stockLedger->applyTripLoadReturnToWarehouse($voucherItem, $loadedBeforeRemove, $tripItemIdForStock, $actor);
-                    }
 
                     $this->voucherOperationalStatusSync->syncForVoucherIds($organizationId, [(int) $voucherItem->voucher_id], $actor);
                     $removedLines++;
@@ -2039,14 +2177,14 @@ class TripManagementController extends Controller
             ->with([
                 'organization:id,name',
                 'vehicle:id,vehicle_no,vehicle_type',
-                'sourceWarehouse:id,name,code',
-                'stops' => fn ($q) => $q->orderBy('stop_order')->with('warehouse:id,name,code'),
+                'sourceWarehouse:id,city,address',
+                'stops' => fn ($q) => $q->orderBy('stop_order')->with('warehouse:id,city,address'),
                 'items' => fn ($q) => $q->orderBy('id')->with([
                     'tripStop:id,stop_order',
                     'voucherItem' => fn ($q2) => $q2->with([
                         'product:id,name,unit',
-                        'voucher:id,voucher_no,default_to_warehouse_id,default_to_city,default_to_address_line1,default_to_address_line2,default_to_township,default_to_region,default_to_postal_code,default_recipient_name,default_recipient_phone',
-                        'voucher.defaultToWarehouse:id,name,code',
+                        'voucher:id,voucher_no,total_amount,payment_status,default_to_warehouse_id,default_to_city,default_to_address_line1,default_to_address_line2,default_to_township,default_to_region,default_to_postal_code,default_recipient_name,default_recipient_phone,default_destination_remark',
+                        'voucher.defaultToWarehouse:id,city,address',
                     ]),
                 ]),
             ])
@@ -2055,27 +2193,69 @@ class TripManagementController extends Controller
         $user = $request->user();
         $canMarkPrinted = $user && $user->hasPermission('trips.manage');
 
-        $manifestRows = $tripModel->items->map(function (TripItem $item) {
+        $byVoucher = [];
+        foreach ($tripModel->items as $item) {
             $vi = $item->voucherItem;
-            if ($vi === null) {
-                return null;
+            if ($vi === null || $vi->voucher === null) {
+                continue;
             }
 
-            return [
-                'voucher_no' => $vi->voucher->voucher_no ?? '—',
-                'line_no' => $vi->line_no,
+            $voucher = $vi->voucher;
+            $voucherId = (int) $voucher->id;
+
+            if (! isset($byVoucher[$voucherId])) {
+                $byVoucher[$voucherId] = [
+                    'voucher_id' => $voucherId,
+                    'voucher_no' => (string) ($voucher->voucher_no ?? '—'),
+                    'payment_status' => (string) ($voucher->payment_status ?? 'UNPAID'),
+                    'total_amount' => $voucher->total_amount !== null ? (float) $voucher->total_amount : null,
+                    'destination' => $this->formatVoucherItemDestinationForManifest($vi),
+                    'destination_remark' => $voucher->default_destination_remark !== null
+                        ? trim((string) $voucher->default_destination_remark)
+                        : null,
+                    'items' => [],
+                    'items_qty' => 0,
+                ];
+            }
+
+            $qty = (float) $item->loaded_qty;
+            $qtyInt = (int) round($qty, 0);
+            $unit = $vi->product->unit ?? $vi->unit ?? '';
+            $qtyLabel = number_format($qtyInt, 0, '.', '').($unit !== '' ? ' '.$unit : '');
+
+            $amount = null;
+            if ($vi->freight_amount !== null && $vi->freight_amount !== '') {
+                $amount = (float) $vi->freight_amount;
+            }
+
+            $byVoucher[$voucherId]['items'][] = [
                 'product_name' => $vi->product->name ?? '—',
-                'loaded_qty' => (string) $item->loaded_qty,
-                'delivered_qty' => (string) $item->delivered_qty,
-                'unit' => $vi->product->unit ?? $vi->unit ?? '',
-                'destination' => $this->formatVoucherItemDestinationForManifest($vi),
-                'stop_label' => $item->tripStop !== null ? 'Stop '.$item->tripStop->stop_order : '—',
+                'qty' => $qtyLabel,
+                'amount' => $amount,
             ];
-        })->filter()->values()->all();
+            $byVoucher[$voucherId]['items_qty'] = (int) $byVoucher[$voucherId]['items_qty'] + $qtyInt;
+        }
+
+        $cargoRows = array_values($byVoucher);
+        usort($cargoRows, fn ($a, $b) => strcmp((string) $b['voucher_no'], (string) $a['voucher_no']));
+
+        foreach ($cargoRows as &$row) {
+            $row['total_items_qty'] = (int) ($row['items_qty'] ?? 0);
+            if ($row['total_amount'] === null) {
+                $sum = 0.0;
+                foreach ($row['items'] as $it) {
+                    if ($it['amount'] !== null) {
+                        $sum += (float) $it['amount'];
+                    }
+                }
+                $row['total_amount'] = round($sum, 2);
+            }
+        }
+        unset($row);
 
         return view('admin.operations.trips.manifest', [
             'trip' => $tripModel,
-            'manifestRows' => $manifestRows,
+            'cargoRows' => $cargoRows,
             'canMarkPrinted' => $canMarkPrinted,
             'adminAppUrl' => rtrim((string) config('app.admin_app_url'), '/'),
         ]);
@@ -2117,8 +2297,8 @@ class TripManagementController extends Controller
             $bits[] = $voucher->default_recipient_phone;
         }
         $wh = $voucher->defaultToWarehouse;
-        if ($wh !== null && (filled($wh->code) || filled($wh->name))) {
-            $bits[] = trim(implode(' · ', array_filter([$wh->code, $wh->name])));
+        if ($wh !== null && filled($wh->display_name ?? null)) {
+            $bits[] = (string) $wh->display_name;
         }
         $addrParts = array_filter([
             $voucher->default_to_address_line1,
@@ -2193,14 +2373,6 @@ class TripManagementController extends Controller
             return;
         }
 
-        $this->stockLedger->applyInboundForDeliveryConfirmation(
-            confirmation: $confirmation,
-            vi: $voucherItem,
-            actor: $actor,
-            note: $note,
-            receivingWarehouseId: $receivingWarehouseId
-        );
-
         $instruction = WarehouseFulfillmentInstruction::query()
             ->where('organization_id', $voucherItem->organization_id)
             ->where('trip_item_id', $tripItem->id)
@@ -2239,140 +2411,14 @@ class TripManagementController extends Controller
      */
     public function storeDestinationReceipt(Request $request, string $trip, string $tripItem): RedirectResponse
     {
-        $actor = $request->user();
-        $organizationId = $actor->organization_id;
-        abort_if($organizationId === null, 404);
-
-        $validated = $request->validate([
-            'note' => ['nullable', 'string', 'max:2000'],
-        ]);
-
-        $note = isset($validated['note']) && trim((string) $validated['note']) !== '' ? trim((string) $validated['note']) : null;
-
-        try {
-            DB::transaction(function () use ($organizationId, $trip, $tripItem, $actor, $note) {
-                $tripLocked = Trip::query()
-                    ->whereKey($trip)
-                    ->where('organization_id', $organizationId)
-                    ->lockForUpdate()
-                    ->firstOrFail();
-
-                $item = TripItem::query()
-                    ->whereKey($tripItem)
-                    ->where('trip_id', $tripLocked->id)
-                    ->where('organization_id', $organizationId)
-                    ->lockForUpdate()
-                    ->firstOrFail();
-
-                $voucherItem = VoucherItem::query()
-                    ->whereKey($item->voucher_item_id)
-                    ->where('organization_id', $organizationId)
-                    ->lockForUpdate()
-                    ->firstOrFail();
-
-                $receivingWarehouseId = $this->resolveReceivingWarehouseId($item, $voucherItem, $organizationId);
-                if ($receivingWarehouseId === null) {
-                    throw ValidationException::withMessages([
-                        'note' => ['No receiving warehouse: set a warehouse on the trip stop for this cargo line, or set destination warehouse on the voucher line.'],
-                    ]);
-                }
-
-                $confirmations = DeliveryConfirmation::query()
-                    ->where('organization_id', $organizationId)
-                    ->where('trip_item_id', $item->id)
-                    ->where('received_qty', '>', 0)
-                    ->orderBy('id')
-                    ->lockForUpdate()
-                    ->get();
-
-                if ($confirmations->isEmpty()) {
-                    throw ValidationException::withMessages([
-                        'note' => ['No delivered quantity is available for destination receipt on this cargo line.'],
-                    ]);
-                }
-
-                $posted = 0;
-                $postedQty = 0.0;
-
-                foreach ($confirmations as $confirmation) {
-                    $didPost = $this->stockLedger->applyInboundForDeliveryConfirmation(
-                        confirmation: $confirmation,
-                        vi: $voucherItem,
-                        actor: $actor,
-                        note: $note,
-                        receivingWarehouseId: $receivingWarehouseId
-                    );
-                    if ($didPost) {
-                        $posted++;
-                        $postedQty = round($postedQty + (float) $confirmation->received_qty, 3);
-                    }
-                }
-
-                if ($posted === 0) {
-                    throw ValidationException::withMessages([
-                        'note' => ['Destination receipt already recorded for all delivered quantities on this cargo line.'],
-                    ]);
-                }
-
-                AuditLogger::record($actor, 'trip_item.destination_receipt', $item, [
-                    'trip_no' => $tripLocked->trip_no,
-                    'trip_item_id' => $item->id,
-                    'voucher_item_id' => $voucherItem->id,
-                    'posted_confirmations' => $posted,
-                    'posted_qty' => $postedQty,
-                ]);
-            });
-        } catch (ValidationException $e) {
-            return Redirect::back()->withErrors($e->errors())->withInput();
-        }
-
-        return Redirect::route('admin.trips.show', $trip)
-            ->with('success', 'Destination warehouse receipt recorded.');
+        return Redirect::back()->with('error', 'Stock management is disabled.');
     }
 
     private function withPendingReceiptQtyForTripItems(Collection $items, int $organizationId): Collection
     {
-        if ($items->isEmpty()) {
-            return $items;
-        }
-
-        $tripItemIds = $items->pluck('id')->all();
-        $confirmations = DeliveryConfirmation::query()
-            ->where('organization_id', $organizationId)
-            ->whereIn('trip_item_id', $tripItemIds)
-            ->where('received_qty', '>', 0)
-            ->get(['id', 'trip_item_id', 'received_qty']);
-
-        if ($confirmations->isEmpty()) {
-            foreach ($items as $item) {
-                $item->pending_receipt_qty = '0.000';
-            }
-            return $items;
-        }
-
-        $postedConfirmationIds = \App\Models\StockMovement::query()
-            ->where('organization_id', $organizationId)
-            ->where('movement_type', 'TRANSFER_IN')
-            ->where('ref_type', 'DELIVERY_CONFIRMATION')
-            ->whereIn('ref_id', $confirmations->pluck('id')->all())
-            ->pluck('ref_id')
-            ->map(fn ($id) => (int) $id)
-            ->flip();
-
-        $pendingByTripItem = [];
-        foreach ($confirmations as $c) {
-            if (isset($postedConfirmationIds[(int) $c->id])) {
-                continue;
-            }
-            $tid = (int) $c->trip_item_id;
-            $pendingByTripItem[$tid] = round(($pendingByTripItem[$tid] ?? 0) + (float) $c->received_qty, 3);
-        }
-
         foreach ($items as $item) {
-            $pending = (float) ($pendingByTripItem[(int) $item->id] ?? 0);
-            $item->pending_receipt_qty = number_format(max(0, $pending), 3, '.', '');
+            $item->pending_receipt_qty = '0.000';
         }
-
         return $items;
     }
 
@@ -2381,10 +2427,20 @@ class TripManagementController extends Controller
      */
     private function loadableVoucherItems(Trip $trip, int $organizationId): array
     {
+        $destinationWarehouseId = TripStop::query()
+            ->where('trip_id', $trip->id)
+            ->where('organization_id', $organizationId)
+            ->orderBy('stop_order')
+            ->value('warehouse_id');
+        if ($destinationWarehouseId === null) {
+            return [];
+        }
+
         $items = VoucherItem::query()
             ->where('organization_id', $organizationId)
-            ->where('from_warehouse_id', $trip->source_warehouse_id)
-            ->whereHas('voucher', fn ($q) => $q->whereIn('status', self::VOUCHER_STATUSES_ALLOWING_TRIP_LOAD))
+            ->whereHas('voucher', fn ($q) => $q
+                ->whereIn('status', self::VOUCHER_STATUSES_ALLOWING_TRIP_LOAD)
+                ->where('default_to_warehouse_id', $destinationWarehouseId))
             ->with([
                 'product:id,name,unit',
                 'voucher:id,voucher_no',
@@ -2428,16 +2484,26 @@ class TripManagementController extends Controller
     }
 
     /**
-     * @return list<array{id:int,voucher_no:string,merchant_name:string|null,remaining_qty:string,lines:int}>
+     * @return list<array{id:int,voucher_no:string,merchant_name:string|null,recipient_name:string|null,total_weight:float|null,remaining_qty:string,lines:int}>
      */
     private function loadableVouchers(Trip $trip, int $organizationId): array
     {
+        $destinationWarehouseId = TripStop::query()
+            ->where('trip_id', $trip->id)
+            ->where('organization_id', $organizationId)
+            ->orderBy('stop_order')
+            ->value('warehouse_id');
+        if ($destinationWarehouseId === null) {
+            return [];
+        }
+
         $items = VoucherItem::query()
             ->where('organization_id', $organizationId)
-            ->where('from_warehouse_id', $trip->source_warehouse_id)
-            ->whereHas('voucher', fn ($q) => $q->whereIn('status', self::VOUCHER_STATUSES_ALLOWING_TRIP_LOAD))
+            ->whereHas('voucher', fn ($q) => $q
+                ->whereIn('status', self::VOUCHER_STATUSES_ALLOWING_TRIP_LOAD)
+                ->where('default_to_warehouse_id', $destinationWarehouseId))
             ->with([
-                'voucher:id,voucher_no,merchant_id',
+                'voucher:id,voucher_no,merchant_id,total_weight,default_recipient_name',
                 'voucher.merchant:id,name',
             ])
             ->orderByDesc('voucher_id')
@@ -2492,6 +2558,10 @@ class TripManagementController extends Controller
                     'merchant_name' => $vi->voucher->merchant_id !== null
                         ? $merchantMap->get((int) $vi->voucher->merchant_id)
                         : null,
+                    'recipient_name' => $vi->voucher->default_recipient_name !== null
+                        ? (string) $vi->voucher->default_recipient_name
+                        : null,
+                    'total_weight' => $vi->voucher->total_weight !== null ? (float) $vi->voucher->total_weight : null,
                     'remaining' => 0.0,
                     'lines' => 0,
                 ];
@@ -2508,6 +2578,8 @@ class TripManagementController extends Controller
                 'id' => (int) $row['id'],
                 'voucher_no' => (string) $row['voucher_no'],
                 'merchant_name' => isset($row['merchant_name']) ? (string) $row['merchant_name'] : null,
+                'recipient_name' => isset($row['recipient_name']) ? (string) $row['recipient_name'] : null,
+                'total_weight' => $row['total_weight'] ?? null,
                 'remaining_qty' => number_format(max(0, (float) $row['remaining']), 3, '.', ''),
                 'lines' => (int) $row['lines'],
             ];
@@ -2519,23 +2591,13 @@ class TripManagementController extends Controller
      */
     private function resolveVehicleForTrip(User $actor, int $organizationId, array $vehiclePayload, ?int $vehicleId): Vehicle
     {
-        $vehicleNo = strtoupper(trim((string) $vehiclePayload['vehicle_no']));
-        $warehouseId = isset($vehiclePayload['warehouse_id']) && $vehiclePayload['warehouse_id'] !== null
-            ? (int) $vehiclePayload['warehouse_id']
-            : null;
-
+        $vehicleNo = strtoupper(trim((string) ($vehiclePayload['vehicle_no'] ?? '')));
         $capW = array_key_exists('capacity_weight', $vehiclePayload)
             && $vehiclePayload['capacity_weight'] !== null
             && $vehiclePayload['capacity_weight'] !== ''
             ? round((float) $vehiclePayload['capacity_weight'], 3)
             : null;
-        $capV = array_key_exists('capacity_volume', $vehiclePayload)
-            && $vehiclePayload['capacity_volume'] !== null
-            && $vehiclePayload['capacity_volume'] !== ''
-            ? round((float) $vehiclePayload['capacity_volume'], 3)
-            : null;
-
-        $type = trim((string) $vehiclePayload['vehicle_type']);
+        $type = array_key_exists('vehicle_type', $vehiclePayload) ? trim((string) $vehiclePayload['vehicle_type']) : '';
 
         if ($vehicleId !== null) {
             $vehicle = Vehicle::query()
@@ -2558,10 +2620,8 @@ class TripManagementController extends Controller
 
             $vehicle->fill([
                 'vehicle_no' => $vehicleNo,
-                'vehicle_type' => $type,
-                'warehouse_id' => $warehouseId,
+                'vehicle_type' => $type !== '' ? $type : $vehicle->vehicle_type,
                 'capacity_weight' => $capW,
-                'capacity_volume' => $capV,
             ]);
             $vehicle->save();
 
@@ -2594,10 +2654,8 @@ class TripManagementController extends Controller
 
             $existing->fill([
                 'vehicle_no' => $vehicleNo,
-                'vehicle_type' => $type,
-                'warehouse_id' => $warehouseId,
+                'vehicle_type' => $type !== '' ? $type : $existing->vehicle_type,
                 'capacity_weight' => $capW,
-                'capacity_volume' => $capV,
             ]);
             $existing->save();
 
@@ -2617,11 +2675,9 @@ class TripManagementController extends Controller
 
         $vehicle = Vehicle::query()->create([
             'organization_id' => $organizationId,
-            'warehouse_id' => $warehouseId,
             'vehicle_no' => $vehicleNo,
-            'vehicle_type' => $type,
+            'vehicle_type' => $type !== '' ? $type : 'GENERAL',
             'capacity_weight' => $capW,
-            'capacity_volume' => $capV,
             'status' => 'ACTIVE',
         ]);
 
@@ -2646,6 +2702,16 @@ class TripManagementController extends Controller
         }
 
         $this->validateStopWarehousesForRouting($actor, $stops);
+    }
+
+    private function validateTripDestinationWarehouse(User $actor, int $destinationWarehouseId): void
+    {
+        $routingIds = $this->operationalContext->routingWarehouses($actor)->pluck('id')->map(fn ($id) => (int) $id)->all();
+        if (! in_array($destinationWarehouseId, $routingIds, true)) {
+            throw ValidationException::withMessages([
+                'destination_warehouse_id' => ['Select an active warehouse in your organization.'],
+            ]);
+        }
     }
 
     /**

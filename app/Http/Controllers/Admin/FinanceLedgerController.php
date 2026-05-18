@@ -293,7 +293,7 @@ class FinanceLedgerController extends Controller
         $rows = (clone $query)
             ->with([
                 'category:id,name,scope,direction',
-                'warehouse:id,name,code',
+                'warehouse:id,city,address',
                 'creator:id,name',
             ])
             ->orderByDesc('occurred_at')
@@ -354,7 +354,7 @@ class FinanceLedgerController extends Controller
 
             return [
                 'id' => $e->id,
-                'warehouse' => $e->warehouse ? $e->warehouse->only(['id', 'code', 'name']) : null,
+                'warehouse' => $e->warehouse ? $e->warehouse->only(['id', 'city', 'address', 'display_name']) : null,
                 'scope' => $e->scope,
                 'direction' => $e->direction,
                 'category' => $e->category ? $e->category->only(['id', 'name', 'scope', 'direction']) : null,

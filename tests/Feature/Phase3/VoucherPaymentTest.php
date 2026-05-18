@@ -92,7 +92,6 @@ class VoucherPaymentTest extends TestCase
         $organization = Organization::factory()->create();
         $warehouse = Warehouse::factory()->create([
             'organization_id' => $organization->id,
-            'status' => 'ACTIVE',
         ]);
         $user = User::factory()->create([
             'organization_id' => $organization->id,

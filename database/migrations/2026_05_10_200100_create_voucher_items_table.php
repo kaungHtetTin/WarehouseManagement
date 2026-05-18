@@ -22,6 +22,7 @@ return new class extends Migration
             $table->string('unit', 32);
             $table->decimal('freight_rate', 14, 2)->nullable();
             $table->decimal('freight_amount', 14, 2)->nullable();
+            $table->enum('payment_status', ['UNPAID', 'PARTIAL', 'PAID', 'WAIVED'])->default('UNPAID');
             $table->boolean('is_fragile')->default(false);
             $table->timestamps();
             $table->index(['organization_id', 'voucher_id'], 'vi_org_voucher_idx');

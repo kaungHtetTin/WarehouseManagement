@@ -140,7 +140,7 @@ export default function VouchersIndex() {
                                     <MenuItem value="all">All</MenuItem>
                                     {warehouses.map((w) => (
                                         <MenuItem key={w.id} value={String(w.id)}>
-                                            {w.code} · {w.name}
+                                            {w.display_name || w.city}
                                         </MenuItem>
                                     ))}
                                 </Select>
@@ -215,7 +215,7 @@ export default function VouchersIndex() {
                                             </Typography>
                                         )}
                                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, fontSize: '0.8125rem' }}>
-                                            {[row.merchant?.name, row.source_warehouse?.name].filter(Boolean).join(' · ') || '—'}
+                                            {[row.merchant?.name, row.source_warehouse?.display_name].filter(Boolean).join(' · ') || '—'}
                                         </Typography>
                                         <Stack direction="row" spacing={0.75} sx={{ mt: 0.75, flexWrap: 'wrap', gap: 0.5 }}>
                                             <Chip size="small" label={row.status} color={statusColor(row.status)} variant="outlined" />
@@ -274,7 +274,7 @@ export default function VouchersIndex() {
                                         </TableCell>
                                         <TableCell>{typeof row.voucher_date === 'string' ? row.voucher_date.slice(0, 10) : row.voucher_date}</TableCell>
                                         <TableCell>{row.merchant?.name ?? '—'}</TableCell>
-                                        <TableCell>{row.source_warehouse?.name ?? '—'}</TableCell>
+                                        <TableCell>{row.source_warehouse?.display_name ?? '—'}</TableCell>
                                         <TableCell>
                                             <Stack direction="row" spacing={0.75} alignItems="center">
                                                 <Chip size="small" label={row.status} color={statusColor(row.status)} variant="outlined" />

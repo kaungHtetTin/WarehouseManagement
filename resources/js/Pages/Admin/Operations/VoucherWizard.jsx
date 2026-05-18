@@ -18,7 +18,6 @@ import {
     FormHelperText,
     IconButton,
     InputLabel,
-    Link as MuiLink,
     List,
     ListItemButton,
     ListItemText,
@@ -105,8 +104,6 @@ function PreviewField({ label, value }) {
 const emptyMerchant = () => ({
     name: '',
     phone: '',
-    nrc_or_id: '',
-    address: '',
 });
 
 const initialStep1 = () => ({
@@ -119,10 +116,10 @@ const initialStep1 = () => ({
     merchant_id: null,
     merchant: emptyMerchant(),
     default_to_warehouse_id: '',
-    default_to_city: '',
     default_to_address_line1: '',
     default_recipient_name: '',
     default_recipient_phone: '',
+    default_destination_remark: '',
 });
 
 const emptyLineForm = () => ({
@@ -130,7 +127,6 @@ const emptyLineForm = () => ({
     qty: '1',
     unit: '',
     description: '',
-    freight_rate: '',
     freight_amount: '',
     is_fragile: false,
 });
@@ -234,6 +230,14 @@ function WizardLineCard({ item, onRemove }) {
                         </Box>{' '}
                         · {item.qty} {item.unit}
                     </Typography>
+                    {item.freight_amount != null ? (
+                        <Typography variant="body2" color="text.secondary" sx={destinationMobileLineSx}>
+                            <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                                Freight
+                            </Box>{' '}
+                            · {formatMoneyAmount(item.freight_amount)}
+                        </Typography>
+                    ) : null}
                     {item.description ? (
                         <Typography variant="body2" color="text.secondary" sx={{ ...destinationMobileLineSx, whiteSpace: 'pre-wrap' }}>
                             <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>
@@ -293,38 +297,10 @@ export default function VoucherWizard() {
     const [productOptions, setProductOptions] = useState([]);
     const [lineForm, setLineForm] = useState(() => emptyLineForm());
     const [reviewCostsOpen, setReviewCostsOpen] = useState(false);
-    const [freightAmountManual, setFreightAmountManual] = useState(false);
     const [lineError, setLineError] = useState('');
     const [step1Error, setStep1Error] = useState('');
     const [processing, setProcessing] = useState(false);
     const prevTabRef = useRef(-1);
-
-    const computedFreightAmount = useMemo(() => {
-        const qty = parseFloat(lineForm.qty);
-        const rate = parseFloat(lineForm.freight_rate);
-        if (!Number.isFinite(qty) || qty <= 0 || !Number.isFinite(rate) || rate < 0) {
-            return null;
-        }
-        return Math.round(rate * qty * 100) / 100;
-    }, [lineForm.qty, lineForm.freight_rate]);
-
-    useEffect(() => {
-        if (freightAmountManual) {
-            return;
-        }
-        const qty = parseFloat(lineForm.qty);
-        const rate = parseFloat(lineForm.freight_rate);
-        let next = '';
-        if (Number.isFinite(qty) && qty > 0 && Number.isFinite(rate) && rate >= 0) {
-            next = String(Math.round(rate * qty * 100) / 100);
-        }
-        setLineForm((p) => {
-            if (p.freight_amount === next) {
-                return p;
-            }
-            return { ...p, freight_amount: next };
-        });
-    }, [lineForm.qty, lineForm.freight_rate, freightAmountManual]);
 
     const hydrateFromVoucher = useCallback((v) => {
         const vd = v.voucher_date;
@@ -347,14 +323,12 @@ export default function VoucherWizard() {
             merchant: {
                 name: m.name ?? '',
                 phone: m.phone ?? '',
-                nrc_or_id: m.nrc_or_id ?? '',
-                address: m.address ?? '',
             },
             default_to_warehouse_id: v.default_to_warehouse_id != null ? String(v.default_to_warehouse_id) : '',
-            default_to_city: v.default_to_city ?? '',
             default_to_address_line1: v.default_to_address_line1 ?? '',
             default_recipient_name: v.default_recipient_name ?? '',
             default_recipient_phone: v.default_recipient_phone ?? '',
+            default_destination_remark: v.default_destination_remark ?? '',
         });
         setLineForm(emptyLineForm());
     }, []);
@@ -362,12 +336,10 @@ export default function VoucherWizard() {
     useEffect(() => {
         if (voucher) {
             hydrateFromVoucher(voucher);
-            setFreightAmountManual(false);
         } else {
             setStep1(initialStep1());
             setTab(0);
             setLineForm(emptyLineForm());
-            setFreightAmountManual(false);
             setStep1Error('');
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset wizard shell when draft id appears/disappears
@@ -414,8 +386,6 @@ export default function VoucherWizard() {
             merchant: {
                 name: row.name ?? '',
                 phone: row.phone ?? '',
-                nrc_or_id: row.nrc_or_id ?? '',
-                address: row.address ?? '',
             },
         }));
     };
@@ -503,14 +473,12 @@ export default function VoucherWizard() {
                 merchant: {
                     name: step1.merchant.name,
                     phone: step1.merchant.phone || null,
-                    nrc_or_id: step1.merchant.nrc_or_id || null,
-                    address: step1.merchant.address || null,
                 },
-                default_to_warehouse_id: step1.default_to_warehouse_id ? Number(step1.default_to_warehouse_id) : null,
-                default_to_city: step1.default_to_city.trim(),
-                default_to_address_line1: step1.default_to_address_line1.trim(),
+                default_to_warehouse_id: Number(step1.default_to_warehouse_id),
+                default_to_address_line1: step1.default_to_address_line1?.trim() || null,
                 default_recipient_name: step1.default_recipient_name?.trim() || null,
                 default_recipient_phone: step1.default_recipient_phone?.trim() || null,
+                default_destination_remark: step1.default_destination_remark?.trim() || null,
                 ...overrides,
             };
         },
@@ -520,8 +488,8 @@ export default function VoucherWizard() {
     const submitStep1 = () => {
         if (!canWizard) return;
         setStep1Error('');
-        if (!step1.default_to_address_line1?.trim() || !step1.default_to_city?.trim()) {
-            setStep1Error('Enter shipping address and city.');
+        if (!step1.default_to_warehouse_id) {
+            setStep1Error('Select destination warehouse.');
             return;
         }
         setProcessing(true);
@@ -556,7 +524,6 @@ export default function VoucherWizard() {
             qty,
             unit: lineForm.unit,
             description: lineForm.description?.trim() || null,
-            freight_rate: parseOpt(lineForm.freight_rate),
             freight_amount: parseOpt(lineForm.freight_amount),
             is_fragile: lineForm.is_fragile,
         };
@@ -570,7 +537,6 @@ export default function VoucherWizard() {
             onSuccess: () => {
                 setProductOptions([]);
                 setLineError('');
-                setFreightAmountManual(false);
                 setLineForm(emptyLineForm());
             },
         });
@@ -585,11 +551,26 @@ export default function VoucherWizard() {
     const finish = () => {
         if (!canWizard || !voucher) return;
         setProcessing(true);
+
+        const totalWeightRaw = step1.total_weight;
+        const totalWeightNum = totalWeightRaw === '' || totalWeightRaw == null ? null : Number(totalWeightRaw);
+        const total_weight = Number.isFinite(totalWeightNum) ? totalWeightNum : null;
+
+        const additional_costs = (step1.additional_costs || [])
+            .map((r) => ({
+                category_id: r?.category_id ? Number(r.category_id) : null,
+                amount: r?.amount != null && r?.amount !== '' ? Number(r.amount) : null,
+            }))
+            .filter((r) => r.category_id != null && r.amount != null && Number.isFinite(r.amount) && r.amount >= 0)
+            .map((r) => ({ ...r, amount: Math.round(r.amount * 100) / 100 }));
+
         router.post(
             `${adminAppUrl}/operations/vouchers/${voucher.id}/wizard/finish`,
             {
                 payment_status: step1.payment_status,
                 remark: step1.remark?.trim() || null,
+                total_weight,
+                additional_costs,
             },
             { preserveScroll: true, onFinish: () => setProcessing(false) },
         );
@@ -708,7 +689,7 @@ export default function VoucherWizard() {
                                                 </MenuItem>
                                                 {warehouses.map((w) => (
                                                     <MenuItem key={w.id} value={String(w.id)}>
-                                                        {w.name} ({w.code})
+                                                        {w.display_name || w.city}
                                                     </MenuItem>
                                                 ))}
                                             </Select>
@@ -745,24 +726,7 @@ export default function VoucherWizard() {
                                                 value={step1.merchant.name}
                                                 onChange={(e) => setStep1((p) => ({ ...p, merchant: { ...p.merchant, name: e.target.value } }))}
                                             />
-                                            <TextField
-                                                label="NRC / ID"
-                                                size="small"
-                                                fullWidth
-                                                sx={{ maxWidth: { sm: 280 } }}
-                                                value={step1.merchant.nrc_or_id}
-                                                onChange={(e) => setStep1((p) => ({ ...p, merchant: { ...p.merchant, nrc_or_id: e.target.value } }))}
-                                            />
                                         </Stack>
-                                        <TextField
-                                            label="Address"
-                                            size="small"
-                                            fullWidth
-                                            multiline
-                                            minRows={2}
-                                            value={step1.merchant.address}
-                                            onChange={(e) => setStep1((p) => ({ ...p, merchant: { ...p.merchant, address: e.target.value } }))}
-                                        />
                                     </Stack>
                                 </WizardSection>
 
@@ -772,46 +736,42 @@ export default function VoucherWizard() {
                                     </Typography>
                                     <Stack spacing={2}>
                                         <FormControl fullWidth size="small">
-                                            <InputLabel id="def-to-wh">Default to warehouse (optional)</InputLabel>
+                                            <InputLabel id="def-to-wh">Destination warehouse</InputLabel>
                                             <Select
                                                 labelId="def-to-wh"
-                                                label="Default to warehouse (optional)"
+                                                label="Destination warehouse"
                                                 value={step1.default_to_warehouse_id}
                                                 onChange={(e) => setStep1((p) => ({ ...p, default_to_warehouse_id: e.target.value }))}
                                             >
                                                 <MenuItem value="">
-                                                    <em>—</em>
+                                                    <em>Select…</em>
                                                 </MenuItem>
                                                 {warehouses.map((w) => (
                                                     <MenuItem key={w.id} value={String(w.id)}>
-                                                        {w.code} · {w.name}
+                                                        {w.display_name || w.city}
                                                     </MenuItem>
                                                 ))}
                                             </Select>
                                         </FormControl>
                                         <TextField
-                                            label="Street / building (required)"
+                                            label="Destination address"
                                             size="small"
                                             fullWidth
-                                            required
                                             multiline
                                             minRows={2}
-                                            maxRows={8}
                                             inputProps={{ maxLength: 500 }}
                                             value={step1.default_to_address_line1}
                                             onChange={(e) => setStep1((p) => ({ ...p, default_to_address_line1: e.target.value }))}
-                                            placeholder="No., street, ward, landmark… (multiple lines OK)"
                                         />
-                                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                                            <TextField
-                                                label="City / town (required)"
-                                                size="small"
-                                                fullWidth
-                                                required
-                                                value={step1.default_to_city}
-                                                onChange={(e) => setStep1((p) => ({ ...p, default_to_city: e.target.value }))}
-                                            />
-                                        </Stack>
+                                        <TextField
+                                            label="Destination remark"
+                                            size="small"
+                                            fullWidth
+                                            multiline
+                                            minRows={2}
+                                            value={step1.default_destination_remark}
+                                            onChange={(e) => setStep1((p) => ({ ...p, default_destination_remark: e.target.value }))}
+                                        />
                                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                                             <TextField
                                                 label="Recipient name"
@@ -827,105 +787,6 @@ export default function VoucherWizard() {
                                                 value={step1.default_recipient_phone}
                                                 onChange={(e) => setStep1((p) => ({ ...p, default_recipient_phone: e.target.value }))}
                                             />
-                                        </Stack>
-                                    </Stack>
-                                </WizardSection>
-
-                                <WizardSection title="Weight & additional costs">
-                                    <Stack spacing={2}>
-                                        <TextField
-                                            size="small"
-                                            label="Voucher weight"
-                                            type="number"
-                                            inputProps={{ step: '0.001', min: '0' }}
-                                            sx={{ width: { xs: '100%', sm: 220 } }}
-                                            value={step1.total_weight}
-                                            onChange={(e) => setStep1((p) => ({ ...p, total_weight: e.target.value }))}
-                                            helperText="Optional (manual)."
-                                        />
-
-                                        <Divider />
-
-                                        <Stack spacing={1.25}>
-                                            <Stack
-                                                direction="row"
-                                                alignItems="center"
-                                                justifyContent="flex-start"
-                                                flexWrap="nowrap"
-                                                gap={1}
-                                                sx={{ width: '100%', overflowX: 'auto' }}
-                                            >
-                                                <Typography variant="subtitle2" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                                                    Additional costs
-                                                </Typography>
-                                                <Button variant="outlined" size="small" onClick={addCostRow} sx={{ ml: 'auto', flexShrink: 0 }}>
-                                                    Add cost
-                                                </Button>
-                                            </Stack>
-
-                                            {(step1.additional_costs || []).length === 0 ? (
-                                                <Typography variant="body2" color="text.secondary">
-                                                    No additional costs.
-                                                </Typography>
-                                            ) : (
-                                                <Stack spacing={1}>
-                                                    {(step1.additional_costs || []).map((row, idx) => (
-                                                        <Box
-                                                            key={idx}
-                                                            sx={{
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                gap: 1,
-                                                                flexWrap: 'nowrap',
-                                                                overflowX: 'auto',
-                                                                py: 0.25,
-                                                            }}
-                                                        >
-                                                            <FormControl size="small" sx={{ flex: 1, minWidth: 200 }}>
-                                                                <InputLabel id={`cost-cat-${idx}`}>Category</InputLabel>
-                                                                <Select
-                                                                    labelId={`cost-cat-${idx}`}
-                                                                    label="Category"
-                                                                    value={row.category_id ?? ''}
-                                                                    onChange={(e) => {
-                                                                        const id = e.target.value;
-                                                                        const name =
-                                                                            additionalCostCategories.find((c) => String(c.id) === String(id))?.name ?? '';
-                                                                        updateCostRow(idx, { category_id: id, category_name: name });
-                                                                    }}
-                                                                >
-                                                                    <MenuItem value="">
-                                                                        <em>Select…</em>
-                                                                    </MenuItem>
-                                                                    {additionalCostCategories
-                                                                        .filter((c) => c.status === 'ACTIVE')
-                                                                        .map((c) => (
-                                                                            <MenuItem key={c.id} value={String(c.id)}>
-                                                                                {c.name}
-                                                                            </MenuItem>
-                                                                        ))}
-                                                                </Select>
-                                                            </FormControl>
-                                                            <TextField
-                                                                size="small"
-                                                                label="Amount"
-                                                                type="number"
-                                                                inputProps={{ step: '0.01', min: '0' }}
-                                                                sx={{ width: 140, flexShrink: 0 }}
-                                                                value={row.amount}
-                                                                onChange={(e) => updateCostRow(idx, { amount: e.target.value })}
-                                                            />
-                                                            <IconButton size="small" color="error" aria-label="Remove cost" onClick={() => removeCostRow(idx)}>
-                                                                <DeleteOutlinedIcon fontSize="small" />
-                                                            </IconButton>
-                                                        </Box>
-                                                    ))}
-                                                </Stack>
-                                            )}
-
-                                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                                                Additional costs total: {formatMoneyAmount(additionalCostsTotal)}
-                                            </Typography>
                                         </Stack>
                                     </Stack>
                                 </WizardSection>
@@ -1026,43 +887,14 @@ export default function VoucherWizard() {
                                         <Stack spacing={0.75}>
                                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                                                 <TextField
-                                                    label="Freight rate"
-                                                    type="number"
-                                                    size="small"
-                                                    fullWidth
-                                                    value={lineForm.freight_rate}
-                                                    onChange={(e) => setLineForm((p) => ({ ...p, freight_rate: e.target.value }))}
-                                                />
-                                                <TextField
                                                     label="Freight amount"
                                                     type="number"
                                                     size="small"
                                                     fullWidth
                                                     value={lineForm.freight_amount}
-                                                    onChange={(e) => {
-                                                        setFreightAmountManual(true);
-                                                        setLineForm((p) => ({ ...p, freight_amount: e.target.value }));
-                                                    }}
-                                                    helperText={
-                                                        computedFreightAmount != null
-                                                            ? `Follows rate × qty (${computedFreightAmount}) until you change this field.`
-                                                            : 'Enter a valid rate and qty to auto-fill freight amount.'
-                                                    }
+                                                    onChange={(e) => setLineForm((p) => ({ ...p, freight_amount: e.target.value }))}
+                                                    helperText="Enter freight amount directly (optional)."
                                                 />
-                                            </Stack>
-                                            <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" sx={{ pl: 0.25 }}>
-                                                {freightAmountManual && computedFreightAmount != null ? (
-                                                    <MuiLink
-                                                        component="button"
-                                                        type="button"
-                                                        variant="body2"
-                                                        underline="hover"
-                                                        sx={{ cursor: 'pointer', border: 0, background: 'none', font: 'inherit', p: 0 }}
-                                                        onClick={() => setFreightAmountManual(false)}
-                                                    >
-                                                        Reset to calculated amount
-                                                    </MuiLink>
-                                                ) : null}
                                             </Stack>
                                         </Stack>
                                         <TextField
@@ -1106,6 +938,7 @@ export default function VoucherWizard() {
                                                         <TableCell>Product</TableCell>
                                                         <TableCell>Qty</TableCell>
                                                         <TableCell>Unit</TableCell>
+                                                        <TableCell align="right">Freight</TableCell>
                                                         <TableCell>Remark</TableCell>
                                                         <TableCell align="right" width={56} />
                                                     </TableRow>
@@ -1119,6 +952,9 @@ export default function VoucherWizard() {
                                                                 {it.qty}
                                                             </TableCell>
                                                             <TableCell>{it.unit}</TableCell>
+                                                            <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                                                                {formatMoneyAmount(it.freight_amount)}
+                                                            </TableCell>
                                                             <TableCell>
                                                                 <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                                                                     {it.description || '—'}
@@ -1133,7 +969,7 @@ export default function VoucherWizard() {
                                                     ))}
                                                     {(!voucher.items || voucher.items.length === 0) && (
                                                         <TableRow>
-                                                            <TableCell colSpan={6}>
+                                                            <TableCell colSpan={7}>
                                                                 <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
                                                                     No lines yet.
                                                                 </Typography>
@@ -1210,14 +1046,6 @@ export default function VoucherWizard() {
                                                         </TableRow>
                                                         <TableRow hover>
                                                             <TableCell width={180} sx={{ color: 'text.secondary' }}>
-                                                                Weight
-                                                            </TableCell>
-                                                            <TableCell sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
-                                                                {step1.total_weight !== '' ? step1.total_weight : voucher.total_weight || '—'}
-                                                            </TableCell>
-                                                        </TableRow>
-                                                        <TableRow hover>
-                                                            <TableCell width={180} sx={{ color: 'text.secondary' }}>
                                                                 Total amount
                                                             </TableCell>
                                                             <TableCell sx={{ fontWeight: 600 }}>{formatMoneyAmount(reviewTotalAmount)}</TableCell>
@@ -1225,6 +1053,107 @@ export default function VoucherWizard() {
                                                     </TableBody>
                                                 </Table>
                                             </TableContainer>
+                                        </WizardSection>
+
+                                        <Divider />
+
+                                        <WizardSection title="Weight & additional costs">
+                                            <Stack spacing={2}>
+                                                <TextField
+                                                    size="small"
+                                                    label="Voucher weight"
+                                                    type="number"
+                                                    inputProps={{ step: '0.001', min: '0' }}
+                                                    sx={{ width: { xs: '100%', sm: 220 } }}
+                                                    value={step1.total_weight}
+                                                    onChange={(e) => setStep1((p) => ({ ...p, total_weight: e.target.value }))}
+                                                    helperText="Optional (manual)."
+                                                />
+
+                                                <Divider />
+
+                                                <Stack spacing={1.25}>
+                                                    <Stack
+                                                        direction="row"
+                                                        alignItems="center"
+                                                        justifyContent="flex-start"
+                                                        flexWrap="nowrap"
+                                                        gap={1}
+                                                        sx={{ width: '100%', overflowX: 'auto' }}
+                                                    >
+                                                        <Typography variant="subtitle2" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                                            Additional costs
+                                                        </Typography>
+                                                        <Button variant="outlined" size="small" onClick={addCostRow} sx={{ ml: 'auto', flexShrink: 0 }}>
+                                                            Add cost
+                                                        </Button>
+                                                    </Stack>
+
+                                                    {(step1.additional_costs || []).length === 0 ? (
+                                                        <Typography variant="body2" color="text.secondary">
+                                                            No additional costs.
+                                                        </Typography>
+                                                    ) : (
+                                                        <Stack spacing={1}>
+                                                            {(step1.additional_costs || []).map((row, idx) => (
+                                                                <Box
+                                                                    key={idx}
+                                                                    sx={{
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        gap: 1,
+                                                                        flexWrap: 'nowrap',
+                                                                        overflowX: 'auto',
+                                                                        py: 0.25,
+                                                                    }}
+                                                                >
+                                                                    <FormControl size="small" sx={{ flex: 1, minWidth: 200 }}>
+                                                                        <InputLabel id={`cost-cat-review-${idx}`}>Category</InputLabel>
+                                                                        <Select
+                                                                            labelId={`cost-cat-review-${idx}`}
+                                                                            label="Category"
+                                                                            value={row.category_id ?? ''}
+                                                                            onChange={(e) => {
+                                                                                const id = e.target.value;
+                                                                                const name =
+                                                                                    additionalCostCategories.find((c) => String(c.id) === String(id))?.name ?? '';
+                                                                                updateCostRow(idx, { category_id: id, category_name: name });
+                                                                            }}
+                                                                        >
+                                                                            <MenuItem value="">
+                                                                                <em>Select…</em>
+                                                                            </MenuItem>
+                                                                            {additionalCostCategories
+                                                                                .filter((c) => c.status === 'ACTIVE')
+                                                                                .map((c) => (
+                                                                                    <MenuItem key={c.id} value={String(c.id)}>
+                                                                                        {c.name}
+                                                                                    </MenuItem>
+                                                                                ))}
+                                                                        </Select>
+                                                                    </FormControl>
+                                                                    <TextField
+                                                                        size="small"
+                                                                        label="Amount"
+                                                                        type="number"
+                                                                        inputProps={{ step: '0.01', min: '0' }}
+                                                                        sx={{ width: 140, flexShrink: 0 }}
+                                                                        value={row.amount}
+                                                                        onChange={(e) => updateCostRow(idx, { amount: e.target.value })}
+                                                                    />
+                                                                    <IconButton size="small" color="error" aria-label="Remove cost" onClick={() => removeCostRow(idx)}>
+                                                                        <DeleteOutlinedIcon fontSize="small" />
+                                                                    </IconButton>
+                                                                </Box>
+                                                            ))}
+                                                        </Stack>
+                                                    )}
+
+                                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                                        Additional costs total: {formatMoneyAmount(additionalCostsTotal)}
+                                                    </Typography>
+                                                </Stack>
+                                            </Stack>
                                         </WizardSection>
 
                                         <Divider />
@@ -1249,14 +1178,6 @@ export default function VoucherWizard() {
                                                                 {voucher.merchant?.phone || '—'}
                                                             </TableCell>
                                                         </TableRow>
-                                                        <TableRow hover>
-                                                            <TableCell width={180} sx={{ color: 'text.secondary' }}>
-                                                                Address
-                                                            </TableCell>
-                                                            <TableCell sx={{ fontWeight: 600, wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
-                                                                {voucher.merchant?.address || '—'}
-                                                            </TableCell>
-                                                        </TableRow>
                                                     </TableBody>
                                                 </Table>
                                             </TableContainer>
@@ -1274,18 +1195,26 @@ export default function VoucherWizard() {
                                                             </TableCell>
                                                             <TableCell sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
                                                                 {voucher.default_to_warehouse_id
-                                                                    ? warehouses.find((w) => Number(w.id) === Number(voucher.default_to_warehouse_id))?.name ??
-                                                                      warehouses.find((w) => Number(w.id) === Number(voucher.default_to_warehouse_id))?.code ??
+                                                                    ? warehouses.find((w) => Number(w.id) === Number(voucher.default_to_warehouse_id))
+                                                                          ?.display_name ??
                                                                       '—'
                                                                     : '—'}
                                                             </TableCell>
                                                         </TableRow>
                                                         <TableRow hover>
                                                             <TableCell width={180} sx={{ color: 'text.secondary' }}>
-                                                                Shipping address
+                                                                Destination address
                                                             </TableCell>
                                                             <TableCell sx={{ fontWeight: 600, wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
-                                                                {[voucher.default_to_address_line1, voucher.default_to_city].filter(Boolean).join(' · ') || '—'}
+                                                                {step1.default_to_address_line1?.trim() || voucher.default_to_address_line1 || '—'}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                        <TableRow hover>
+                                                            <TableCell width={180} sx={{ color: 'text.secondary' }}>
+                                                                Destination remark
+                                                            </TableCell>
+                                                            <TableCell sx={{ fontWeight: 600, wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                                                                {step1.default_destination_remark?.trim() || voucher.default_destination_remark || '—'}
                                                             </TableCell>
                                                         </TableRow>
                                                         <TableRow hover>
@@ -1426,6 +1355,7 @@ export default function VoucherWizard() {
                                                     <TableCell>Product</TableCell>
                                                     <TableCell>Qty</TableCell>
                                                     <TableCell>Unit</TableCell>
+                                                    <TableCell align="right">Freight</TableCell>
                                                     <TableCell>Remark</TableCell>
                                                 </TableRow>
                                             </TableHead>
@@ -1436,6 +1366,9 @@ export default function VoucherWizard() {
                                                         <TableCell sx={{ fontWeight: 500 }}>{it.product?.name ?? '—'}</TableCell>
                                                         <TableCell>{it.qty}</TableCell>
                                                         <TableCell>{it.unit}</TableCell>
+                                                        <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                                                            {formatMoneyAmount(it.freight_amount)}
+                                                        </TableCell>
                                                         <TableCell>
                                                             <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                                                                 {it.description || '—'}
@@ -1493,7 +1426,7 @@ export default function VoucherWizard() {
                                         setPickerOpen(false);
                                     }}
                                 >
-                                    <ListItemText primary={m.name} secondary={[m.phone, m.address].filter(Boolean).join(' · ') || null} />
+                                    <ListItemText primary={m.name} secondary={m.phone || null} />
                                 </ListItemButton>
                             ))}
                         </List>

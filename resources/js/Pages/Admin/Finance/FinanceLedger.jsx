@@ -350,7 +350,7 @@ export default function FinanceLedger() {
                                     <MenuItem value="none">Unassigned</MenuItem>
                                     {warehouses.map((w) => (
                                         <MenuItem key={w.id} value={String(w.id)}>
-                                            {w.code} · {w.name}
+                                            {w.display_name || w.city}
                                         </MenuItem>
                                     ))}
                                 </Select>
@@ -427,7 +427,7 @@ export default function FinanceLedger() {
                                                 <Chip size="small" label={row.scope} color={scopeChipColor(row.scope)} variant="outlined" />
                                             </TableCell>
                                             <TableCell>{row.category?.name ?? '—'}</TableCell>
-                                            <TableCell>{row.warehouse ? `${row.warehouse.code} · ${row.warehouse.name}` : '—'}</TableCell>
+                                            <TableCell>{row.warehouse ? `${row.warehouse.display_name}` : '—'}</TableCell>
                                             <TableCell align="right" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
                                                 {formatMoney(row.amount, row.currency)}
                                             </TableCell>
@@ -528,7 +528,7 @@ export default function FinanceLedger() {
                                                     Warehouse
                                                 </Typography>
                                                 <Typography variant="body2">
-                                                    {row.warehouse ? `${row.warehouse.code} · ${row.warehouse.name}` : '—'}
+                                                    {row.warehouse ? `${row.warehouse.display_name}` : '—'}
                                                 </Typography>
                                             </Grid>
                                             <Grid item xs={12} sm={6}>
@@ -645,7 +645,7 @@ export default function FinanceLedger() {
                                         </MenuItem>
                                         {warehouses.map((w) => (
                                             <MenuItem key={w.id} value={String(w.id)}>
-                                                {w.code} · {w.name}
+                                                {w.display_name || w.city}
                                             </MenuItem>
                                         ))}
                                     </Select>

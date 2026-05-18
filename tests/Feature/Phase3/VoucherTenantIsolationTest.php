@@ -54,7 +54,6 @@ class VoucherTenantIsolationTest extends TestCase
     {
         $warehouse = Warehouse::factory()->create([
             'organization_id' => $organization->id,
-            'status' => 'ACTIVE',
         ]);
         $merchant = Merchant::query()->create([
             'organization_id' => $organization->id,

@@ -12,7 +12,6 @@ use App\Models\Vehicle;
 use App\Models\Voucher;
 use App\Models\VoucherItem;
 use App\Models\Warehouse;
-use App\Models\WarehouseStock;
 use App\Services\Tenant\TenantRoleBootstrapper;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -64,30 +63,24 @@ class DemoDataSeeder extends Seeder
             $mainWh = Warehouse::query()->updateOrCreate(
                 [
                     'organization_id' => $organization->id,
-                    'code' => 'MAIN',
-                ],
-                [
-                    'name' => 'Main hub',
                     'city' => 'Yangon',
                     'address' => 'Demo street 1',
-                    'phone' => null,
-                    'is_main' => true,
-                    'status' => 'ACTIVE',
+                ],
+                [
+                    'city' => 'Yangon',
+                    'address' => 'Demo street 1',
                 ]
             );
 
             Warehouse::query()->updateOrCreate(
                 [
                     'organization_id' => $organization->id,
-                    'code' => 'BRANCH-01',
-                ],
-                [
-                    'name' => 'Branch warehouse',
                     'city' => 'Mandalay',
                     'address' => 'Demo street 2',
-                    'phone' => null,
-                    'is_main' => false,
-                    'status' => 'ACTIVE',
+                ],
+                [
+                    'city' => 'Mandalay',
+                    'address' => 'Demo street 2',
                 ]
             );
 
@@ -310,30 +303,6 @@ class DemoDataSeeder extends Seeder
                     'capacity_weight' => 1500,
                     'capacity_volume' => null,
                     'status' => 'ACTIVE',
-                ]
-            );
-
-            WarehouseStock::query()->updateOrCreate(
-                [
-                    'organization_id' => $organization->id,
-                    'warehouse_id' => $mainWh->id,
-                    'product_id' => $productA->id,
-                ],
-                [
-                    'qty_on_hand' => 120,
-                    'qty_reserved' => 0,
-                ]
-            );
-
-            WarehouseStock::query()->updateOrCreate(
-                [
-                    'organization_id' => $organization->id,
-                    'warehouse_id' => $mainWh->id,
-                    'product_id' => $productB->id,
-                ],
-                [
-                    'qty_on_hand' => 200,
-                    'qty_reserved' => 0,
                 ]
             );
         });

@@ -27,7 +27,7 @@ class VehicleManagementController extends Controller
 
         $vehicles = Vehicle::query()
             ->where('organization_id', $organizationId)
-            ->with('warehouse:id,name,code')
+            ->with('warehouse:id,city,address')
             ->orderBy('vehicle_no')
             ->get([
                 'id',

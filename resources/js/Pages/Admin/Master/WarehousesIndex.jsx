@@ -4,22 +4,16 @@ import {
     Alert,
     Box,
     Button,
-    Chip,
     Dialog,
     DialogActions,
     DialogContent,
     DialogTitle,
     Fab,
-    FormControl,
-    FormControlLabel,
     IconButton,
-    InputLabel,
     Menu,
     MenuItem,
     Paper,
-    Select,
     Stack,
-    Switch,
     Table,
     TableBody,
     TableCell,
@@ -36,13 +30,8 @@ import { useState } from 'react';
 
 const initialForm = {
     id: null,
-    code: '',
-    name: '',
     city: '',
     address: '',
-    phone: '',
-    is_main: false,
-    status: 'ACTIVE',
 };
 
 export default function WarehousesIndex() {
@@ -80,13 +69,8 @@ export default function WarehousesIndex() {
     const openEdit = (row) => {
         setForm({
             id: row.id,
-            code: row.code ?? '',
-            name: row.name ?? '',
             city: row.city ?? '',
             address: row.address ?? '',
-            phone: row.phone ?? '',
-            is_main: Boolean(row.is_main),
-            status: row.status ?? 'ACTIVE',
         });
         setError('');
         setOpen(true);
@@ -105,13 +89,8 @@ export default function WarehousesIndex() {
         setError('');
 
         const payload = {
-            code: form.code,
-            name: form.name,
             city: form.city,
             address: form.address || null,
-            phone: form.phone || null,
-            is_main: form.is_main,
-            status: form.status,
         };
 
         const options = {
@@ -131,7 +110,7 @@ export default function WarehousesIndex() {
     const removeRow = (row) => {
         handleTableActionClose();
         if (!canManage) return;
-        if (!window.confirm(`Delete warehouse "${row.name}"?`)) return;
+        if (!window.confirm(`Delete warehouse "${row.display_name || row.city || ''}"?`)) return;
 
         router.delete(`${adminAppUrl}/master/warehouses/${row.id}`, {
             preserveScroll: true,
@@ -183,21 +162,17 @@ export default function WarehousesIndex() {
                             <Paper key={row.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2, boxShadow: 'none' }}>
                                 <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
                                     <Box sx={{ minWidth: 0, flex: 1 }}>
-                                        <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.3 }} noWrap title={row.name}>
-                                            {row.name}
+                                        <Typography
+                                            variant="subtitle2"
+                                            sx={{ fontWeight: 700, lineHeight: 1.3 }}
+                                            noWrap
+                                            title={row.display_name || row.city}
+                                        >
+                                            {row.display_name || row.city}
                                         </Typography>
                                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, fontSize: '0.8125rem' }}>
-                                            {row.code} · {row.city}
+                                            {row.address || '—'}
                                         </Typography>
-                                        <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap" sx={{ mt: 1, gap: 0.5 }}>
-                                            <Chip
-                                                size="small"
-                                                label={row.status}
-                                                color={row.status === 'ACTIVE' ? 'success' : 'default'}
-                                                variant={row.status === 'ACTIVE' ? 'filled' : 'outlined'}
-                                            />
-                                            {row.is_main && <Chip size="small" label="Main" color="primary" variant="outlined" />}
-                                        </Stack>
                                     </Box>
                                     {canManage && (
                                         <IconButton
@@ -225,32 +200,16 @@ export default function WarehousesIndex() {
                         <Table size="small">
                             <TableHead>
                                 <TableRow>
-                                    <TableCell>Code</TableCell>
-                                    <TableCell>Name</TableCell>
                                     <TableCell>City</TableCell>
-                                    <TableCell>Status</TableCell>
+                                    <TableCell>Address</TableCell>
                                     <TableCell align="right">Actions</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {warehouses.map((row) => (
                                     <TableRow key={row.id} hover>
-                                        <TableCell>{row.code}</TableCell>
-                                        <TableCell>
-                                            <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flexWrap: 'wrap' }}>
-                                                <span>{row.name}</span>
-                                                {row.is_main && <Chip size="small" label="Main" />}
-                                            </Stack>
-                                        </TableCell>
                                         <TableCell>{row.city}</TableCell>
-                                        <TableCell>
-                                            <Chip
-                                                size="small"
-                                                label={row.status}
-                                                color={row.status === 'ACTIVE' ? 'success' : 'default'}
-                                                variant={row.status === 'ACTIVE' ? 'filled' : 'outlined'}
-                                            />
-                                        </TableCell>
+                                        <TableCell>{row.address || '—'}</TableCell>
                                         <TableCell align="right" sx={{ width: 56 }}>
                                             {canManage && (
                                                 <IconButton
@@ -266,7 +225,7 @@ export default function WarehousesIndex() {
                                 ))}
                                 {warehouses.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={5}>
+                                        <TableCell colSpan={3}>
                                             <Typography variant="body2" color="text.secondary">
                                                 No warehouses yet.
                                             </Typography>
@@ -311,40 +270,12 @@ export default function WarehousesIndex() {
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 0.5 }}>
                         {error && <Alert severity="error">{error}</Alert>}
-                        <TextField
-                            label="Code"
-                            value={form.code}
-                            onChange={(e) => setForm((prev) => ({ ...prev, code: e.target.value }))}
-                            helperText="Unique within your organization"
-                        />
-                        <TextField label="Name" value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} />
                         <TextField label="City" value={form.city} onChange={(e) => setForm((prev) => ({ ...prev, city: e.target.value }))} />
                         <TextField
                             label="Address"
                             value={form.address}
                             onChange={(e) => setForm((prev) => ({ ...prev, address: e.target.value }))}
                         />
-                        <TextField label="Phone" value={form.phone} onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))} />
-                        <FormControlLabel
-                            control={
-                                <Switch
-                                    checked={form.is_main}
-                                    onChange={(e) => setForm((prev) => ({ ...prev, is_main: e.target.checked }))}
-                                />
-                            }
-                            label="Main warehouse"
-                        />
-                        <FormControl fullWidth>
-                            <InputLabel>Status</InputLabel>
-                            <Select
-                                label="Status"
-                                value={form.status}
-                                onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
-                            >
-                                <MenuItem value="ACTIVE">ACTIVE</MenuItem>
-                                <MenuItem value="INACTIVE">INACTIVE</MenuItem>
-                            </Select>
-                        </FormControl>
                     </Stack>
                 </DialogContent>
                 <DialogActions>

@@ -11,16 +11,10 @@ return new class extends Migration
         Schema::create('warehouses', function (Blueprint $table) {
             $table->id();
             $table->foreignId('organization_id')->constrained('organizations')->cascadeOnDelete();
-            $table->string('code');
-            $table->string('name');
             $table->string('city');
             $table->string('address')->nullable();
-            $table->string('phone')->nullable();
-            $table->boolean('is_main')->default(false);
-            $table->enum('status', ['ACTIVE', 'INACTIVE'])->default('ACTIVE');
             $table->timestamps();
             $table->softDeletes();
-            $table->unique(['organization_id', 'code']);
         });
     }
 

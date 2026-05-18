@@ -10,9 +10,9 @@ use App\Models\User;
 use App\Models\Voucher;
 use App\Models\VoucherItem;
 use App\Models\VoucherAdditionalCostCategory;
+use App\Models\Warehouse;
 use App\Support\VoucherLineFreight;
 use App\Services\Audit\AuditLogger;
-use App\Services\Inventory\StockLedgerService;
 use App\Services\Tenant\OperationalWarehouseContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -27,7 +27,6 @@ use Inertia\Response;
 class VoucherWizardController extends Controller
 {
     public function __construct(
-        private StockLedgerService $stockLedger,
         private OperationalWarehouseContext $operationalContext,
     ) {}
 
@@ -65,11 +64,11 @@ class VoucherWizardController extends Controller
             ->whereKey($voucherId)
             ->where('status', 'DRAFT')
             ->with([
-                'merchant:id,name,phone,nrc_or_id,address',
-                'sourceWarehouse:id,name,code',
+                'merchant:id,name,phone',
+                'sourceWarehouse:id,city,address',
                 'items' => fn ($q) => $q->orderBy('line_no')->with([
                     'product:id,name,unit,sku',
-                    'fromWarehouse:id,name,code',
+                    'fromWarehouse:id,city,address',
                 ]),
             ])
             ->first();
@@ -170,8 +169,6 @@ class VoucherWizardController extends Controller
             'merchant' => ['required', 'array'],
             'merchant.name' => ['required', 'string', 'max:255'],
             'merchant.phone' => ['nullable', 'string', 'max:64'],
-            'merchant.nrc_or_id' => ['nullable', 'string', 'max:128'],
-            'merchant.address' => ['nullable', 'string', 'max:500'],
             'payment_status' => ['sometimes', Rule::in(['UNPAID', 'PARTIAL', 'PAID', 'WAIVED'])],
         ], $this->rulesWizardDefaultDestination($organizationId), $this->rulesWizardMeta()));
 
@@ -182,8 +179,6 @@ class VoucherWizardController extends Controller
                     'organization_id' => $organizationId,
                     'name' => $validated['merchant']['name'],
                     'phone' => $validated['merchant']['phone'] ?? null,
-                    'nrc_or_id' => $validated['merchant']['nrc_or_id'] ?? null,
-                    'address' => $validated['merchant']['address'] ?? null,
                 ]);
                 AuditLogger::record($actor, 'merchant.create', $merchant, ['name' => $merchant->name, 'context' => 'voucher_wizard']);
                 $merchantId = $merchant->id;
@@ -195,8 +190,6 @@ class VoucherWizardController extends Controller
                 $merchant->fill([
                     'name' => $validated['merchant']['name'] ?? $merchant->name,
                     'phone' => array_key_exists('phone', $validated['merchant'] ?? []) ? ($validated['merchant']['phone'] ?? null) : $merchant->phone,
-                    'nrc_or_id' => $validated['merchant']['nrc_or_id'] ?? $merchant->nrc_or_id,
-                    'address' => $validated['merchant']['address'] ?? $merchant->address,
                 ]);
                 $merchant->save();
                 AuditLogger::record($actor, 'merchant.update', $merchant, ['name' => $merchant->name, 'context' => 'voucher_wizard']);
@@ -252,8 +245,6 @@ class VoucherWizardController extends Controller
             'merchant' => ['required', 'array'],
             'merchant.name' => ['required', 'string', 'max:255'],
             'merchant.phone' => ['nullable', 'string', 'max:64'],
-            'merchant.nrc_or_id' => ['nullable', 'string', 'max:128'],
-            'merchant.address' => ['nullable', 'string', 'max:500'],
             'payment_status' => ['sometimes', Rule::in(['UNPAID', 'PARTIAL', 'PAID', 'WAIVED'])],
         ], $this->rulesWizardDefaultDestination($organizationId), $this->rulesWizardMeta()));
 
@@ -266,8 +257,6 @@ class VoucherWizardController extends Controller
             $merchant->fill([
                 'name' => $validated['merchant']['name'],
                 'phone' => $validated['merchant']['phone'] ?? null,
-                'nrc_or_id' => $validated['merchant']['nrc_or_id'] ?? null,
-                'address' => $validated['merchant']['address'] ?? null,
             ]);
             $merchant->save();
             AuditLogger::record($actor, 'merchant.update', $merchant, ['name' => $merchant->name, 'context' => 'voucher_wizard']);
@@ -462,10 +451,10 @@ class VoucherWizardController extends Controller
             return Redirect::back()->with('error', 'Add at least one line before confirming.');
         }
 
-        $validated = $request->validate([
+        $validated = $request->validate(array_merge([
             'payment_status' => ['nullable', Rule::in(['UNPAID', 'PARTIAL', 'PAID', 'WAIVED'])],
             'remark' => ['nullable', 'string', 'max:2000'],
-        ]);
+        ], $this->rulesWizardMeta()));
 
         DB::transaction(function () use ($voucherModel, $actor, $validated) {
             $voucherModel->refresh();
@@ -476,13 +465,10 @@ class VoucherWizardController extends Controller
             if (array_key_exists('remark', $validated)) {
                 $voucherModel->remark = $validated['remark'] ?? null;
             }
+            $voucherModel->fill($this->payloadWizardMeta($validated));
             $voucherModel->save();
             $this->recalculateTotals($voucherModel);
             $voucherModel->forceFill(['status' => 'CONFIRMED'])->save();
-            $voucherModel->load('items');
-            foreach ($voucherModel->items as $line) {
-                $this->stockLedger->recordIntakeForVoucherItem($line, $actor);
-            }
 
             if ($voucherModel->payment_status === 'PAID' && $voucherModel->total_amount !== null) {
                 $total = round((float) $voucherModel->total_amount, 2);
@@ -530,17 +516,14 @@ class VoucherWizardController extends Controller
     {
         return [
             'default_to_warehouse_id' => [
-                'nullable',
+                'required',
+                'integer',
                 Rule::exists('warehouses', 'id')->where(fn ($q) => $q->where('organization_id', $organizationId)),
             ],
-            'default_to_city' => ['required', 'string', 'max:128'],
-            'default_to_address_line1' => ['required', 'string', 'max:500'],
-            'default_to_address_line2' => ['nullable', 'string', 'max:500'],
-            'default_to_township' => ['nullable', 'string', 'max:128'],
-            'default_to_region' => ['nullable', 'string', 'max:128'],
-            'default_to_postal_code' => ['nullable', 'string', 'max:32'],
+            'default_to_address_line1' => ['nullable', 'string', 'max:500'],
             'default_recipient_name' => ['nullable', 'string', 'max:255'],
             'default_recipient_phone' => ['nullable', 'string', 'max:64'],
+            'default_destination_remark' => ['nullable', 'string', 'max:2000'],
         ];
     }
 
@@ -550,16 +533,31 @@ class VoucherWizardController extends Controller
      */
     private function payloadWizardDefaultDestination(array $validated): array
     {
+        $orgId = auth()->user()?->organization_id;
+        abort_if($orgId === null, 404);
+
+        $warehouseId = (int) $validated['default_to_warehouse_id'];
+        $warehouse = Warehouse::query()
+            ->where('organization_id', $orgId)
+            ->whereKey($warehouseId)
+            ->firstOrFail();
+
+        $addressLine1 = isset($validated['default_to_address_line1'])
+            ? trim((string) $validated['default_to_address_line1'])
+            : '';
+        $addressLine1 = $addressLine1 !== '' ? $addressLine1 : ($warehouse->address ?? null);
+
         return [
-            'default_to_warehouse_id' => $validated['default_to_warehouse_id'] ?? null,
-            'default_to_city' => $validated['default_to_city'],
-            'default_to_address_line1' => $validated['default_to_address_line1'],
-            'default_to_address_line2' => $validated['default_to_address_line2'] ?? null,
-            'default_to_township' => $validated['default_to_township'] ?? null,
-            'default_to_region' => $validated['default_to_region'] ?? null,
-            'default_to_postal_code' => $validated['default_to_postal_code'] ?? null,
+            'default_to_warehouse_id' => $warehouseId,
+            'default_to_city' => $warehouse->city,
+            'default_to_address_line1' => $addressLine1,
+            'default_to_address_line2' => null,
+            'default_to_township' => null,
+            'default_to_region' => null,
+            'default_to_postal_code' => null,
             'default_recipient_name' => $validated['default_recipient_name'] ?? null,
             'default_recipient_phone' => $validated['default_recipient_phone'] ?? null,
+            'default_destination_remark' => $validated['default_destination_remark'] ?? null,
         ];
     }
 

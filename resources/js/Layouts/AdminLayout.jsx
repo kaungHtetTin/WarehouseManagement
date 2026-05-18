@@ -40,16 +40,12 @@ import {
     LocalShippingOutlined as VehicleOutlinedIcon,
     Storefront as MerchantIcon,
     StorefrontOutlined as MerchantOutlinedIcon,
-    Storage as StockIcon,
-    StorageOutlined as StockOutlinedIcon,
     Warehouse as WarehouseIcon,
     WarehouseOutlined as WarehouseOutlinedIcon,
     ReceiptLong as VoucherIcon,
     ReceiptLongOutlined as VoucherOutlinedIcon,
     AltRoute as TripRouteIcon,
     AltRouteOutlined as TripRouteOutlinedIcon,
-    MoveToInbox as FulfillmentInboxIcon,
-    MoveToInboxOutlined as FulfillmentInboxOutlinedIcon,
     Insights as FinanceReportsIcon,
     InsightsOutlined as FinanceReportsOutlinedIcon,
     Settings as SettingsIcon,
@@ -67,8 +63,6 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
     const adminAppUrl = props.admin_app_url;
     const authUser = props.auth?.user;
     const permissionCodes = props.auth?.permission_codes ?? [];
-    const fulfillmentInboxPending = props.nav_counts?.fulfillment_inbox_pending ?? 0;
-    const fulfillmentIncoming = props.nav_counts?.fulfillment_incoming ?? 0;
     const vouchersPending = props.nav_counts?.vouchers_pending ?? 0;
     const tripsPending = props.nav_counts?.trips_pending ?? 0;
     const [desktopOpen, setDesktopOpen] = useState(true);
@@ -255,20 +249,6 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                 ...(permissionCodes.includes('trips.view') || permissionCodes.includes('trips.manage')
                     ? [
                           {
-                              label: 'Fulfillment Incoming',
-                              href: `${adminAppUrl}/operations/fulfillment/incoming`,
-                              icon: <FulfillmentInboxIcon />,
-                              iconOutlined: <FulfillmentInboxOutlinedIcon />,
-                              badgeCount: fulfillmentIncoming,
-                          },
-                          {
-                              label: 'Fulfillment Inbox',
-                              href: `${adminAppUrl}/operations/fulfillment/inbox`,
-                              icon: <FulfillmentInboxIcon />,
-                              iconOutlined: <FulfillmentInboxOutlinedIcon />,
-                              badgeCount: fulfillmentInboxPending,
-                          },
-                          {
                               label: 'Trips',
                               href: `${adminAppUrl}/operations/trips`,
                               icon: <TripRouteIcon />,
@@ -276,14 +256,6 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                               badgeCount: tripsPending,
                           },
                       ]
-                    : []),
-            ],
-        },
-        {
-            title: 'Inventory',
-            items: [
-                ...(permissionCodes.includes('inventory.view') || permissionCodes.includes('inventory.manage')
-                    ? [{ label: 'Stock', href: `${adminAppUrl}/inventory/stocks`, icon: <StockIcon />, iconOutlined: <StockOutlinedIcon /> }]
                     : []),
             ],
         },

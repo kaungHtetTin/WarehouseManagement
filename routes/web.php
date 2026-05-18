@@ -13,7 +13,6 @@ use App\Http\Controllers\Admin\VoucherAdditionalCostCategoryController;
 use App\Http\Controllers\Admin\FinanceCategoryController;
 use App\Http\Controllers\Admin\FinanceLedgerController;
 use App\Http\Controllers\Admin\TripCostCategoryController;
-use App\Http\Controllers\Admin\WarehouseStockController;
 use App\Http\Controllers\Admin\RoleManagementController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\WarehouseManagementController;
@@ -237,13 +236,6 @@ Route::prefix('admin')->name('admin.')->group(function () {
             ->middleware('permission:inventory.manage')
             ->name('vehicles.destroy');
 
-        Route::get('/inventory/stocks', [WarehouseStockController::class, 'index'])
-            ->middleware('permission:inventory.view')
-            ->name('stocks.index');
-        Route::post('/inventory/stock-adjustments', [WarehouseStockController::class, 'adjust'])
-            ->middleware('permission:inventory.manage')
-            ->name('stocks.adjust');
-
         Route::get('/operations/trips', [TripManagementController::class, 'index'])
             ->middleware('permission:trips.view')
             ->name('trips.index');
@@ -277,6 +269,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/operations/trips/{trip}/vouchers/load', [TripManagementController::class, 'storeVoucherLoad'])
             ->middleware('permission:trips.manage')
             ->name('trips.vouchers.load');
+        Route::post('/operations/trips/{trip}/vouchers/load-batch', [TripManagementController::class, 'storeVoucherLoadBatch'])
+            ->middleware('permission:trips.manage')
+            ->name('trips.vouchers.load-batch');
         Route::patch('/operations/trips/{trip}/items/{tripItem}', [TripManagementController::class, 'updateItem'])
             ->middleware('permission:trips.manage')
             ->name('trips.items.update');

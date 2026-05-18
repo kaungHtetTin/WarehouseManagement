@@ -1,9 +1,11 @@
-Drawer Navigation bar ကို ပြန်ပြင်မယ်, Warehouse ကို System section ကို ပို့မယ်, Category ကို ဖြုတ်မယ်, 
-In operation section, sort the link by the following order
-voucher,
-fillfullment
-trip
-stock
-product
-merchant
-vehicle
+to compat cargo table in we want to make some changes
+
+change the column  title as follows:
+voucher id => id (reduce font size)
+Ammount To = AMT (make integer for data type, no decimal require)
+TOTAL ITEMS => ITEMS
+Destination => DEST.
+Destination remark => remark
+
+
+

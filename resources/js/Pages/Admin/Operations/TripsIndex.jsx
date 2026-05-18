@@ -43,7 +43,7 @@ export default function TripsIndex() {
         admin_app_url: adminAppUrl,
         flash = {},
         auth,
-        trip_source_filter: tripSourceFilter = 'all',
+        trip_destination_filter: tripDestinationFilter = 'all',
         trip_filter_warehouses: tripFilterWarehouses = [],
     } = pageProps;
     const permissionCodes = auth?.permission_codes ?? [];
@@ -70,20 +70,20 @@ export default function TripsIndex() {
                             Trips
                         </Typography>
                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                            Plan routes with vehicle and delivery stops. Cargo loads from confirmed vouchers on each trip&apos;s detail page.
+                            Create trips with a vehicle and a destination warehouse. Load cargo from confirmed vouchers on each trip&apos;s detail page.
                         </Typography>
                         {tripFilterWarehouses.length > 0 && (
                             <FormControl size="small" sx={{ mt: 1.5, width: { xs: '100%', sm: 280 } }}>
-                                <InputLabel id="trip-src-wh-filter">Source warehouse</InputLabel>
+                                <InputLabel id="trip-src-wh-filter">Destination warehouse</InputLabel>
                                 <Select
                                     labelId="trip-src-wh-filter"
-                                    label="Source warehouse"
-                                    value={tripSourceFilter}
+                                    label="Destination warehouse"
+                                    value={tripDestinationFilter}
                                     onChange={(e) => {
                                         const v = e.target.value;
                                         router.get(
                                             `${adminAppUrl}/operations/trips`,
-                                            { source_warehouse_id: v },
+                                            { destination_warehouse_id: v },
                                             { preserveScroll: true },
                                         );
                                     }}
@@ -91,7 +91,7 @@ export default function TripsIndex() {
                                     <MenuItem value="all">All</MenuItem>
                                     {tripFilterWarehouses.map((w) => (
                                         <MenuItem key={w.id} value={String(w.id)}>
-                                            {w.code} · {w.name}
+                                            {w.display_name || w.city}
                                         </MenuItem>
                                     ))}
                                 </Select>
@@ -132,8 +132,7 @@ export default function TripsIndex() {
                                     <TableCell>Trip</TableCell>
                                     <TableCell>Status</TableCell>
                                     <TableCell>Vehicle</TableCell>
-                                    <TableCell>Source warehouse</TableCell>
-                                    <TableCell align="right">Stops</TableCell>
+                                    <TableCell>Destination warehouse</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -156,15 +155,14 @@ export default function TripsIndex() {
                                             />
                                         </TableCell>
                                         <TableCell>{row.vehicle?.vehicle_no ?? '—'}</TableCell>
-                                        <TableCell>{row.source_warehouse?.name ?? '—'}</TableCell>
-                                        <TableCell align="right">{row.stops_count ?? 0}</TableCell>
+                                        <TableCell>{row.source_warehouse?.display_name ?? '—'}</TableCell>
                                     </TableRow>
                                 ))}
                                 {rows.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={5}>
+                                        <TableCell colSpan={4}>
                                             <Typography variant="body2" color="text.secondary">
-                                                No trips yet.{canManage ? ' Create one to assign a vehicle and stops.' : ''}
+                                                No trips yet.{canManage ? ' Create one to assign a vehicle and destination warehouse.' : ''}
                                             </Typography>
                                         </TableCell>
                                     </TableRow>
@@ -206,18 +204,10 @@ export default function TripsIndex() {
                                         </Box>
                                         <Box>
                                             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                                                Source warehouse
+                                                Destination warehouse
                                             </Typography>
                                             <Typography variant="body2" sx={{ mt: 0.25, wordBreak: 'break-word' }}>
-                                                {row.source_warehouse?.name ?? '—'}
-                                            </Typography>
-                                        </Box>
-                                        <Box>
-                                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                                                Stops
-                                            </Typography>
-                                            <Typography variant="body2" sx={{ mt: 0.25 }}>
-                                                {row.stops_count ?? 0}
+                                                {row.source_warehouse?.display_name ?? '—'}
                                             </Typography>
                                         </Box>
                                     </Stack>
@@ -227,7 +217,7 @@ export default function TripsIndex() {
                         {rows.length === 0 && (
                             <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
                                 <Typography variant="body2" color="text.secondary">
-                                    No trips yet.{canManage ? ' Tap New trip above to assign a vehicle and stops.' : ''}
+                                    No trips yet.{canManage ? ' Tap New trip above to assign a vehicle and destination warehouse.' : ''}
                                 </Typography>
                             </Paper>
                         )}

@@ -17,13 +17,8 @@ class WarehouseFactory extends Factory
     {
         return [
             'organization_id' => Organization::factory(),
-            'code' => strtoupper($this->faker->unique()->bothify('WH-####')),
-            'name' => $this->faker->company().' Warehouse',
             'city' => $this->faker->city(),
             'address' => $this->faker->streetAddress(),
-            'phone' => $this->faker->optional()->phoneNumber(),
-            'is_main' => false,
-            'status' => 'ACTIVE',
         ];
     }
 }

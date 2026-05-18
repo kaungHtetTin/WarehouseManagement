@@ -33,6 +33,7 @@ class Voucher extends Model
         'default_to_postal_code',
         'default_recipient_name',
         'default_recipient_phone',
+        'default_destination_remark',
         'created_by',
     ];
 

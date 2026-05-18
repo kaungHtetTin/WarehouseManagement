@@ -254,7 +254,7 @@ export default function FinanceReports() {
                                     <MenuItem value="none">Unassigned</MenuItem>
                                     {warehouses.map((w) => (
                                         <MenuItem key={w.id} value={String(w.id)}>
-                                            {w.code} · {w.name}
+                                            {w.display_name || w.city}
                                         </MenuItem>
                                     ))}
                                 </Select>
@@ -332,4 +332,3 @@ export default function FinanceReports() {
         </AdminLayout>
     );
 }
-

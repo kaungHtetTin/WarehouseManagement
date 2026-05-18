@@ -3,15 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\FinanceCategory;
-use App\Models\FinanceEntry;
 use App\Models\TripItem;
 use App\Models\TripStop;
 use App\Models\VoucherItem;
 use App\Models\VoucherPayment;
 use App\Models\WarehouseFulfillmentInstruction;
 use App\Services\Audit\AuditLogger;
-use App\Services\Inventory\StockLedgerService;
 use App\Services\Tenant\OperationalWarehouseContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,12 +21,18 @@ use Inertia\Response;
 class WarehouseFulfillmentController extends Controller
 {
     public function __construct(
-        private StockLedgerService $stockLedger,
         private OperationalWarehouseContext $operationalContext,
     ) {}
 
+    private function abortFulfillmentHidden(): void
+    {
+        abort(404);
+    }
+
     public function storeVoucherPayment(Request $request, string $voucher): RedirectResponse
     {
+        $this->abortFulfillmentHidden();
+
         $actor = $request->user();
         $organizationId = $actor->organization_id;
         abort_if($organizationId === null, 404);
@@ -76,57 +79,6 @@ class WarehouseFulfillmentController extends Controller
                 'received_by' => $actor->id,
             ]);
 
-            $incomeCategory = FinanceCategory::query()
-                ->where('organization_id', $organizationId)
-                ->where('scope', 'VOUCHER')
-                ->where('direction', 'INCOME')
-                ->where('name', 'Voucher Payment')
-                ->whereNull('deleted_at')
-                ->first();
-
-            if (! $incomeCategory) {
-                $incomeCategory = FinanceCategory::withTrashed()
-                    ->where('organization_id', $organizationId)
-                    ->where('scope', 'VOUCHER')
-                    ->where('name', 'Voucher Payment')
-                    ->first();
-
-                if ($incomeCategory && $incomeCategory->trashed()) {
-                    $incomeCategory->restore();
-                }
-
-                if (! $incomeCategory) {
-                    $incomeCategory = FinanceCategory::query()->create([
-                        'organization_id' => $organizationId,
-                        'scope' => 'VOUCHER',
-                        'direction' => 'INCOME',
-                        'name' => 'Voucher Payment',
-                        'status' => 'ACTIVE',
-                        'sort_order' => 10,
-                    ]);
-                } else {
-                    $incomeCategory->direction = 'INCOME';
-                    $incomeCategory->status = 'ACTIVE';
-                    $incomeCategory->save();
-                }
-            }
-
-            FinanceEntry::query()->create([
-                'organization_id' => $organizationId,
-                'warehouse_id' => $voucherModel->source_warehouse_id,
-                'scope' => 'VOUCHER',
-                'direction' => 'INCOME',
-                'category_id' => $incomeCategory->id,
-                'amount' => (float) $payment->amount,
-                'currency' => $payment->currency ?? 'MMK',
-                'occurred_at' => $payment->paid_at,
-                'note' => $payment->note,
-                'reference_type' => 'VOUCHER_PAYMENT',
-                'reference_id' => $payment->id,
-                'source' => 'SYSTEM',
-                'created_by' => $actor->id,
-            ]);
-
             $total = round((float) $voucherModel->total_amount, 2);
             $paid = round((float) VoucherPayment::query()
                 ->where('voucher_id', $voucherModel->id)
@@ -159,6 +111,8 @@ class WarehouseFulfillmentController extends Controller
 
     public function setVoucherWaived(Request $request, string $voucher): RedirectResponse
     {
+        $this->abortFulfillmentHidden();
+
         $actor = $request->user();
         $organizationId = $actor->organization_id;
         abort_if($organizationId === null, 404);
@@ -231,6 +185,8 @@ class WarehouseFulfillmentController extends Controller
 
     public function index(Request $request): Response
     {
+        $this->abortFulfillmentHidden();
+
         $user = $request->user();
         $organizationId = $user->organization_id;
         abort_if($organizationId === null, 404);
@@ -282,14 +238,14 @@ class WarehouseFulfillmentController extends Controller
 
             $instructions = $query
                 ->with([
-                    'warehouse:id,name,code',
-                    'nextWarehouse:id,name,code',
+                    'warehouse:id,city,address',
+                    'nextWarehouse:id,city,address',
                     'merchant:id,name',
                     'tripItem:id,trip_id',
                     'tripItem.trip:id,trip_no,status',
                     'voucherItem:id,voucher_id,line_no,product_id,unit',
                     'voucherItem.voucher:id,voucher_no,payment_status,total_amount,default_to_warehouse_id,default_to_city,default_to_address_line1,default_to_address_line2,default_to_township,default_to_region,default_to_postal_code,default_recipient_name,default_recipient_phone',
-                    'voucherItem.voucher.defaultToWarehouse:id,name,code',
+                    'voucherItem.voucher.defaultToWarehouse:id,city,address',
                     'voucherItem.product:id,name,unit',
                 ])
                 ->orderByDesc('id')
@@ -365,6 +321,8 @@ class WarehouseFulfillmentController extends Controller
 
     public function incoming(Request $request): Response
     {
+        $this->abortFulfillmentHidden();
+
         $user = $request->user();
         $organizationId = $user->organization_id;
         abort_if($organizationId === null, 404);
@@ -420,7 +378,7 @@ class WarehouseFulfillmentController extends Controller
                 'voucherItem:id,voucher_id,line_no,product_id,unit',
                 'voucherItem.product:id,name,unit',
                 'voucherItem.voucher:id,voucher_no,payment_status,default_to_warehouse_id,default_to_city,default_to_address_line1,default_to_address_line2,default_to_township,default_to_region,default_to_postal_code,default_recipient_name,default_recipient_phone,merchant_id',
-                'voucherItem.voucher.defaultToWarehouse:id,name,code',
+                'voucherItem.voucher.defaultToWarehouse:id,city,address',
                 'voucherItem.voucher.merchant:id,name',
             ])
             ->orderByDesc('id')
@@ -475,7 +433,7 @@ class WarehouseFulfillmentController extends Controller
             $out[] = [
                 'id' => 'incoming-'.$item->id.'-'.$receivingWarehouseId,
                 'warehouse_id' => $receivingWarehouseId,
-                'warehouse' => $warehouse->only(['id', 'name', 'code']),
+                'warehouse' => $warehouse->only(['id', 'city', 'address', 'display_name']),
                 'next_warehouse_id' => null,
                 'next_warehouse' => null,
                 'merchant_id' => $voucher->merchant_id ?? null,
@@ -526,6 +484,8 @@ class WarehouseFulfillmentController extends Controller
 
     public function dispatchInstruction(Request $request, string $instruction): RedirectResponse
     {
+        $this->abortFulfillmentHidden();
+
         $actor = $request->user();
         $organizationId = $actor->organization_id;
         abort_if($organizationId === null, 404);
@@ -604,27 +564,6 @@ class WarehouseFulfillmentController extends Controller
                         ]);
                     }
 
-                    $this->stockLedger->applyWarehouseDispatch(
-                        vi: $voucherItem,
-                        warehouseId: (int) $row->warehouse_id,
-                        qtyLeaving: $qty,
-                        movementType: 'TRANSFER_OUT',
-                        refType: 'WAREHOUSE_FULFILLMENT',
-                        refId: (int) $row->id,
-                        actor: $actor,
-                        note: $note,
-                    );
-
-                    $this->stockLedger->applyWarehouseTransferIn(
-                        vi: $voucherItem,
-                        warehouseId: $nextWarehouseId,
-                        qtyIn: $qty,
-                        refType: 'WAREHOUSE_FULFILLMENT',
-                        refId: (int) $row->id,
-                        actor: $actor,
-                        note: $note,
-                    );
-
                     WarehouseFulfillmentInstruction::query()->create([
                         'organization_id' => $organizationId,
                         'warehouse_id' => $nextWarehouseId,
@@ -644,16 +583,6 @@ class WarehouseFulfillmentController extends Controller
                     $row->next_warehouse_id = $nextWarehouseId;
                 } else {
                     $movementType = 'DELIVERY';
-                    $this->stockLedger->applyWarehouseDispatch(
-                        vi: $voucherItem,
-                        warehouseId: (int) $row->warehouse_id,
-                        qtyLeaving: $qty,
-                        movementType: $movementType,
-                        refType: 'WAREHOUSE_FULFILLMENT',
-                        refId: (int) $row->id,
-                        actor: $actor,
-                        note: $note,
-                    );
                     $row->next_action_type = $actionType;
                 }
 
@@ -684,6 +613,8 @@ class WarehouseFulfillmentController extends Controller
 
     public function dispatchVoucher(Request $request, string $warehouse, string $voucher): RedirectResponse
     {
+        $this->abortFulfillmentHidden();
+
         $actor = $request->user();
         $organizationId = $actor->organization_id;
         abort_if($organizationId === null, 404);
@@ -771,27 +702,6 @@ class WarehouseFulfillmentController extends Controller
                     }
 
                     if ($actionType === 'FORWARD_TO_WAREHOUSE') {
-                        $this->stockLedger->applyWarehouseDispatch(
-                            vi: $voucherItem,
-                            warehouseId: $warehouseId,
-                            qtyLeaving: $remaining,
-                            movementType: 'TRANSFER_OUT',
-                            refType: 'WAREHOUSE_FULFILLMENT',
-                            refId: (int) $row->id,
-                            actor: $actor,
-                            note: $note,
-                        );
-
-                        $this->stockLedger->applyWarehouseTransferIn(
-                            vi: $voucherItem,
-                            warehouseId: $nextWarehouseId,
-                            qtyIn: $remaining,
-                            refType: 'WAREHOUSE_FULFILLMENT',
-                            refId: (int) $row->id,
-                            actor: $actor,
-                            note: $note,
-                        );
-
                         WarehouseFulfillmentInstruction::query()->create([
                             'organization_id' => $organizationId,
                             'warehouse_id' => $nextWarehouseId,
@@ -810,16 +720,6 @@ class WarehouseFulfillmentController extends Controller
                         $row->next_action_type = 'FORWARD_TO_WAREHOUSE';
                         $row->next_warehouse_id = $nextWarehouseId;
                     } else {
-                        $this->stockLedger->applyWarehouseDispatch(
-                            vi: $voucherItem,
-                            warehouseId: $warehouseId,
-                            qtyLeaving: $remaining,
-                            movementType: 'DELIVERY',
-                            refType: 'WAREHOUSE_FULFILLMENT',
-                            refId: (int) $row->id,
-                            actor: $actor,
-                            note: $note,
-                        );
                         $row->next_action_type = $actionType;
                     }
 

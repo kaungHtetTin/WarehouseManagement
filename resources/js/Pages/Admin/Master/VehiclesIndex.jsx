@@ -178,7 +178,7 @@ export default function VehiclesIndex() {
                                             color="text.secondary"
                                             sx={{ mt: 0.25, wordBreak: 'break-word', fontSize: '0.8125rem' }}
                                         >
-                                            {[row.vehicle_type, row.warehouse?.name].filter(Boolean).join(' · ') || '—'}
+                                            {[row.vehicle_type, row.warehouse?.display_name].filter(Boolean).join(' · ') || '—'}
                                         </Typography>
                                         <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap" sx={{ mt: 1, gap: 0.5 }}>
                                             <Chip size="small" label={row.status} variant="outlined" />
@@ -222,7 +222,7 @@ export default function VehiclesIndex() {
                                     <TableRow key={row.id} hover>
                                         <TableCell>{row.vehicle_no}</TableCell>
                                         <TableCell>{row.vehicle_type}</TableCell>
-                                        <TableCell>{row.warehouse?.name || '—'}</TableCell>
+                                        <TableCell>{row.warehouse?.display_name || '—'}</TableCell>
                                         <TableCell>
                                             <Chip size="small" label={row.status} variant="outlined" />
                                         </TableCell>
@@ -297,7 +297,7 @@ export default function VehiclesIndex() {
                                 <MenuItem value="">None</MenuItem>
                                 {warehouses.map((w) => (
                                     <MenuItem key={w.id} value={w.id}>
-                                        {w.name} ({w.code})
+                                        {w.display_name || w.city}
                                     </MenuItem>
                                 ))}
                             </Select>

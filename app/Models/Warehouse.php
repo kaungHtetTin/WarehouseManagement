@@ -16,18 +16,28 @@ class Warehouse extends Model
 
     protected $fillable = [
         'organization_id',
-        'code',
-        'name',
         'city',
         'address',
-        'phone',
-        'is_main',
-        'status',
     ];
 
-    protected $casts = [
-        'is_main' => 'boolean',
+    protected $appends = [
+        'display_name',
     ];
+
+    public function getDisplayNameAttribute(): string
+    {
+        $city = trim((string) ($this->city ?? ''));
+        $address = trim((string) ($this->address ?? ''));
+
+        if ($city === '') {
+            return $address;
+        }
+        if ($address === '') {
+            return $city;
+        }
+
+        return $city.' - '.$address;
+    }
 
     public function organization(): BelongsTo
     {
@@ -42,10 +52,5 @@ class Warehouse extends Model
     public function vehicles(): HasMany
     {
         return $this->hasMany(Vehicle::class);
-    }
-
-    public function stocks(): HasMany
-    {
-        return $this->hasMany(WarehouseStock::class);
     }
 }

@@ -27,11 +27,11 @@ final class OperationalWarehouseContext
     {
         $query = Warehouse::query()
             ->where('organization_id', $user->organization_id)
-            ->where('status', 'ACTIVE')
-            ->orderBy('name');
+            ->orderBy('city')
+            ->orderBy('id');
 
         if ($user->bypassesWarehouseScope()) {
-            return $query->get(['id', 'name', 'code']);
+            return $query->get(['id', 'city', 'address']);
         }
 
         $ids = $user->warehouses()->pluck('warehouses.id');
@@ -39,7 +39,7 @@ final class OperationalWarehouseContext
             return collect();
         }
 
-        return $query->whereIn('id', $ids)->get(['id', 'name', 'code']);
+        return $query->whereIn('id', $ids)->get(['id', 'city', 'address']);
     }
 
     /**
@@ -63,10 +63,10 @@ final class OperationalWarehouseContext
 
         return Warehouse::query()
             ->where('organization_id', $user->organization_id)
-            ->where('status', 'ACTIVE')
             ->whereIn('id', $ids)
-            ->orderBy('name')
-            ->get(['id', 'name', 'code']);
+            ->orderBy('city')
+            ->orderBy('id')
+            ->get(['id', 'city', 'address']);
     }
 
     /**
@@ -77,12 +77,6 @@ final class OperationalWarehouseContext
         return $this->assignedWarehousesOnly($user)->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
     }
 
-    /** @see assignedWarehousesOnly */
-    public function assignedWarehousesForStock(User $user): Collection
-    {
-        return $this->assignedWarehousesOnly($user);
-    }
-
     /**
      * Warehouses the user may load / ship from (trip source validation).
      */
@@ -90,18 +84,18 @@ final class OperationalWarehouseContext
     {
         $query = Warehouse::query()
             ->where('organization_id', $user->organization_id)
-            ->where('status', 'ACTIVE')
-            ->orderBy('name');
+            ->orderBy('city')
+            ->orderBy('id');
 
         if ($user->bypassesWarehouseScope()) {
-            return $query->get(['id', 'name', 'code']);
+            return $query->get(['id', 'city', 'address']);
         }
 
         return $user->warehouses()
-            ->where('warehouses.status', 'ACTIVE')
             ->wherePivotIn('access_level', ['OPERATE', 'MANAGE'])
-            ->orderBy('warehouses.name')
-            ->get(['warehouses.id', 'warehouses.name', 'warehouses.code']);
+            ->orderBy('warehouses.city')
+            ->orderBy('warehouses.id')
+            ->get(['warehouses.id', 'warehouses.city', 'warehouses.address']);
     }
 
     /**
