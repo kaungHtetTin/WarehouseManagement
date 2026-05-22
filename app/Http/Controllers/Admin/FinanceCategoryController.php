@@ -15,21 +15,17 @@ use Inertia\Response;
 
 class FinanceCategoryController extends Controller
 {
+    private const GLOBAL_SCOPE = 'GENERAL';
+
     public function index(Request $request): Response
     {
         $actor = $request->user();
         $organizationId = $actor->organization_id;
         abort_if($organizationId === null, 404);
 
-        $rawScope = $request->query('scope', 'all');
-        $selectedScope = in_array($rawScope, ['GENERAL', 'VOUCHER', 'TRIP_COST'], true) ? $rawScope : 'all';
-
         $rows = FinanceCategory::query()
-            ->where('organization_id', $organizationId);
-
-        if ($selectedScope !== 'all') {
-            $rows->where('scope', $selectedScope);
-        }
+            ->where('organization_id', $organizationId)
+            ->where('scope', self::GLOBAL_SCOPE);
 
         $rows = $rows
             ->orderBy('scope')
@@ -41,7 +37,7 @@ class FinanceCategoryController extends Controller
         return Inertia::render('Admin/Finance/FinanceCategoriesIndex', [
             'categories' => $rows,
             'filters' => [
-                'scope' => $selectedScope,
+                'scope' => self::GLOBAL_SCOPE,
             ],
         ]);
     }
@@ -53,7 +49,6 @@ class FinanceCategoryController extends Controller
         abort_if($organizationId === null, 404);
 
         $validated = $request->validate([
-            'scope' => ['required', Rule::in(['GENERAL', 'VOUCHER', 'TRIP_COST'])],
             'direction' => ['required', Rule::in(['INCOME', 'EXPENSE', 'BOTH'])],
             'name' => [
                 'required',
@@ -62,7 +57,7 @@ class FinanceCategoryController extends Controller
                 Rule::unique('finance_categories', 'name')
                     ->where(fn ($q) => $q
                         ->where('organization_id', $organizationId)
-                        ->where('scope', $request->input('scope'))
+                        ->where('scope', self::GLOBAL_SCOPE)
                         ->whereNull('deleted_at')),
             ],
             'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE'])],
@@ -71,7 +66,7 @@ class FinanceCategoryController extends Controller
 
         $row = FinanceCategory::query()->create([
             'organization_id' => $organizationId,
-            'scope' => $validated['scope'],
+            'scope' => self::GLOBAL_SCOPE,
             'direction' => $validated['direction'],
             'name' => trim($validated['name']),
             'status' => $validated['status'] ?? 'ACTIVE',
@@ -84,7 +79,7 @@ class FinanceCategoryController extends Controller
             'name' => $row->name,
         ]);
 
-        return Redirect::route('admin.finance.categories.index', ['scope' => $validated['scope']])
+        return Redirect::route('admin.finance.categories.index')
             ->with('success', 'Category created successfully.');
     }
 
@@ -97,7 +92,6 @@ class FinanceCategoryController extends Controller
         $categoryModel = $this->resolveTenantCategory($actor, $category);
 
         $validated = $request->validate([
-            'scope' => ['sometimes', 'required', Rule::in(['GENERAL', 'VOUCHER', 'TRIP_COST'])],
             'direction' => ['sometimes', 'required', Rule::in(['INCOME', 'EXPENSE', 'BOTH'])],
             'name' => [
                 'sometimes',
@@ -108,7 +102,7 @@ class FinanceCategoryController extends Controller
                     ->ignore($categoryModel->id)
                     ->where(fn ($q) => $q
                         ->where('organization_id', $organizationId)
-                        ->where('scope', $request->input('scope', $categoryModel->scope))
+                        ->where('scope', self::GLOBAL_SCOPE)
                         ->whereNull('deleted_at')),
             ],
             'status' => ['sometimes', 'nullable', Rule::in(['ACTIVE', 'INACTIVE'])],
@@ -123,6 +117,7 @@ class FinanceCategoryController extends Controller
         }
 
         $categoryModel->fill($validated);
+        $categoryModel->scope = self::GLOBAL_SCOPE;
         $categoryModel->save();
 
         AuditLogger::record($actor, 'finance_category.update', $categoryModel, [
@@ -131,7 +126,7 @@ class FinanceCategoryController extends Controller
             'name' => $categoryModel->name,
         ]);
 
-        return Redirect::route('admin.finance.categories.index', ['scope' => $categoryModel->scope])
+        return Redirect::route('admin.finance.categories.index')
             ->with('success', 'Category updated successfully.');
     }
 
@@ -150,7 +145,7 @@ class FinanceCategoryController extends Controller
 
         AuditLogger::record($actor, 'finance_category.delete', null, $snapshot);
 
-        return Redirect::route('admin.finance.categories.index', ['scope' => $categoryModel->scope])
+        return Redirect::route('admin.finance.categories.index')
             ->with('success', 'Category deleted successfully.');
     }
 
@@ -160,8 +155,8 @@ class FinanceCategoryController extends Controller
 
         return FinanceCategory::query()
             ->where('organization_id', $user->organization_id)
+            ->where('scope', self::GLOBAL_SCOPE)
             ->whereKey($id)
             ->firstOrFail();
     }
 }
-

@@ -14,7 +14,7 @@ return new class extends Migration
             $table->string('voucher_no', 64);
             $table->date('voucher_date');
             $table->foreignId('source_warehouse_id')->constrained('warehouses');
-            $table->foreignId('merchant_id')->constrained('merchants');
+            $table->foreignId('merchant_id')->nullable()->constrained('merchants')->nullOnDelete();
             $table->enum('status', [
                 'DRAFT',
                 'CONFIRMED',

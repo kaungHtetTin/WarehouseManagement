@@ -1,5 +1,6 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import { Head, router, usePage } from '@inertiajs/react';
+import { useT } from '@/i18n';
 import {
     Alert,
     Box,
@@ -38,6 +39,7 @@ const initialForm = {
 export default function MerchantsIndex() {
     const theme = useTheme();
     const isCompactList = useMediaQuery(theme.breakpoints.down('md'));
+    const t = useT();
     const { merchants = [], admin_app_url: adminAppUrl, flash = {}, auth } = usePage().props;
     const [open, setOpen] = useState(false);
     const [form, setForm] = useState(initialForm);
@@ -95,7 +97,7 @@ export default function MerchantsIndex() {
         };
         const options = {
             preserveScroll: true,
-            onError: () => setError('Unable to save merchant. Please check fields and try again.'),
+            onError: () => setError(t('master.merchants.errors.save_failed')),
             onFinish: () => setProcessing(false),
             onSuccess: closeDialog,
         };
@@ -109,13 +111,13 @@ export default function MerchantsIndex() {
     const removeRow = (row) => {
         handleTableActionClose();
         if (!canManage) return;
-        if (!window.confirm(`Delete merchant "${row.name}"?`)) return;
+        if (!window.confirm(t('master.merchants.confirm.delete', { name: row.name }))) return;
         router.delete(`${adminAppUrl}/master/merchants/${row.id}`, { preserveScroll: true });
     };
 
     return (
-        <AdminLayout title="Merchants">
-            <Head title="Merchants" />
+        <AdminLayout title={t('nav.merchants')}>
+            <Head title={t('nav.merchants')} />
             <Stack spacing={2}>
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
@@ -131,10 +133,10 @@ export default function MerchantsIndex() {
                 >
                     <Box>
                         <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                            Merchants
+                            {t('nav.merchants')}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                            Customers and consignors linked to vouchers.
+                            {t('master.merchants.subtitle')}
                         </Typography>
                     </Box>
                     {canManage && (
@@ -147,7 +149,7 @@ export default function MerchantsIndex() {
                                 alignSelf: { xs: 'flex-end', md: 'auto' },
                             }}
                         >
-                            <Fab size="small" color="primary" onClick={openCreate} aria-label="Create merchant" sx={{ boxShadow: 2 }}>
+                            <Fab size="small" color="primary" onClick={openCreate} aria-label={t('master.merchants.actions.create')} sx={{ boxShadow: 2 }}>
                                 <AddIcon fontSize="small" />
                             </Fab>
                         </Stack>
@@ -180,7 +182,7 @@ export default function MerchantsIndex() {
                                         <IconButton
                                             size="small"
                                             onClick={(e) => handleTableActionOpen(e, row)}
-                                            aria-label="Merchant actions"
+                                            aria-label={t('master.merchants.actions.row_actions')}
                                             sx={{ flexShrink: 0, mt: -0.25 }}
                                         >
                                             <MoreVertIcon fontSize="small" />
@@ -192,7 +194,7 @@ export default function MerchantsIndex() {
                         {merchants.length === 0 && (
                             <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, boxShadow: 'none' }}>
                                 <Typography variant="body2" color="text.secondary">
-                                    No merchants yet.
+                                    {t('master.merchants.empty')}
                                 </Typography>
                             </Paper>
                         )}
@@ -202,11 +204,11 @@ export default function MerchantsIndex() {
                         <Table size="small">
                             <TableHead>
                                 <TableRow>
-                                    <TableCell>Name</TableCell>
-                                    <TableCell>Phone</TableCell>
-                                    <TableCell>NRC / ID</TableCell>
-                                    <TableCell>Address</TableCell>
-                                    <TableCell align="right">Actions</TableCell>
+                                    <TableCell>{t('master.merchants.table.name')}</TableCell>
+                                    <TableCell>{t('master.merchants.table.phone')}</TableCell>
+                                    <TableCell>{t('master.merchants.table.nrc_or_id')}</TableCell>
+                                    <TableCell>{t('master.merchants.table.address')}</TableCell>
+                                    <TableCell align="right">{t('ui.actions')}</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -218,7 +220,7 @@ export default function MerchantsIndex() {
                                         <TableCell sx={{ maxWidth: 220 }}>{row.address || '—'}</TableCell>
                                         <TableCell align="right" sx={{ width: 56 }}>
                                             {canManage && (
-                                                <IconButton size="small" onClick={(e) => handleTableActionOpen(e, row)} aria-label="Merchant actions">
+                                                <IconButton size="small" onClick={(e) => handleTableActionOpen(e, row)} aria-label={t('master.merchants.actions.row_actions')}>
                                                     <MoreVertIcon fontSize="small" />
                                                 </IconButton>
                                             )}
@@ -229,7 +231,7 @@ export default function MerchantsIndex() {
                                     <TableRow>
                                         <TableCell colSpan={5}>
                                             <Typography variant="body2" color="text.secondary">
-                                                No merchants yet.
+                                                {t('master.merchants.empty')}
                                             </Typography>
                                         </TableCell>
                                     </TableRow>
@@ -253,24 +255,36 @@ export default function MerchantsIndex() {
                             handleTableActionClose();
                         }}
                     >
-                        Edit
+                        {t('ui.edit')}
                     </MenuItem>
                     <MenuItem dense sx={{ color: 'error.main' }} onClick={() => selectedRow && removeRow(selectedRow)}>
-                        Delete
+                        {t('ui.delete')}
                     </MenuItem>
                 </Menu>
             </Stack>
 
             <Dialog open={open} onClose={closeDialog} fullWidth maxWidth="sm">
-                <DialogTitle>{form.id ? 'Edit Merchant' : 'Create Merchant'}</DialogTitle>
+                <DialogTitle>{form.id ? t('master.merchants.dialog.edit_title') : t('master.merchants.dialog.create_title')}</DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 0.5 }}>
                         {error && <Alert severity="error">{error}</Alert>}
-                        <TextField label="Name" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
-                        <TextField label="Phone" value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} />
-                        <TextField label="NRC / ID" value={form.nrc_or_id} onChange={(e) => setForm((p) => ({ ...p, nrc_or_id: e.target.value }))} />
                         <TextField
-                            label="Address"
+                            label={t('master.merchants.fields.name')}
+                            value={form.name}
+                            onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                        />
+                        <TextField
+                            label={t('master.merchants.fields.phone')}
+                            value={form.phone}
+                            onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
+                        />
+                        <TextField
+                            label={t('master.merchants.fields.nrc_or_id')}
+                            value={form.nrc_or_id}
+                            onChange={(e) => setForm((p) => ({ ...p, nrc_or_id: e.target.value }))}
+                        />
+                        <TextField
+                            label={t('master.merchants.fields.address')}
                             multiline
                             minRows={2}
                             value={form.address}
@@ -280,10 +294,10 @@ export default function MerchantsIndex() {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={closeDialog} disabled={processing}>
-                        Cancel
+                        {t('ui.cancel')}
                     </Button>
                     <Button onClick={submit} variant="contained" disabled={processing || !canManage}>
-                        Save
+                        {t('ui.save')}
                     </Button>
                 </DialogActions>
             </Dialog>

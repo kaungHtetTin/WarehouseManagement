@@ -1,5 +1,6 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import { Head, router, usePage } from '@inertiajs/react';
+import { useT } from '@/i18n';
 import {
     Alert,
     Box,
@@ -44,6 +45,7 @@ const initialForm = {
 export default function VehiclesIndex() {
     const theme = useTheme();
     const isCompactList = useMediaQuery(theme.breakpoints.down('md'));
+    const t = useT();
     const { vehicles = [], warehouses = [], admin_app_url: adminAppUrl, flash = {}, auth } = usePage().props;
     const [open, setOpen] = useState(false);
     const [form, setForm] = useState(initialForm);
@@ -105,7 +107,7 @@ export default function VehiclesIndex() {
         };
         const options = {
             preserveScroll: true,
-            onError: () => setError('Unable to save vehicle. Please check fields and try again.'),
+            onError: () => setError(t('master.vehicles.errors.save_failed')),
             onFinish: () => setProcessing(false),
             onSuccess: closeDialog,
         };
@@ -119,13 +121,13 @@ export default function VehiclesIndex() {
     const removeRow = (row) => {
         handleTableActionClose();
         if (!canManage) return;
-        if (!window.confirm(`Delete vehicle "${row.vehicle_no}"?`)) return;
+        if (!window.confirm(t('master.vehicles.confirm.delete', { vehicle_no: row.vehicle_no }))) return;
         router.delete(`${adminAppUrl}/master/vehicles/${row.id}`, { preserveScroll: true });
     };
 
     return (
-        <AdminLayout title="Vehicles">
-            <Head title="Vehicles" />
+        <AdminLayout title={t('nav.vehicles')}>
+            <Head title={t('nav.vehicles')} />
             <Stack spacing={2}>
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
@@ -141,10 +143,10 @@ export default function VehiclesIndex() {
                 >
                     <Box>
                         <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                            Vehicles
+                            {t('nav.vehicles')}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                            Fleet registered for trips and deliveries.
+                            {t('master.vehicles.subtitle')}
                         </Typography>
                     </Box>
                     {canManage && (
@@ -157,7 +159,7 @@ export default function VehiclesIndex() {
                                 alignSelf: { xs: 'flex-end', md: 'auto' },
                             }}
                         >
-                            <Fab size="small" color="primary" onClick={openCreate} aria-label="Create vehicle" sx={{ boxShadow: 2 }}>
+                            <Fab size="small" color="primary" onClick={openCreate} aria-label={t('master.vehicles.actions.create')} sx={{ boxShadow: 2 }}>
                                 <AddIcon fontSize="small" />
                             </Fab>
                         </Stack>
@@ -188,7 +190,7 @@ export default function VehiclesIndex() {
                                         <IconButton
                                             size="small"
                                             onClick={(e) => handleTableActionOpen(e, row)}
-                                            aria-label="Vehicle actions"
+                                            aria-label={t('master.vehicles.actions.row_actions')}
                                             sx={{ flexShrink: 0, mt: -0.25 }}
                                         >
                                             <MoreVertIcon fontSize="small" />
@@ -200,7 +202,7 @@ export default function VehiclesIndex() {
                         {vehicles.length === 0 && (
                             <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, boxShadow: 'none' }}>
                                 <Typography variant="body2" color="text.secondary">
-                                    No vehicles yet.
+                                    {t('master.vehicles.empty')}
                                 </Typography>
                             </Paper>
                         )}
@@ -210,11 +212,11 @@ export default function VehiclesIndex() {
                         <Table size="small">
                             <TableHead>
                                 <TableRow>
-                                    <TableCell>Registration</TableCell>
-                                    <TableCell>Type</TableCell>
-                                    <TableCell>Warehouse</TableCell>
-                                    <TableCell>Status</TableCell>
-                                    <TableCell align="right">Actions</TableCell>
+                                    <TableCell>{t('master.vehicles.table.registration')}</TableCell>
+                                    <TableCell>{t('master.vehicles.table.type')}</TableCell>
+                                    <TableCell>{t('master.vehicles.table.warehouse')}</TableCell>
+                                    <TableCell>{t('master.vehicles.table.status')}</TableCell>
+                                    <TableCell align="right">{t('ui.actions')}</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -228,7 +230,7 @@ export default function VehiclesIndex() {
                                         </TableCell>
                                         <TableCell align="right" sx={{ width: 56 }}>
                                             {canManage && (
-                                                <IconButton size="small" onClick={(e) => handleTableActionOpen(e, row)} aria-label="Vehicle actions">
+                                                <IconButton size="small" onClick={(e) => handleTableActionOpen(e, row)} aria-label={t('master.vehicles.actions.row_actions')}>
                                                     <MoreVertIcon fontSize="small" />
                                                 </IconButton>
                                             )}
@@ -239,7 +241,7 @@ export default function VehiclesIndex() {
                                     <TableRow>
                                         <TableCell colSpan={5}>
                                             <Typography variant="body2" color="text.secondary">
-                                                No vehicles yet.
+                                                {t('master.vehicles.empty')}
                                             </Typography>
                                         </TableCell>
                                     </TableRow>
@@ -263,38 +265,38 @@ export default function VehiclesIndex() {
                             handleTableActionClose();
                         }}
                     >
-                        Edit
+                        {t('ui.edit')}
                     </MenuItem>
                     <MenuItem dense sx={{ color: 'error.main' }} onClick={() => selectedRow && removeRow(selectedRow)}>
-                        Delete
+                        {t('ui.delete')}
                     </MenuItem>
                 </Menu>
             </Stack>
 
             <Dialog open={open} onClose={closeDialog} fullWidth maxWidth="sm">
-                <DialogTitle>{form.id ? 'Edit Vehicle' : 'Create Vehicle'}</DialogTitle>
+                <DialogTitle>{form.id ? t('master.vehicles.dialog.edit_title') : t('master.vehicles.dialog.create_title')}</DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 0.5 }}>
                         {error && <Alert severity="error">{error}</Alert>}
                         <TextField
-                            label="Registration no."
+                            label={t('master.vehicles.fields.registration_no')}
                             value={form.vehicle_no}
                             onChange={(e) => setForm((p) => ({ ...p, vehicle_no: e.target.value }))}
                         />
                         <TextField
-                            label="Vehicle type"
-                            placeholder="truck, van, …"
+                            label={t('master.vehicles.fields.vehicle_type')}
+                            placeholder={t('master.vehicles.fields.vehicle_type_placeholder')}
                             value={form.vehicle_type}
                             onChange={(e) => setForm((p) => ({ ...p, vehicle_type: e.target.value }))}
                         />
                         <FormControl fullWidth>
-                            <InputLabel>Home warehouse</InputLabel>
+                            <InputLabel>{t('master.vehicles.fields.home_warehouse')}</InputLabel>
                             <Select
-                                label="Home warehouse"
+                                label={t('master.vehicles.fields.home_warehouse')}
                                 value={form.warehouse_id}
                                 onChange={(e) => setForm((p) => ({ ...p, warehouse_id: e.target.value }))}
                             >
-                                <MenuItem value="">None</MenuItem>
+                                <MenuItem value="">{t('ui.none')}</MenuItem>
                                 {warehouses.map((w) => (
                                     <MenuItem key={w.id} value={w.id}>
                                         {w.display_name || w.city}
@@ -303,22 +305,26 @@ export default function VehiclesIndex() {
                             </Select>
                         </FormControl>
                         <TextField
-                            label="Capacity weight (optional)"
+                            label={t('master.vehicles.fields.capacity_weight_optional')}
                             type="number"
                             value={form.capacity_weight}
                             onChange={(e) => setForm((p) => ({ ...p, capacity_weight: e.target.value }))}
                             inputProps={{ min: 0, step: 'any' }}
                         />
                         <TextField
-                            label="Capacity volume (optional)"
+                            label={t('master.vehicles.fields.capacity_volume_optional')}
                             type="number"
                             value={form.capacity_volume}
                             onChange={(e) => setForm((p) => ({ ...p, capacity_volume: e.target.value }))}
                             inputProps={{ min: 0, step: 'any' }}
                         />
                         <FormControl fullWidth>
-                            <InputLabel>Status</InputLabel>
-                            <Select label="Status" value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}>
+                            <InputLabel>{t('master.vehicles.fields.status')}</InputLabel>
+                            <Select
+                                label={t('master.vehicles.fields.status')}
+                                value={form.status}
+                                onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}
+                            >
                                 <MenuItem value="ACTIVE">ACTIVE</MenuItem>
                                 <MenuItem value="MAINTENANCE">MAINTENANCE</MenuItem>
                                 <MenuItem value="INACTIVE">INACTIVE</MenuItem>
@@ -328,10 +334,10 @@ export default function VehiclesIndex() {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={closeDialog} disabled={processing}>
-                        Cancel
+                        {t('ui.cancel')}
                     </Button>
                     <Button onClick={submit} variant="contained" disabled={processing || !canManage}>
-                        Save
+                        {t('ui.save')}
                     </Button>
                 </DialogActions>
             </Dialog>

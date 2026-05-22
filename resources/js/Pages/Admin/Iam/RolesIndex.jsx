@@ -1,5 +1,6 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import { Head, router, usePage } from '@inertiajs/react';
+import { useT } from '@/i18n';
 import {
     Alert,
     Box,
@@ -44,6 +45,7 @@ const initialForm = {
 export default function RolesIndex() {
     const theme = useTheme();
     const isCompactList = useMediaQuery(theme.breakpoints.down('md'));
+    const t = useT();
     const { roles = [], permissions = [], admin_app_url: adminAppUrl, flash = {} } = usePage().props;
     const [open, setOpen] = useState(false);
     const [form, setForm] = useState(initialForm);
@@ -124,7 +126,7 @@ export default function RolesIndex() {
 
         const options = {
             preserveScroll: true,
-            onError: () => setError('Unable to save role. Please check fields and try again.'),
+            onError: () => setError(t('iam.roles.errors.save_failed')),
             onFinish: () => setProcessing(false),
             onSuccess: closeDialog,
         };
@@ -145,15 +147,15 @@ export default function RolesIndex() {
 
     const removeRole = (role) => {
         handleTableActionClose();
-        if (!window.confirm(`Delete role "${role.name}"?`)) return;
+        if (!window.confirm(t('iam.roles.confirm.delete', { name: role.name }))) return;
         router.delete(`${adminAppUrl}/iam/roles/${role.id}`, {
             preserveScroll: true,
         });
     };
 
     return (
-        <AdminLayout title="Role Management">
-            <Head title="Role Management" />
+        <AdminLayout title={t('iam.roles.title')}>
+            <Head title={t('iam.roles.title')} />
             <Stack spacing={2}>
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
@@ -169,10 +171,10 @@ export default function RolesIndex() {
                 >
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                            Roles and Permissions
+                            {t('iam.roles.heading')}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                            Create tenant roles and assign allowed actions.
+                            {t('iam.roles.subtitle')}
                         </Typography>
                     </Box>
                     <Stack
@@ -184,12 +186,12 @@ export default function RolesIndex() {
                             alignSelf: { xs: 'flex-end', md: 'auto' },
                         }}
                     >
-                        <Tooltip title="New role" placement="bottom">
+                        <Tooltip title={t('iam.roles.actions.new_role')} placement="bottom">
                             <Fab
                                 color="primary"
                                 size="small"
                                 onClick={openCreate}
-                                aria-label="Create new role"
+                                aria-label={t('iam.roles.actions.create')}
                                 sx={{ boxShadow: 2 }}
                             >
                                 <AddIcon fontSize="small" />
@@ -222,7 +224,7 @@ export default function RolesIndex() {
                                             <Box sx={{ mt: 1 }}>
                                                 <Chip
                                                     size="small"
-                                                    label={role.is_system_role ? 'SYSTEM' : 'CUSTOM'}
+                                                    label={role.is_system_role ? t('iam.roles.type.system') : t('iam.roles.type.custom')}
                                                     color={role.is_system_role ? 'info' : 'default'}
                                                     variant={role.is_system_role ? 'filled' : 'outlined'}
                                                 />
@@ -230,7 +232,7 @@ export default function RolesIndex() {
 
                                             {permCount === 0 ? (
                                                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                                                    No permissions
+                                                    {t('iam.roles.no_permissions')}
                                                 </Typography>
                                             ) : (
                                                 <>
@@ -259,7 +261,7 @@ export default function RolesIndex() {
                                                         }}
                                                     >
                                                         <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                                                            Permissions ({permCount})
+                                                            {t('iam.roles.permissions_count', { count: permCount })}
                                                         </Typography>
                                                         <ExpandMoreIcon
                                                             sx={{
@@ -300,7 +302,7 @@ export default function RolesIndex() {
                                         <IconButton
                                             size="small"
                                             onClick={(event) => handleTableActionOpen(event, role)}
-                                            aria-label="Role actions"
+                                            aria-label={t('iam.roles.actions.row_actions')}
                                             sx={{ flexShrink: 0, mt: -0.25 }}
                                         >
                                             <MoreVertIcon fontSize="small" />
@@ -312,7 +314,7 @@ export default function RolesIndex() {
                         {roles.length === 0 && (
                             <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, boxShadow: 'none' }}>
                                 <Typography variant="body2" color="text.secondary">
-                                    No roles found.
+                                    {t('iam.roles.empty')}
                                 </Typography>
                             </Paper>
                         )}
@@ -322,11 +324,11 @@ export default function RolesIndex() {
                         <Table size="small">
                             <TableHead>
                                 <TableRow>
-                                    <TableCell>Role</TableCell>
-                                    <TableCell>Code</TableCell>
-                                    <TableCell>Type</TableCell>
-                                    <TableCell>Permissions</TableCell>
-                                    <TableCell align="right">Actions</TableCell>
+                                    <TableCell>{t('iam.roles.table.role')}</TableCell>
+                                    <TableCell>{t('iam.roles.table.code')}</TableCell>
+                                    <TableCell>{t('iam.roles.table.type')}</TableCell>
+                                    <TableCell>{t('iam.roles.table.permissions')}</TableCell>
+                                    <TableCell align="right">{t('ui.actions')}</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -337,7 +339,7 @@ export default function RolesIndex() {
                                         <TableCell>
                                             <Chip
                                                 size="small"
-                                                label={role.is_system_role ? 'SYSTEM' : 'CUSTOM'}
+                                                label={role.is_system_role ? t('iam.roles.type.system') : t('iam.roles.type.custom')}
                                                 color={role.is_system_role ? 'info' : 'default'}
                                                 variant={role.is_system_role ? 'filled' : 'outlined'}
                                             />
@@ -350,7 +352,11 @@ export default function RolesIndex() {
                                             </Stack>
                                         </TableCell>
                                         <TableCell align="right" sx={{ width: 56 }}>
-                                            <IconButton size="small" onClick={(event) => handleTableActionOpen(event, role)} aria-label="Role actions">
+                                            <IconButton
+                                                size="small"
+                                                onClick={(event) => handleTableActionOpen(event, role)}
+                                                aria-label={t('iam.roles.actions.row_actions')}
+                                            >
                                                 <MoreVertIcon fontSize="small" />
                                             </IconButton>
                                         </TableCell>
@@ -360,7 +366,7 @@ export default function RolesIndex() {
                                     <TableRow>
                                         <TableCell colSpan={5}>
                                             <Typography variant="body2" color="text.secondary">
-                                                No roles found.
+                                                {t('iam.roles.empty')}
                                             </Typography>
                                         </TableCell>
                                     </TableRow>
@@ -379,7 +385,7 @@ export default function RolesIndex() {
                 >
                     {selectedRole?.is_system_role ? (
                         <MenuItem dense disabled>
-                            Protected system role
+                            {t('iam.roles.protected_system_role')}
                         </MenuItem>
                     ) : (
                         <>
@@ -390,7 +396,7 @@ export default function RolesIndex() {
                                     handleTableActionClose();
                                 }}
                             >
-                                Edit
+                                {t('ui.edit')}
                             </MenuItem>
                             <Divider />
                             <MenuItem
@@ -400,7 +406,7 @@ export default function RolesIndex() {
                                     if (selectedRole) removeRole(selectedRole);
                                 }}
                             >
-                                Delete
+                                {t('ui.delete')}
                             </MenuItem>
                         </>
                     )}
@@ -408,14 +414,18 @@ export default function RolesIndex() {
             </Stack>
 
             <Dialog open={open} onClose={closeDialog} fullWidth maxWidth="md">
-                <DialogTitle>{form.id ? 'Edit Role' : 'Create Role'}</DialogTitle>
+                <DialogTitle>{form.id ? t('iam.roles.dialog.edit_title') : t('iam.roles.dialog.create_title')}</DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 0.5 }}>
                         {error && <Alert severity="error">{error}</Alert>}
-                        <TextField label="Role Name" value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} />
                         <TextField
-                            label="Role Code"
-                            helperText="Leave empty to auto-generate."
+                            label={t('iam.roles.fields.role_name')}
+                            value={form.name}
+                            onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                        />
+                        <TextField
+                            label={t('iam.roles.fields.role_code')}
+                            helperText={t('iam.roles.fields.role_code_hint')}
                             value={form.code}
                             onChange={(e) => setForm((prev) => ({ ...prev, code: e.target.value }))}
                         />
@@ -444,14 +454,13 @@ export default function RolesIndex() {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={closeDialog} disabled={processing}>
-                        Cancel
+                        {t('ui.cancel')}
                     </Button>
                     <Button onClick={submit} variant="contained" disabled={processing}>
-                        Save
+                        {t('ui.save')}
                     </Button>
                 </DialogActions>
             </Dialog>
         </AdminLayout>
     );
 }
-

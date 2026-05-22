@@ -266,6 +266,7 @@ class FinanceLedgerController extends Controller
 
         $categories = FinanceCategory::query()
             ->where('organization_id', $organizationId)
+            ->where('scope', 'GENERAL')
             ->where('status', 'ACTIVE')
             ->orderBy('scope')
             ->orderBy('direction')
@@ -308,6 +309,7 @@ class FinanceLedgerController extends Controller
 
         $cat = FinanceCategory::query()
             ->where('organization_id', $organizationId)
+            ->where('scope', 'GENERAL')
             ->whereKey((int) $validated['category_id'])
             ->firstOrFail();
 
@@ -372,6 +374,7 @@ class FinanceLedgerController extends Controller
         if (array_key_exists('category_id', $validated)) {
             $cat = FinanceCategory::query()
                 ->where('organization_id', $organizationId)
+                ->where('scope', 'GENERAL')
                 ->whereKey((int) $validated['category_id'])
                 ->firstOrFail();
             if ($cat->direction !== 'BOTH') {
@@ -382,6 +385,7 @@ class FinanceLedgerController extends Controller
         } elseif (array_key_exists('direction', $validated) && $model->category_id !== null) {
             $cat = FinanceCategory::query()
                 ->where('organization_id', $organizationId)
+                ->where('scope', 'GENERAL')
                 ->whereKey((int) $model->category_id)
                 ->first();
             if ($cat && $cat->direction !== 'BOTH') {

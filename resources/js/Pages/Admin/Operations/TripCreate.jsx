@@ -1,6 +1,7 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import axios from 'axios';
 import { Head, Link, router, usePage } from '@inertiajs/react';
+import { useT } from '@/i18n';
 import {
     Alert,
     Autocomplete,
@@ -28,6 +29,7 @@ export default function TripCreate() {
         flash = {},
         errors = {},
     } = usePage().props;
+    const t = useT();
     const [processing, setProcessing] = useState(false);
 
     const [vehicleId, setVehicleId] = useState(null);
@@ -138,13 +140,13 @@ export default function TripCreate() {
     };
 
     return (
-        <AdminLayout title="New trip">
-            <Head title="New trip" />
+        <AdminLayout title={t('trips.actions.new_trip')}>
+            <Head title={t('trips.actions.new_trip')} />
             <Stack spacing={2.5}>
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
                 {operatingWarehouses.length === 0 && (
                     <Alert severity="warning">
-                        You have no warehouse with operate access. Ask an administrator to assign you to a warehouse with Operate or Manage access.
+                        {t('trip_create.no_operate_access_warning')}
                     </Alert>
                 )}
 
@@ -155,16 +157,16 @@ export default function TripCreate() {
                     href={`${adminAppUrl}/operations/trips`}
                     sx={{ alignSelf: 'flex-start' }}
                 >
-                    Back to trips
+                    {t('trip_detail.back_to_trips')}
                 </Button>
 
                 <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
                     <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
-                        Trip setup
+                        {t('trip_create.setup_title')}
                     </Typography>
                     <Stack spacing={2}>
                         <Typography variant="body2" color="text.secondary">
-                            Search by vehicle registration (like voucher merchant / product). One match fills the form; several matches — choose from the list.
+                            {t('trip_create.setup_subtitle')}
                         </Typography>
 
                         <Autocomplete
@@ -211,22 +213,22 @@ export default function TripCreate() {
                             renderInput={(params) => (
                                 <TextField
                                     {...params}
-                                    label="Vehicle registration"
-                                    placeholder="Type to search…"
+                                    label={t('trip_create.fields.vehicle_registration')}
+                                    placeholder={t('trip_create.fields.search_placeholder')}
                                     required
                                     error={Boolean(errors['vehicle.vehicle_no'])}
                                     helperText={
                                         errors['vehicle.vehicle_no'] ||
                                         (vehicleId
-                                            ? 'Linked to an existing vehicle.'
-                                            : 'New registration will create a vehicle when you submit.')
+                                            ? t('trip_create.vehicle_linked_hint')
+                                            : t('trip_create.vehicle_create_hint'))
                                     }
                                 />
                             )}
                         />
 
                         <TextField
-                            label="Capacity weight"
+                            label={t('trip_create.fields.capacity_weight')}
                             size="small"
                             fullWidth
                             type="number"
@@ -238,15 +240,15 @@ export default function TripCreate() {
                         />
 
                         <FormControl fullWidth size="small" required error={Boolean(errors.destination_warehouse_id)}>
-                            <InputLabel id="dest-wh-label">Destination warehouse</InputLabel>
+                            <InputLabel id="dest-wh-label">{t('trips.labels.destination_warehouse')}</InputLabel>
                             <Select
                                 labelId="dest-wh-label"
-                                label="Destination warehouse"
+                                label={t('trips.labels.destination_warehouse')}
                                 value={destinationWarehouseId}
                                 onChange={(e) => setDestinationWarehouseId(e.target.value)}
                             >
                                 <MenuItem value="">
-                                    <em>Select…</em>
+                                    <em>{t('ui.select')}</em>
                                 </MenuItem>
                                 {routingWarehouses.map((w) => (
                                     <MenuItem key={w.id} value={String(w.id)}>
@@ -259,14 +261,14 @@ export default function TripCreate() {
 
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                             <TextField
-                                label="Driver name"
+                                label={t('trip_detail.labels.driver')}
                                 size="small"
                                 fullWidth
                                 value={driverName}
                                 onChange={(e) => setDriverName(e.target.value)}
                             />
                             <TextField
-                                label="Driver phone"
+                                label={t('trip_create.fields.driver_phone')}
                                 size="small"
                                 fullWidth
                                 value={driverPhone}
@@ -283,7 +285,7 @@ export default function TripCreate() {
                         onClick={submit}
                         sx={{ width: { xs: '100%', sm: 'auto' } }}
                     >
-                        Create trip
+                        {t('trip_create.actions.create_trip')}
                     </Button>
                 </Stack>
             </Stack>

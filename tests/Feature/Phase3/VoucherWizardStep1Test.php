@@ -64,6 +64,44 @@ class VoucherWizardStep1Test extends TestCase
         $this->assertSame('Deliver to destination warehouse front desk.', $voucher->default_destination_remark);
     }
 
+    public function test_wizard_step1_allows_merchant_to_be_optional(): void
+    {
+        $organization = Organization::factory()->create();
+        $sourceWarehouse = Warehouse::factory()->create([
+            'organization_id' => $organization->id,
+        ]);
+        $destinationWarehouse = Warehouse::factory()->create([
+            'organization_id' => $organization->id,
+        ]);
+        $user = User::factory()->create([
+            'organization_id' => $organization->id,
+            'status' => 'ACTIVE',
+        ]);
+        $this->grantPermissions($user, ['vouchers.manage', 'inventory.manage']);
+
+        $response = $this->actingAs($user)->post(route('admin.vouchers.wizard.step1'), [
+            'voucher_date' => '2026-05-01',
+            'source_warehouse_id' => $sourceWarehouse->id,
+            'remark' => null,
+            'payment_status' => 'UNPAID',
+            'merchant_id' => null,
+            'default_to_warehouse_id' => $destinationWarehouse->id,
+            'default_to_address_line1' => 'Room-1, Building-2',
+            'default_recipient_name' => 'U Receiver',
+            'default_recipient_phone' => '091234567',
+            'default_destination_remark' => null,
+        ]);
+
+        $response->assertRedirect();
+        $this->assertSame(0, Merchant::query()->where('organization_id', $organization->id)->count());
+
+        $voucher = Voucher::query()->where('organization_id', $organization->id)->firstOrFail();
+        $this->assertNull($voucher->merchant_id);
+        $this->assertSame('Room-1, Building-2', $voucher->default_to_address_line1);
+        $this->assertSame('U Receiver', $voucher->default_recipient_name);
+        $this->assertSame('091234567', $voucher->default_recipient_phone);
+    }
+
     public function test_wizard_edit_page_loads_draft_voucher(): void
     {
         $organization = Organization::factory()->create();

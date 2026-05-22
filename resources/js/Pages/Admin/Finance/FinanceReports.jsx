@@ -1,6 +1,7 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Box, Button, Divider, Grid, Paper, Stack, TextField, Typography, useMediaQuery, useTheme } from '@mui/material';
+import { useT } from '@/i18n';
 import { useCallback, useMemo, useState } from 'react';
 
 function formatMoney(amount, currency) {
@@ -30,6 +31,7 @@ function CompareBarChart({ series }) {
     const theme = useTheme();
     const isSmUp = useMediaQuery(theme.breakpoints.up('sm'));
     const isMdUp = useMediaQuery(theme.breakpoints.up('md'));
+    const t = useT();
 
     const maxValue = useMemo(() => {
         return Math.max(
@@ -54,7 +56,7 @@ function CompareBarChart({ series }) {
                         <Box key={r.period} sx={{ flex: `0 0 ${barWidth}px` }}>
                             <Box sx={{ display: 'flex', gap: 0.5, height: 184, alignItems: 'flex-end' }}>
                                 <Box
-                                    title={`Income: ${formatMoney(income, 'MMK')}`}
+                                    title={t('finance.reports.chart.income_title', { amount: formatMoney(income, 'MMK') })}
                                     sx={{
                                         width: '50%',
                                         height: `${incomePct}%`,
@@ -64,7 +66,7 @@ function CompareBarChart({ series }) {
                                     }}
                                 />
                                 <Box
-                                    title={`Expense: ${formatMoney(expense, 'MMK')}`}
+                                    title={t('finance.reports.chart.expense_title', { amount: formatMoney(expense, 'MMK') })}
                                     sx={{
                                         width: '50%',
                                         height: `${expensePct}%`,
@@ -86,6 +88,7 @@ function CompareBarChart({ series }) {
 }
 
 function HorizontalBarList({ title, items, tone = 'warning' }) {
+    const t = useT();
     const maxValue = useMemo(() => {
         return Math.max(0, ...(items || []).map((x) => Number(x?.value || 0)));
     }, [items]);
@@ -123,7 +126,7 @@ function HorizontalBarList({ title, items, tone = 'warning' }) {
                 })}
                 {(items || []).length === 0 ? (
                     <Typography variant="body2" color="text.secondary">
-                        No data.
+                        {t('finance.reports.no_data')}
                     </Typography>
                 ) : null}
             </Stack>
@@ -133,6 +136,7 @@ function HorizontalBarList({ title, items, tone = 'warning' }) {
 
 export default function FinanceReports() {
     const pageProps = usePage().props;
+    const t = useT();
     const adminAppUrl = pageProps.admin_app_url;
 
     const series = pageProps.series ?? [];
@@ -160,8 +164,8 @@ export default function FinanceReports() {
     );
 
     return (
-        <AdminLayout title="Finance Reports">
-            <Head title="Finance Reports" />
+        <AdminLayout title={t('finance.reports.title')}>
+            <Head title={t('finance.reports.title')} />
 
             <Stack spacing={2.5}>
                 <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
@@ -169,14 +173,14 @@ export default function FinanceReports() {
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ justifyContent: 'space-between', alignItems: { sm: 'center' } }}>
                             <Box>
                                 <Typography variant="h5" sx={{ fontWeight: 800 }}>
-                                    Finance Reports
+                                    {t('finance.reports.title')}
                                 </Typography>
                                 <Typography variant="body2" color="text.secondary">
-                                    Reporting and analysis based on finance ledger entries.
+                                    {t('finance.reports.subtitle')}
                                 </Typography>
                             </Box>
                             <Button component={Link} href={`${adminAppUrl}/finance/ledger`} variant="outlined">
-                                Open ledger
+                                {t('finance.reports.actions.open_ledger')}
                             </Button>
                         </Stack>
 
@@ -186,7 +190,7 @@ export default function FinanceReports() {
                             <TextField
                                 size="small"
                                 type="date"
-                                label="From"
+                                label={t('filters.from')}
                                 InputLabelProps={{ shrink: true }}
                                 value={from}
                                 onChange={(e) => {
@@ -198,7 +202,7 @@ export default function FinanceReports() {
                             <TextField
                                 size="small"
                                 type="date"
-                                label="To"
+                                label={t('filters.to')}
                                 InputLabelProps={{ shrink: true }}
                                 value={to}
                                 onChange={(e) => {
@@ -215,7 +219,7 @@ export default function FinanceReports() {
                     <Grid container spacing={1.5}>
                         <Grid item xs={12} sm={4}>
                             <Typography variant="caption" color="text.secondary">
-                                Total income
+                                {t('finance.totals.total_income')}
                             </Typography>
                             <Typography variant="body2" sx={{ fontWeight: 900 }}>
                                 {formatMoney(totals.income, 'MMK')}
@@ -223,7 +227,7 @@ export default function FinanceReports() {
                         </Grid>
                         <Grid item xs={12} sm={4}>
                             <Typography variant="caption" color="text.secondary">
-                                Total expense
+                                {t('finance.totals.total_expense')}
                             </Typography>
                             <Typography variant="body2" sx={{ fontWeight: 900 }}>
                                 {formatMoney(totals.expense, 'MMK')}
@@ -231,7 +235,7 @@ export default function FinanceReports() {
                         </Grid>
                         <Grid item xs={12} sm={4}>
                             <Typography variant="caption" color="text.secondary">
-                                Net
+                                {t('finance.totals.net')}
                             </Typography>
                             <Typography variant="body2" sx={{ fontWeight: 900 }}>
                                 {formatMoney(totals.net, 'MMK')}
@@ -244,10 +248,10 @@ export default function FinanceReports() {
                     <Stack spacing={1.5}>
                         <Box>
                             <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                                Income vs Expense
+                                {t('finance.reports.sections.income_vs_expense')}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                                Comparison grouped by month.
+                                {t('finance.reports.sections.by_month')}
                             </Typography>
                         </Box>
                         <CompareBarChart series={series} />
@@ -255,13 +259,13 @@ export default function FinanceReports() {
                             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                                 <Box sx={{ width: 12, height: 12, borderRadius: 1, bgcolor: 'success.main' }} />
                                 <Typography variant="caption" color="text.secondary">
-                                    Income
+                                    {t('finance.direction.income')}
                                 </Typography>
                             </Stack>
                             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                                 <Box sx={{ width: 12, height: 12, borderRadius: 1, bgcolor: 'warning.main' }} />
                                 <Typography variant="caption" color="text.secondary">
-                                    Expense
+                                    {t('finance.direction.expense')}
                                 </Typography>
                             </Stack>
                         </Stack>
@@ -270,10 +274,10 @@ export default function FinanceReports() {
 
                 <Grid container spacing={2}>
                     <Grid item xs={12} md={6}>
-                        <HorizontalBarList title="Top expense categories" items={expenseCategories} tone="warning" />
+                        <HorizontalBarList title={t('finance.reports.sections.top_expense_categories')} items={expenseCategories} tone="warning" />
                     </Grid>
                     <Grid item xs={12} md={6}>
-                        <HorizontalBarList title="Top income categories" items={incomeCategories} tone="success" />
+                        <HorizontalBarList title={t('finance.reports.sections.top_income_categories')} items={incomeCategories} tone="success" />
                     </Grid>
                 </Grid>
             </Stack>

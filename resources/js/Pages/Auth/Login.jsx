@@ -1,4 +1,4 @@
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import React, { useEffect } from 'react';
 import {
     Alert,
@@ -6,9 +6,12 @@ import {
     Button,
     Checkbox,
     CircularProgress,
+    FormControl,
     FormControlLabel,
     IconButton,
     InputAdornment,
+    MenuItem,
+    Select,
     Stack,
     TextField,
     Typography,
@@ -16,16 +19,22 @@ import {
     useTheme,
 } from '@mui/material';
 import {
-    AdminPanelSettings as AdminIcon,
     CheckCircle as CheckCircleIcon,
     Email as EmailIcon,
     Lock as LockIcon,
+    LocalShipping as LocalShippingIcon,
     Visibility as VisibilityIcon,
     VisibilityOff as VisibilityOffIcon,
+    Warehouse as WarehouseIcon,
 } from '@mui/icons-material';
+import { useT } from '@/i18n';
 
 export default function Login({ status, canResetPassword }) {
-    const { admin_app_url } = usePage().props;
+    const { admin_app_url, i18n } = usePage().props;
+    const t = useT();
+    const locale = i18n?.locale ?? 'en';
+    const supportedLocales = i18n?.supported_locales ?? { en: 'English' };
+    const setLocaleUrl = i18n?.set_locale_url;
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const [showPassword, setShowPassword] = React.useState(false);
@@ -50,7 +59,7 @@ export default function Login({ status, canResetPassword }) {
 
     return (
         <Box sx={{ minHeight: '100vh', display: 'flex', bgcolor: 'background.paper' }}>
-            <Head title="Log in" />
+            <Head title={t('auth.log_in')} />
             <Box
                 sx={{
                     width: '100%',
@@ -67,17 +76,18 @@ export default function Login({ status, canResetPassword }) {
                             sx={{
                                 height: '100%',
                                 background:
-                                    'linear-gradient(rgba(15, 23, 42, 0.8), rgba(15, 23, 42, 0.8)), url("https://images.unsplash.com/photo-1516321318423-f06f85e504b3?ixlib=rb-4.0.3&auto=format&fit=crop&w=1600&q=80")',
+                                    'linear-gradient(rgba(15, 23, 42, 0.84), rgba(15, 23, 42, 0.84)), url("https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?ixlib=rb-4.0.3&auto=format&fit=crop&w=1600&q=80")',
                                 backgroundSize: 'cover',
                                 backgroundPosition: 'center',
                                 display: 'flex',
                                 flexDirection: 'column',
                                 justifyContent: 'center',
+                                overflow: 'hidden',
                                 px: { md: 8, lg: 12 },
                                 color: 'white',
                             }}
                         >
-                            <Stack spacing={4}>
+                            <Stack spacing={3} sx={{ maxWidth: 640 }}>
                                 <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
                                     <Box
                                         sx={{
@@ -91,40 +101,38 @@ export default function Login({ status, canResetPassword }) {
                                             boxShadow: '0 8px 16px rgba(59, 130, 246, 0.3)',
                                         }}
                                     >
-                                        <AdminIcon sx={{ color: 'white', fontSize: 28 }} />
+                                        <WarehouseIcon sx={{ color: 'white', fontSize: 28 }} />
                                     </Box>
                                     <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: '-0.5px' }}>
-                                        Calamus Education
+                                        {t('app.name')}
                                     </Typography>
                                 </Stack>
 
                                 <Stack spacing={2}>
-                                    <Typography variant="h2" sx={{ fontWeight: 800, lineHeight: 1.1 }}>
-                                        Modern Admin <br />
+                                    <Typography variant="h2" sx={{ fontWeight: 800, lineHeight: 1.05 }}>
+                                        {t('login.hero_title_line1')} <br />
                                         <Box component="span" sx={{ color: 'primary.main' }}>
-                                            Management Console
+                                            {t('login.hero_title_line2')}
                                         </Box>
                                     </Typography>
                                     <Typography variant="h6" sx={{ color: 'grey.400', fontWeight: 400, maxWidth: 480 }}>
-                                        Access your dashboard to manage courses, students, and system resources.
+                                        {t('login.hero_subtitle')}
                                     </Typography>
                                 </Stack>
 
-                                <Stack spacing={2.5}>
-                                    {[
-                                        'Real-time student engagement tracking',
-                                        'Advanced course content management',
-                                        'Automated reporting and analytics',
-                                        'Secure multi-role permission system',
-                                    ].map((feature) => (
-                                        <Stack key={feature} direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                                <Stack spacing={1.75}>
+                                    {['login.feature_1', 'login.feature_2', 'login.feature_3'].map((featureKey) => (
+                                        <Stack key={featureKey} direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
                                             <CheckCircleIcon sx={{ color: 'primary.main', fontSize: 20 }} />
                                             <Typography variant="body1" sx={{ color: 'grey.300' }}>
-                                                {feature}
+                                                {t(featureKey)}
                                             </Typography>
                                         </Stack>
                                     ))}
                                 </Stack>
+                                <Typography variant="caption" sx={{ color: 'grey.400' }}>
+                                    {t('login.footer_credit')}
+                                </Typography>
                             </Stack>
                         </Box>
                     </Box>
@@ -156,20 +164,20 @@ export default function Login({ status, canResetPassword }) {
                                             justifyContent: 'center',
                                         }}
                                     >
-                                        <AdminIcon sx={{ color: 'white', fontSize: 20 }} />
+                                        <LocalShippingIcon sx={{ color: 'white', fontSize: 20 }} />
                                     </Box>
                                     <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                                        Calamus
+                                        {t('app.short_name')}
                                     </Typography>
                                 </Stack>
                             )}
 
                             <Stack spacing={0.5} sx={{ mb: 3 }}>
                                 <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: '-0.5px' }}>
-                                    Sign In
+                                    {t('auth.sign_in')}
                                 </Typography>
                                 <Typography variant="body2" color="text.secondary">
-                                    Please enter your account details below.
+                                    {t('login.prompt')}
                                 </Typography>
                             </Stack>
 
@@ -178,10 +186,26 @@ export default function Login({ status, canResetPassword }) {
 
                             <Box component="form" onSubmit={submit}>
                                 <Stack spacing={2}>
+                                    <FormControl size="small">
+                                        <Select
+                                            value={locale}
+                                            onChange={(e) => {
+                                                const next = e.target.value;
+                                                if (!setLocaleUrl) return;
+                                                router.post(setLocaleUrl, { locale: next }, { preserveScroll: true, preserveState: true });
+                                            }}
+                                        >
+                                            {Object.entries(supportedLocales).map(([code, label]) => (
+                                                <MenuItem key={code} value={code}>
+                                                    {label}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </FormControl>
                                     <TextField
                                         fullWidth
                                         size="small"
-                                        label="Email Address"
+                                        label={t('auth.email_address')}
                                         type="email"
                                         value={data.email}
                                         onChange={(e) => setData('email', e.target.value)}
@@ -200,7 +224,7 @@ export default function Login({ status, canResetPassword }) {
                                     <TextField
                                         fullWidth
                                         size="small"
-                                        label="Password"
+                                        label={t('auth.password')}
                                         type={showPassword ? 'text' : 'password'}
                                         value={data.password}
                                         onChange={(e) => setData('password', e.target.value)}
@@ -235,7 +259,7 @@ export default function Login({ status, canResetPassword }) {
                                                     onChange={(e) => setData('remember', e.target.checked)}
                                                 />
                                             }
-                                            label={<Typography variant="caption" sx={{ fontWeight: 500 }}>Remember me</Typography>}
+                                            label={<Typography variant="caption" sx={{ fontWeight: 500 }}>{t('auth.remember_me')}</Typography>}
                                         />
                                         {canResetPassword && (
                                             <Typography
@@ -249,7 +273,7 @@ export default function Login({ status, canResetPassword }) {
                                                     '&:hover': { textDecoration: 'underline' },
                                                 }}
                                             >
-                                                Forgot password?
+                                                {t('auth.forgot_password')}
                                             </Typography>
                                         )}
                                     </Stack>
@@ -269,14 +293,17 @@ export default function Login({ status, canResetPassword }) {
                                             boxShadow: '0 4px 12px rgba(59, 130, 246, 0.2)',
                                         }}
                                     >
-                                        {processing ? <CircularProgress size={20} color="inherit" /> : 'Sign In'}
+                                        {processing ? <CircularProgress size={20} color="inherit" /> : t('auth.sign_in')}
                                     </Button>
 
                                     <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
-                                        New here?{' '}
+                                        {t('login.new_here')}{' '}
                                         <Link href={`${admin_app_url}/register`} style={{ color: theme.palette.primary.main, fontWeight: 600 }}>
-                                            Create account
+                                            {t('auth.create_account')}
                                         </Link>
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
+                                        {t('login.footer_credit')}
                                     </Typography>
                                 </Stack>
                             </Box>

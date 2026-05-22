@@ -1,5 +1,6 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import { Head, Link, router, usePage } from '@inertiajs/react';
+import { useT } from '@/i18n';
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import {
     AddCircleOutlineOutlined as AddCircleOutlineIcon,
@@ -156,11 +157,7 @@ function hasPendingDestinationReceipt(row) {
     return Number.isFinite(pending) && pending > 0.0001 && row?.voucher_item?.to_warehouse;
 }
 
-function formatVoucherDestination(vi) {
-    if (!vi) {
-        return '—';
-    }
-    const v = vi.voucher;
+function formatVoucherRecipient(v) {
     if (!v) {
         return '—';
     }
@@ -171,6 +168,18 @@ function formatVoucherDestination(vi) {
     if (v.default_recipient_phone) {
         bits.push(v.default_recipient_phone);
     }
+    return bits.length ? bits.join(' · ') : '—';
+}
+
+function formatVoucherDestination(vi) {
+    if (!vi) {
+        return '—';
+    }
+    const v = vi.voucher;
+    if (!v) {
+        return '—';
+    }
+    const bits = [];
     const wh = v.default_to_warehouse;
     if (wh && (wh.code || wh.name)) {
         bits.push([wh.code, wh.name].filter(Boolean).join(' · '));
@@ -187,6 +196,7 @@ function formatVoucherDestination(vi) {
 export default function TripDetail() {
     const theme = useTheme();
     const isSmUp = useMediaQuery(theme.breakpoints.up('sm'));
+    const t = useT();
     const pageProps = usePage().props;
     const trip = pageProps.trip;
     const adminAppUrl = pageProps.admin_app_url;
@@ -199,8 +209,11 @@ export default function TripDetail() {
     const canManageTripCosts = pageProps.can_manage_trip_costs ?? false;
     const canRecordTripNetIncome = pageProps.can_record_trip_net_income ?? false;
     const tripNetIncomeRecorded = pageProps.trip_net_income_recorded ?? false;
+    const tripNetIncomeEligibility = pageProps.trip_net_income_eligibility ?? {};
+    const tripNetIncomeEligible = Boolean(tripNetIncomeEligibility?.eligible ?? true);
     const canMarkDeparted = pageProps.can_mark_departed ?? false;
     const canUndoDepart = pageProps.can_undo_depart ?? false;
+    const canDeleteTrip = pageProps.can_delete_trip ?? false;
     const loadableVouchers = pageProps.loadable_vouchers ?? [];
     const tripTotalWeight = pageProps.trip_total_weight;
     const tripLaborCost = pageProps.trip_labor_cost;
@@ -216,6 +229,13 @@ export default function TripDetail() {
         }
         return (Number.isFinite(labor) ? labor : 0) + (Number.isFinite(extra) ? extra : 0);
     }, [tripLaborCost, tripExtraCostTotal]);
+
+    const destinationWarehouseName = useMemo(() => {
+        const stops = Array.isArray(trip?.stops) ? trip.stops : [];
+        const lastStop = stops.length ? stops[stops.length - 1] : null;
+        const wh = lastStop?.warehouse;
+        return wh?.display_name || wh?.city || trip?.source_warehouse?.display_name || trip?.sourceWarehouse?.city || '—';
+    }, [trip]);
 
     const voucherFinanceSummary = useMemo(() => {
         const byId = new Map();
@@ -289,10 +309,10 @@ export default function TripDetail() {
     const [netIncomeDialogError, setNetIncomeDialogError] = useState('');
 
     const openNetIncomeDialog = useCallback(() => {
-        if (!canRecordTripNetIncome || tripNetIncomeRecorded) return;
+        if (!canRecordTripNetIncome || tripNetIncomeRecorded || !tripNetIncomeEligible) return;
         setNetIncomeDialogError('');
         setNetIncomeDialogOpen(true);
-    }, [canRecordTripNetIncome, tripNetIncomeRecorded]);
+    }, [canRecordTripNetIncome, tripNetIncomeEligible, tripNetIncomeRecorded]);
 
     const closeNetIncomeDialog = useCallback(() => {
         if (netIncomeDialogProcessing) return;
@@ -302,9 +322,13 @@ export default function TripDetail() {
     const submitNetIncomeDialog = useCallback(() => {
         if (!canRecordTripNetIncome || tripNetIncomeRecorded) return;
         setNetIncomeDialogError('');
+        if (!tripNetIncomeEligible) {
+            setNetIncomeDialogError(t('trip_detail.net_income.errors.not_eligible'));
+            return;
+        }
         const n = Number(tripNetIncome);
         if (!Number.isFinite(n) || n <= 0) {
-            setNetIncomeDialogError('Net income must be positive.');
+            setNetIncomeDialogError(t('trip_detail.net_income.errors.positive_required'));
             return;
         }
         setNetIncomeDialogProcessing(true);
@@ -314,11 +338,11 @@ export default function TripDetail() {
             {
                 preserveScroll: true,
                 onSuccess: () => setNetIncomeDialogOpen(false),
-                onError: () => setNetIncomeDialogError('Failed to add net income to ledger.'),
+                onError: () => setNetIncomeDialogError(t('trip_detail.net_income.errors.failed')),
                 onFinish: () => setNetIncomeDialogProcessing(false),
             },
         );
-    }, [adminAppUrl, canRecordTripNetIncome, trip?.id, tripNetIncome, tripNetIncomeRecorded]);
+    }, [adminAppUrl, canRecordTripNetIncome, t, trip?.id, tripNetIncome, tripNetIncomeEligible, tripNetIncomeRecorded]);
 
     const [tripCostDialogOpen, setTripCostDialogOpen] = useState(false);
     const [tripCostDialogProcessing, setTripCostDialogProcessing] = useState(false);
@@ -465,7 +489,7 @@ export default function TripDetail() {
                 m.set(voucherId, {
                     voucher_id: voucherId,
                     voucher_no: v.voucher_no ?? '—',
-                    merchant_name: v.merchant?.name ?? '',
+                    recipient_label: formatVoucherRecipient(v),
                     destination: formatVoucherDestination(vi),
                     lines: 0,
                     loaded_sum: 0,
@@ -627,11 +651,11 @@ export default function TripDetail() {
         const note = tripCostForm.note?.trim() || null;
 
         if (!categoryId || !Number.isFinite(categoryId)) {
-            setTripCostDialogError('Select a category.');
+            setTripCostDialogError(t('trip_detail.trip_costs.errors.select_category'));
             return;
         }
         if (!Number.isFinite(amount) || amount <= 0) {
-            setTripCostDialogError('Enter a valid amount.');
+            setTripCostDialogError(t('trip_detail.trip_costs.errors.valid_amount'));
             return;
         }
 
@@ -661,10 +685,10 @@ export default function TripDetail() {
     const removeTripCost = useCallback(
         (row) => {
             if (!canManageTripCosts) return;
-            if (!window.confirm('Delete this trip cost entry?')) return;
+            if (!window.confirm(t('trip_detail.trip_costs.confirm.delete_entry'))) return;
             router.delete(`${adminAppUrl}/operations/trips/${trip.id}/cost-entries/${row.id}`, { preserveScroll: true });
         },
-        [adminAppUrl, canManageTripCosts, trip?.id],
+        [adminAppUrl, canManageTripCosts, t, trip?.id],
     );
 
     const rowHasCargoActions = useCallback(
@@ -756,16 +780,22 @@ export default function TripDetail() {
 
     if (!trip) {
         return (
-            <AdminLayout title="Trip">
-                <Head title="Trip" />
+            <AdminLayout title={t('trip_detail.title')}>
+                <Head title={t('trip_detail.title')} />
                 <Typography variant="body2" color="text.secondary">
-                    Not found.
+                    {t('ui.not_found')}
                 </Typography>
             </AdminLayout>
         );
     }
 
     const layoutTitle = trip.trip_no ?? 'Trip';
+    const deleteTrip = () => {
+        if (!canDeleteTrip) return;
+        if (!trip?.id) return;
+        if (!window.confirm(t('trips.confirm.delete_trip', { trip_no: trip.trip_no }))) return;
+        router.delete(`${adminAppUrl}/operations/trips/${trip.id}`, { preserveScroll: true });
+    };
 
     return (
         <AdminLayout title={layoutTitle}>
@@ -784,7 +814,7 @@ export default function TripDetail() {
                     variant="text"
                     sx={{ alignSelf: 'flex-start' }}
                 >
-                    Back to trips
+                    {t('trip_detail.back_to_trips')}
                 </Button>
 
                 <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
@@ -817,19 +847,37 @@ export default function TripDetail() {
                                 }}
                             >
                                 <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
-                                    Driver manifest
+                                    {t('trip_detail.actions.driver_manifest')}
                                 </Box>
                             </Button>
+                            {canDeleteTrip ? (
+                                <Button
+                                    variant="outlined"
+                                    color="error"
+                                    size="small"
+                                    startIcon={<DeleteOutlineIcon />}
+                                    onClick={deleteTrip}
+                                    sx={{
+                                        flexShrink: 0,
+                                        minWidth: { xs: 40, sm: 'auto' },
+                                        px: { xs: 1, sm: 1.5 },
+                                        '& .MuiButton-startIcon': { mr: { xs: 0, sm: 1 } },
+                                    }}
+                                >
+                                    <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
+                                        {t('trip_detail.actions.delete_trip')}
+                                    </Box>
+                                </Button>
+                            ) : null}
                         </Stack>
                         <Typography variant="body2" color="text.secondary">
-                            Trip summary. Load confirmed vouchers for this trip&apos;s destination warehouse; totals cannot exceed each line&apos;s ordered
-                            quantity across non-cancelled trips.
+                            {t('trip_detail.summary')}
                         </Typography>
                         <Divider />
                         <Grid container spacing={2.5}>
                             <Grid item xs={12} sm={6} md={4}>
                                 <Typography variant="caption" color="text.secondary">
-                                    Vehicle
+                                    {t('trips.labels.vehicle')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
                                     {trip.vehicle ? `${trip.vehicle.vehicle_no} (${trip.vehicle.vehicle_type})` : '—'}
@@ -837,15 +885,15 @@ export default function TripDetail() {
                             </Grid>
                             <Grid item xs={12} sm={6} md={4}>
                                 <Typography variant="caption" color="text.secondary">
-                                    Destination warehouse
+                                    {t('trips.labels.destination_warehouse')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
-                                    {trip?.stops?.[0]?.warehouse?.display_name || trip?.source_warehouse?.display_name || '—'}
+                                    {destinationWarehouseName}
                                 </Typography>
                             </Grid>
                             <Grid item xs={12} sm={6} md={4}>
                                 <Typography variant="caption" color="text.secondary">
-                                    Driver
+                                    {t('trip_detail.labels.driver')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
                                     {[trip.driver_name, trip.driver_phone].filter(Boolean).join(' · ') || '—'}
@@ -853,7 +901,7 @@ export default function TripDetail() {
                             </Grid>
                             <Grid item xs={12} sm={6} md={4}>
                                 <Typography variant="caption" color="text.secondary">
-                                    Total weight
+                                    {t('trip_detail.labels.total_weight')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
                                     {formatFixed(tripTotalWeight, 0)}
@@ -861,7 +909,7 @@ export default function TripDetail() {
                             </Grid>
                             <Grid item xs={12} sm={6} md={4}>
                                 <Typography variant="caption" color="text.secondary">
-                                    Labor cost
+                                    {t('trip_detail.labels.labor_cost')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
                                     {formatFixed(tripLaborCost, 0)}
@@ -869,7 +917,7 @@ export default function TripDetail() {
                             </Grid>
                             <Grid item xs={12} sm={6} md={4}>
                                 <Typography variant="caption" color="text.secondary">
-                                    Trip extra costs
+                                    {t('trip_detail.labels.trip_extra_costs')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
                                     {formatFixed(tripExtraCostTotal, 0)}
@@ -877,7 +925,7 @@ export default function TripDetail() {
                             </Grid>
                             <Grid item xs={12} sm={6} md={4}>
                                 <Typography variant="caption" color="text.secondary">
-                                    Total trip cost
+                                    {t('trip_detail.labels.total_trip_cost')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
                                     {formatFixed(tripTotalCost, 0)}
@@ -885,7 +933,7 @@ export default function TripDetail() {
                             </Grid>
                             <Grid item xs={12} sm={6} md={4}>
                                 <Typography variant="caption" color="text.secondary">
-                                    Voucher billed
+                                    {t('trip_detail.labels.voucher_billed')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
                                     {formatFixed(voucherFinanceSummary.billedTotal, 0)}
@@ -893,7 +941,7 @@ export default function TripDetail() {
                             </Grid>
                             <Grid item xs={12} sm={6} md={4}>
                                 <Typography variant="caption" color="text.secondary">
-                                    Voucher collected
+                                    {t('trip_detail.labels.voucher_collected')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
                                     {formatFixed(voucherFinanceSummary.collectedTotal, 0)}
@@ -901,7 +949,7 @@ export default function TripDetail() {
                             </Grid>
                             <Grid item xs={12} sm={6} md={4}>
                                 <Typography variant="caption" color="text.secondary">
-                                    Voucher additional costs
+                                    {t('trip_detail.labels.voucher_additional_costs')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
                                     {formatFixed(voucherFinanceSummary.additionalCostsTotal, 0)}
@@ -909,7 +957,7 @@ export default function TripDetail() {
                             </Grid>
                             <Grid item xs={12} sm={6} md={4}>
                                 <Typography variant="caption" color="text.secondary">
-                                    Voucher outstanding
+                                    {t('trip_detail.labels.voucher_outstanding')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
                                     {formatFixed(voucherFinanceSummary.outstandingTotal, 0)}
@@ -917,7 +965,7 @@ export default function TripDetail() {
                             </Grid>
                             <Grid item xs={12} sm={6} md={4}>
                                 <Typography variant="caption" color="text.secondary">
-                                    Net (payments - voucher costs - trip costs)
+                                    {t('trip_detail.labels.net')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
                                     {formatFixed(tripNetIncome, 0)}
@@ -925,17 +973,41 @@ export default function TripDetail() {
                                 {canRecordTripNetIncome ? (
                                     <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap', rowGap: 0.75 }}>
                                         {tripNetIncomeRecorded ? (
-                                            <Chip size="small" color="success" variant="outlined" label="Added to ledger" />
+                                            <Chip size="small" color="success" variant="outlined" label={t('trip_detail.net_income.added_to_ledger')} />
                                         ) : (
                                             <Button
                                                 size="small"
                                                 variant="outlined"
                                                 onClick={openNetIncomeDialog}
-                                                disabled={!Number.isFinite(Number(tripNetIncome)) || Number(tripNetIncome) <= 0}
+                                                disabled={!Number.isFinite(Number(tripNetIncome)) || Number(tripNetIncome) <= 0 || !tripNetIncomeEligible}
                                             >
-                                                Add net income to ledger
+                                                {t('trip_detail.net_income.add_to_ledger')}
                                             </Button>
                                         )}
+                                        {!tripNetIncomeEligible && Number(tripNetIncome) > 0 ? (
+                                            <>
+                                                {Number(tripNetIncomeEligibility?.pending_delivery_lines ?? 0) > 0 ? (
+                                                    <Chip
+                                                        size="small"
+                                                        color="warning"
+                                                        variant="outlined"
+                                                        label={t('trip_detail.net_income.requirements.pending_delivery_lines', {
+                                                            count: Number(tripNetIncomeEligibility.pending_delivery_lines),
+                                                        })}
+                                                    />
+                                                ) : null}
+                                                {Number(tripNetIncomeEligibility?.unpaid_vouchers ?? 0) > 0 ? (
+                                                    <Chip
+                                                        size="small"
+                                                        color="warning"
+                                                        variant="outlined"
+                                                        label={t('trip_detail.net_income.requirements.unpaid_vouchers', {
+                                                            count: Number(tripNetIncomeEligibility.unpaid_vouchers),
+                                                        })}
+                                                    />
+                                                ) : null}
+                                            </>
+                                        ) : null}
                                     </Stack>
                                 ) : null}
                             </Grid>
@@ -952,18 +1024,18 @@ export default function TripDetail() {
                         </Grid>
                         {voucherFinanceSummary.voucherCount > 0 ? (
                             <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap' }}>
-                                <Chip size="small" variant="outlined" label={`${voucherFinanceSummary.voucherCount} vouchers`} />
+                                <Chip size="small" variant="outlined" label={t('trip_detail.voucher_summary.vouchers', { count: voucherFinanceSummary.voucherCount })} />
                                 {voucherFinanceSummary.statusCounts.PAID > 0 ? (
-                                    <Chip size="small" color="success" variant="outlined" label={`Paid ${voucherFinanceSummary.statusCounts.PAID}`} />
+                                    <Chip size="small" color="success" variant="outlined" label={t('trip_detail.voucher_summary.paid', { count: voucherFinanceSummary.statusCounts.PAID })} />
                                 ) : null}
                                 {voucherFinanceSummary.statusCounts.PARTIAL > 0 ? (
-                                    <Chip size="small" color="warning" variant="outlined" label={`Partial ${voucherFinanceSummary.statusCounts.PARTIAL}`} />
+                                    <Chip size="small" color="warning" variant="outlined" label={t('trip_detail.voucher_summary.partial', { count: voucherFinanceSummary.statusCounts.PARTIAL })} />
                                 ) : null}
                                 {voucherFinanceSummary.statusCounts.UNPAID > 0 ? (
-                                    <Chip size="small" color="warning" variant="outlined" label={`Unpaid ${voucherFinanceSummary.statusCounts.UNPAID}`} />
+                                    <Chip size="small" color="warning" variant="outlined" label={t('trip_detail.voucher_summary.unpaid', { count: voucherFinanceSummary.statusCounts.UNPAID })} />
                                 ) : null}
                                 {voucherFinanceSummary.statusCounts.WAIVED > 0 ? (
-                                    <Chip size="small" variant="outlined" label={`Waived ${voucherFinanceSummary.statusCounts.WAIVED}`} />
+                                    <Chip size="small" variant="outlined" label={t('trip_detail.voucher_summary.waived', { count: voucherFinanceSummary.statusCounts.WAIVED })} />
                                 ) : null}
                             </Stack>
                         ) : null}
@@ -979,10 +1051,10 @@ export default function TripDetail() {
                         >
                             <Box>
                                 <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                                    Trip costs
+                                    {t('trip_detail.trip_costs.title')}
                                 </Typography>
                                 <Typography variant="body2" color="text.secondary">
-                                    Operational costs recorded directly on this trip (does not change vouchers).
+                                    {t('trip_detail.trip_costs.subtitle')}
                                 </Typography>
                             </Box>
                             {canManageTripCosts ? (
@@ -992,28 +1064,28 @@ export default function TripDetail() {
                                     onClick={openCreateTripCost}
                                     disabled={tripCostCategories.length === 0}
                                 >
-                                    Add cost
+                                    {t('trip_detail.trip_costs.add_cost')}
                                 </Button>
                             ) : null}
                         </Stack>
 
                         {tripCostCategories.length === 0 ? (
-                            <Alert severity="warning">Add at least one Trip Cost Category before recording trip costs.</Alert>
+                            <Alert severity="warning">{t('trip_detail.trip_costs.no_categories_warning')}</Alert>
                         ) : null}
 
                         {tripCostEntries.length === 0 ? (
                             <Typography variant="body2" color="text.secondary">
-                                No trip costs yet.
+                                {t('trip_detail.trip_costs.empty')}
                             </Typography>
                         ) : (
                             <Paper sx={{ overflowX: 'auto' }}>
                                 <Table size="small">
                                     <TableHead>
                                         <TableRow>
-                                            <TableCell>Category</TableCell>
-                                            <TableCell align="right">Amount</TableCell>
-                                            <TableCell>Note</TableCell>
-                                            <TableCell align="right">Actions</TableCell>
+                                            <TableCell>{t('trip_detail.trip_costs.table.category')}</TableCell>
+                                            <TableCell align="right">{t('trip_detail.trip_costs.table.amount')}</TableCell>
+                                            <TableCell>{t('trip_detail.trip_costs.table.note')}</TableCell>
+                                            <TableCell align="right">{t('trip_detail.trip_costs.table.actions')}</TableCell>
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
@@ -1027,13 +1099,13 @@ export default function TripDetail() {
                                                 <TableCell align="right" sx={{ width: 104, whiteSpace: 'nowrap' }}>
                                                     {canManageTripCosts ? (
                                                         <Fragment>
-                                                            <IconButton size="small" onClick={() => openEditTripCost(row)} aria-label="Edit trip cost">
+                                                            <IconButton size="small" onClick={() => openEditTripCost(row)} aria-label={t('trip_detail.trip_costs.actions.edit')}>
                                                                 <EditIcon fontSize="small" />
                                                             </IconButton>
                                                             <IconButton
                                                                 size="small"
                                                                 onClick={() => removeTripCost(row)}
-                                                                aria-label="Delete trip cost"
+                                                                aria-label={t('trip_detail.trip_costs.actions.delete')}
                                                                 sx={{ color: 'error.main' }}
                                                             >
                                                                 <DeleteOutlineIcon fontSize="small" />
@@ -1053,16 +1125,16 @@ export default function TripDetail() {
                 </Paper>
 
                 <Dialog open={netIncomeDialogOpen} onClose={closeNetIncomeDialog} fullWidth maxWidth="xs">
-                    <DialogTitle>Add net income to Finance Ledger</DialogTitle>
+                    <DialogTitle>{t('trip_detail.net_income.dialog.title')}</DialogTitle>
                     <DialogContent>
                         <Stack spacing={1.25} sx={{ mt: 0.5 }}>
                             {netIncomeDialogError ? <Alert severity="error">{netIncomeDialogError}</Alert> : null}
                             <Typography variant="body2" color="text.secondary">
-                                This will create a ledger entry. Duplicate entries are blocked.
+                                {t('trip_detail.net_income.dialog.subtitle')}
                             </Typography>
                             <Box>
                                 <Typography variant="caption" color="text.secondary">
-                                    Amount
+                                    {t('trip_detail.net_income.dialog.amount')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 800 }}>
                                     {formatFixed(tripNetIncome, 0)}
@@ -1070,15 +1142,15 @@ export default function TripDetail() {
                             </Box>
                             <Box>
                                 <Typography variant="caption" color="text.secondary">
-                                    Category
+                                    {t('trip_detail.net_income.dialog.category')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                                    Trip
+                                    {t('trip_detail.net_income.dialog.category_value')}
                                 </Typography>
                             </Box>
                             <Box>
                                 <Typography variant="caption" color="text.secondary">
-                                    Note
+                                    {t('trip_detail.net_income.dialog.note')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 700 }}>
                                     {trip?.trip_no ?? '—'}
@@ -1088,20 +1160,20 @@ export default function TripDetail() {
                     </DialogContent>
                     <DialogActions>
                         <Button onClick={closeNetIncomeDialog} disabled={netIncomeDialogProcessing}>
-                            Cancel
+                            {t('ui.cancel')}
                         </Button>
                         <Button variant="contained" onClick={submitNetIncomeDialog} disabled={netIncomeDialogProcessing}>
-                            Add
+                            {t('ui.add')}
                         </Button>
                     </DialogActions>
                 </Dialog>
 
                 <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
-                        Departure &amp; progress
+                        {t('trip_detail.departure.title')}
                     </Typography>
                     {trip.status === 'CANCELLED' ? (
-                        <Alert severity="warning">This trip was cancelled.</Alert>
+                        <Alert severity="warning">{t('trip_detail.departure.cancelled')}</Alert>
                     ) : (
                         <Stack spacing={2}>
                             <Stepper
@@ -1113,18 +1185,18 @@ export default function TripDetail() {
                                 }}
                             >
                                 <Step>
-                                    <StepLabel>Planned / loading</StepLabel>
+                                    <StepLabel>{t('trip_detail.departure.steps.planned_loading')}</StepLabel>
                                 </Step>
                                 <Step>
-                                    <StepLabel>Departed</StepLabel>
+                                    <StepLabel>{t('trip_detail.departure.steps.departed')}</StepLabel>
                                 </Step>
                                 <Step>
-                                    <StepLabel>Completed</StepLabel>
+                                    <StepLabel>{t('trip_detail.departure.steps.completed')}</StepLabel>
                                 </Step>
                             </Stepper>
                             {trip.departed_at ? (
                                 <Typography variant="body2" color="text.secondary">
-                                    Departed at{' '}
+                                    {t('trip_detail.departure.departed_at')}{' '}
                                     <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>
                                         {formatTripDateTime(trip.departed_at)}
                                     </Box>
@@ -1139,7 +1211,7 @@ export default function TripDetail() {
                                         onClick={() => setDepartDialogOpen(true)}
                                         sx={{ width: { xs: '100%', sm: 'auto' } }}
                                     >
-                                        Mark as departed
+                                        {t('trip_detail.departure.actions.mark_departed')}
                                     </Button>
                                 ) : null}
                                 {canUndoDepart ? (
@@ -1150,7 +1222,7 @@ export default function TripDetail() {
                                         onClick={() => setUndoDepartDialogOpen(true)}
                                         sx={{ width: { xs: '100%', sm: 'auto' } }}
                                     >
-                                        Undo departure
+                                        {t('trip_detail.departure.actions.undo_departure')}
                                     </Button>
                                 ) : null}
                             </Stack>
@@ -1159,17 +1231,17 @@ export default function TripDetail() {
                             (trip.status === 'PLANNED' || trip.status === 'LOADING') &&
                             loadedCargoSummary.linesWithCargo === 0 ? (
                                 <Typography variant="body2" color="text.secondary">
-                                    Load at least one cargo line, then use <strong>Mark as departed</strong> when the vehicle leaves for delivery.
+                                    {t('trip_detail.departure.hint_load_then_depart')}
                                 </Typography>
                             ) : null}
                             {!canMarkDeparted && !canUndoDepart && (trip.status === 'DEPARTED' || trip.status === 'AT_STOP') ? (
                                 <Typography variant="body2" color="text.secondary">
-                                    Trip is in transit. Record deliveries from the cargo section when drops are confirmed.
+                                    {t('trip_detail.departure.hint_in_transit')}
                                 </Typography>
                             ) : null}
                             {trip.status === 'COMPLETED' ? (
                                 <Typography variant="body2" color="text.secondary">
-                                    This trip is completed.
+                                    {t('trip_detail.departure.completed')}
                                 </Typography>
                             ) : null}
                         </Stack>
@@ -1179,7 +1251,7 @@ export default function TripDetail() {
                 <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
                     <Stack direction="row" alignItems="flex-start" justifyContent="space-between" flexWrap="wrap" gap={1} sx={{ mb: 1.5 }}>
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, flex: '1 1 auto', minWidth: 0 }}>
-                            Cargo (trip items)
+                            {t('trip_detail.cargo.title')}
                         </Typography>
                         {canRecordDelivery && hasPendingDelivery ? (
                             <Button
@@ -1190,7 +1262,7 @@ export default function TripDetail() {
                                 sx={{ flexShrink: 0, whiteSpace: { xs: 'normal', sm: 'nowrap' }, alignSelf: { xs: 'stretch', sm: 'auto' } }}
                                 fullWidth={!isSmUp}
                             >
-                                Confirm trip delivery
+                                {t('trip_detail.cargo.actions.confirm_trip_delivery')}
                             </Button>
                         ) : null}
                     </Stack>
@@ -1199,19 +1271,21 @@ export default function TripDetail() {
                         <Box sx={{ mb: 2.5 }}>
                             <Box sx={{ minWidth: 0 }}>
                                 <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                                    Load vouchers
+                                    {t('trip_detail.load_vouchers.title')}
                                 </Typography>
                                 <Typography variant="body2" color="text.secondary">
-                                    Shows vouchers matching this trip&apos;s destination warehouse.
+                                    {t('trip_detail.load_vouchers.subtitle')}
                                 </Typography>
                             </Box>
                             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'center' }} justifyContent="space-between" sx={{ mb: 1 }}>
                                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ flexShrink: 0, width: { xs: '100%', md: 'auto' } }} alignItems={{ sm: 'center' }}>
                                     <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: { sm: 'nowrap' }, flex: { sm: '1 1 auto' } }}>
-                                        Vehicle max weight: <Box component="span" sx={{ fontWeight: 800, color: 'text.primary' }}>{vehicleMaxWeight === null ? '—' : formatFixed(vehicleMaxWeight, 0)}</Box>
+                                        {t('trip_detail.load_vouchers.vehicle_max_weight')}{' '}
+                                        <Box component="span" sx={{ fontWeight: 800, color: 'text.primary' }}>{vehicleMaxWeight === null ? '—' : formatFixed(vehicleMaxWeight, 0)}</Box>
                                         {' · '}
-                                        Selected weight: <Box component="span" sx={{ fontWeight: 800, color: selectedExceedsVehicleWeight ? 'error.main' : 'text.primary' }}>{formatFixed(selectedWeightSummary.knownSum, 0)}</Box>
-                                        {selectedWeightSummary.unknownCount > 0 ? ` (+ ${selectedWeightSummary.unknownCount} unknown)` : ''}
+                                        {t('trip_detail.load_vouchers.selected_weight')}{' '}
+                                        <Box component="span" sx={{ fontWeight: 800, color: selectedExceedsVehicleWeight ? 'error.main' : 'text.primary' }}>{formatFixed(selectedWeightSummary.knownSum, 0)}</Box>
+                                        {selectedWeightSummary.unknownCount > 0 ? ` (+ ${selectedWeightSummary.unknownCount} ${t('trip_detail.load_vouchers.unknown')})` : ''}
                                     </Typography>
                                     <Box
                                         sx={{
@@ -1229,7 +1303,7 @@ export default function TripDetail() {
                                             disabled={loadBatchProcessing || selectedVoucherIds.length === 0 || selectedExceedsVehicleWeight}
                                             fullWidth={!isSmUp}
                                         >
-                                            Load selected
+                                            {t('trip_detail.load_vouchers.actions.load_selected')}
                                         </Button>
                                         <Button
                                             variant="outlined"
@@ -1237,7 +1311,7 @@ export default function TripDetail() {
                                             disabled={loadBatchProcessing || (loadableVouchers || []).length === 0 || allExceedsVehicleWeight}
                                             fullWidth={!isSmUp}
                                         >
-                                            Load all
+                                            {t('trip_detail.load_vouchers.actions.load_all')}
                                         </Button>
                                     </Box>
                                 </Stack>
@@ -1254,7 +1328,7 @@ export default function TripDetail() {
 
                             {(loadableVouchers || []).length === 0 ? (
                                 <Typography variant="body2" color="text.secondary">
-                                    No vouchers available: need confirmed vouchers with remaining quantity for this trip&apos;s destination warehouse.
+                                    {t('trip_detail.load_vouchers.empty')}
                                 </Typography>
                             ) : (
                                 isSmUp ? (
@@ -1262,13 +1336,13 @@ export default function TripDetail() {
                                         <Table size="small" sx={{ minWidth: 720 }}>
                                             <TableHead>
                                                 <TableRow>
-                                                    <TableCell sx={{ width: 140 }}>Voucher ID</TableCell>
-                                                    <TableCell>Receipt name</TableCell>
+                                                    <TableCell sx={{ width: 140 }}>{t('trip_detail.load_vouchers.table.voucher_id')}</TableCell>
+                                                    <TableCell>{t('trip_detail.load_vouchers.table.receipt_name')}</TableCell>
                                                     <TableCell align="right" sx={{ width: 140 }}>
-                                                        Weight
+                                                        {t('trip_detail.load_vouchers.table.weight')}
                                                     </TableCell>
                                                     <TableCell align="right" sx={{ width: 160 }}>
-                                                        Items (total line)
+                                                        {t('trip_detail.load_vouchers.table.items_total_line')}
                                                     </TableCell>
                                                     <TableCell align="right" sx={{ width: 120 }}>
                                                         <Checkbox
@@ -1340,7 +1414,7 @@ export default function TripDetail() {
                                         <Paper variant="outlined" sx={{ px: 1.5, py: 1, borderRadius: 2 }}>
                                             <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
                                                 <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                                                    Select all
+                                                    {t('trip_detail.load_vouchers.select_all')}
                                                 </Typography>
                                                 <Checkbox
                                                     size="small"
@@ -1373,7 +1447,7 @@ export default function TripDetail() {
                                                                     {row.recipient_name || '—'}
                                                                 </Typography>
                                                                 <Typography variant="caption" color="text.secondary">
-                                                                    {row.voucher_no || '—'} · ID {row.id}
+                                                                    {t('trip_detail.load_vouchers.mobile_row', { voucher_no: row.voucher_no || '—', id: row.id })}
                                                                 </Typography>
                                                             </Box>
                                                             <Checkbox
@@ -1396,7 +1470,7 @@ export default function TripDetail() {
                                                         </Stack>
                                                         <Stack direction="row" justifyContent="space-between" spacing={1}>
                                                             <Typography variant="body2" color="text.secondary">
-                                                                Weight
+                                                                {t('trip_detail.load_vouchers.table.weight')}
                                                             </Typography>
                                                             <Typography variant="body2" sx={{ fontWeight: 800 }}>
                                                                 {w === null || w === undefined ? '—' : formatFixed(w, 0)}
@@ -1404,7 +1478,7 @@ export default function TripDetail() {
                                                         </Stack>
                                                         <Stack direction="row" justifyContent="space-between" spacing={1}>
                                                             <Typography variant="body2" color="text.secondary">
-                                                                Items (total line)
+                                                                {t('trip_detail.load_vouchers.table.items_total_line')}
                                                             </Typography>
                                                             <Typography variant="body2" sx={{ fontWeight: 800 }}>
                                                                 {row.lines ?? 0}
@@ -1422,7 +1496,7 @@ export default function TripDetail() {
 
                     {(trip.items || []).length === 0 ? (
                         <Typography variant="body2" color="text.secondary">
-                            Nothing loaded yet.
+                            {t('trip_detail.cargo.empty')}
                         </Typography>
                     ) : isSmUp ? (
                         <Box sx={{ overflowX: 'auto' }}>
@@ -1431,15 +1505,15 @@ export default function TripDetail() {
                                     <TableRow sx={{ bgcolor: (th) => (th.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>
                                         <TableCell sx={{ width: 520 }}>Voucher</TableCell>
                                         <TableCell width={64} align="right">
-                                            Lines
+                                            {t('vouchers.table.lines')}
                                         </TableCell>
-                                        <TableCell sx={{ width: 140 }}>Status</TableCell>
+                                        <TableCell sx={{ width: 140 }}>{t('vouchers.table.status')}</TableCell>
                                         {showCargoActionsColumn ? <TableCell align="right" width={56} /> : null}
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
                                     {voucherCargoRows.map((row) => {
-                                        const merchantName = row.merchant_name || '';
+                                        const recipientLabel = row.recipient_label || '';
                                         const voucherNo = row.voucher_no ?? '—';
                                         const dest = row.destination ?? '—';
                                         const isOpen = Boolean(voucherExpanded[row.voucher_id]);
@@ -1454,7 +1528,7 @@ export default function TripDetail() {
                                                                 onClick={() =>
                                                                     setVoucherExpanded((p) => ({ ...p, [row.voucher_id]: !Boolean(p[row.voucher_id]) }))
                                                                 }
-                                                                aria-label={isOpen ? 'Collapse lines' : 'Expand lines'}
+                                                                aria-label={isOpen ? t('trip_detail.cargo.actions.collapse_lines') : t('trip_detail.cargo.actions.expand_lines')}
                                                                 sx={{
                                                                     mt: 0.1,
                                                                     width: 28,
@@ -1476,9 +1550,9 @@ export default function TripDetail() {
                                                                             minWidth: 0,
                                                                         }}
                                                                         noWrap
-                                                                        title={merchantName || undefined}
+                                                                        title={recipientLabel || undefined}
                                                                     >
-                                                                        {merchantName || '—'}
+                                                                        {recipientLabel || '—'}
                                                                     </Typography>
                                                                     <Typography
                                                                         variant="caption"
@@ -1525,7 +1599,7 @@ export default function TripDetail() {
                                                         <TableCell align="right">
                                                             <IconButton
                                                                 size="small"
-                                                                aria-label="Voucher cargo actions"
+                                                                aria-label={t('trip_detail.cargo.actions.voucher_actions')}
                                                                 onClick={(e) => setVoucherRowMenu({ anchorEl: e.currentTarget, row })}
                                                             >
                                                                 <MoreVertIcon fontSize="small" />
@@ -1580,7 +1654,7 @@ export default function TripDetail() {
                                         <Stack spacing={1.25}>
                                             <Stack direction="row" alignItems="flex-start" justifyContent="space-between" gap={1}>
                                                 <Typography variant="subtitle2" sx={{ fontWeight: 700, wordBreak: 'break-word', flex: '1 1 auto', minWidth: 0 }}>
-                                                    {row.merchant_name || '—'}
+                                                    {row.recipient_label || '—'}
                                                 </Typography>
                                                 <Stack direction="row" spacing={0.5} alignItems="center" flexShrink={0}>
                                                     <Chip
@@ -1592,7 +1666,7 @@ export default function TripDetail() {
                                                     <IconButton
                                                         size="small"
                                                         disableRipple
-                                                        aria-label={isOpen ? 'Collapse lines' : 'Expand lines'}
+                                                        aria-label={isOpen ? t('trip_detail.cargo.actions.collapse_lines') : t('trip_detail.cargo.actions.expand_lines')}
                                                         onClick={() =>
                                                             setVoucherExpanded((p) => ({ ...p, [row.voucher_id]: !Boolean(p[row.voucher_id]) }))
                                                         }
@@ -1609,7 +1683,7 @@ export default function TripDetail() {
                                                     {showCargoActionsColumn ? (
                                                         <IconButton
                                                             size="small"
-                                                            aria-label="Voucher cargo actions"
+                                                            aria-label={t('trip_detail.cargo.actions.voucher_actions')}
                                                             onClick={(e) => setVoucherRowMenu({ anchorEl: e.currentTarget, row })}
                                                         >
                                                             <MoreVertIcon fontSize="small" />
@@ -1662,12 +1736,23 @@ export default function TripDetail() {
                     transformOrigin={{ vertical: 'top', horizontal: 'right' }}
                 >
                     <MenuItem
+                        disabled={!voucherRowMenu?.row?.voucher_id}
+                        onClick={() => {
+                            const r = voucherRowMenu?.row;
+                            setVoucherRowMenu(null);
+                            if (!r?.voucher_id) return;
+                            window.open(`${adminAppUrl}/operations/vouchers/${r.voucher_id}/print`, '_blank', 'noopener,noreferrer');
+                        }}
+                    >
+                        {t('trip_detail.cargo.actions.print_voucher')}
+                    </MenuItem>
+                    <MenuItem
                         disabled={!canRecordDelivery || !(voucherRowMenu?.row?.remaining_sum > 0.0001)}
                         onClick={() => {
                             const r = voucherRowMenu?.row;
                             setVoucherRowMenu(null);
                             if (!r) return;
-                            if (!window.confirm(`Confirm delivery for voucher ${r.voucher_no}?`)) return;
+                            if (!window.confirm(t('trip_detail.cargo.confirm.confirm_delivery_voucher', { voucher_no: r.voucher_no }))) return;
                             router.post(
                                 `${adminAppUrl}/operations/trips/${trip.id}/vouchers/${r.voucher_id}/delivery-confirmations`,
                                 { note: null },
@@ -1675,7 +1760,7 @@ export default function TripDetail() {
                             );
                         }}
                     >
-                        Confirm delivery
+                        {t('trip_detail.cargo.actions.confirm_delivery')}
                     </MenuItem>
                     <MenuItem
                         disabled={!canLoadCargo}
@@ -1683,25 +1768,25 @@ export default function TripDetail() {
                             const r = voucherRowMenu?.row;
                             setVoucherRowMenu(null);
                             if (!r) return;
-                            if (!window.confirm(`Remove voucher ${r.voucher_no} from the trip?`)) return;
+                            if (!window.confirm(t('trip_detail.cargo.confirm.remove_voucher', { voucher_no: r.voucher_no }))) return;
                             router.delete(`${adminAppUrl}/operations/trips/${trip.id}/vouchers/${r.voucher_id}`, { preserveScroll: true });
                         }}
                     >
-                        Remove from trip
+                        {t('trip_detail.cargo.actions.remove_from_trip')}
                     </MenuItem>
                 </Menu>
 
                 <Dialog open={tripCostDialogOpen} onClose={closeTripCostDialog} fullWidth maxWidth="xs">
-                    <DialogTitle sx={{ fontWeight: 700 }}>{tripCostForm.id ? 'Edit trip cost' : 'Add trip cost'}</DialogTitle>
+                    <DialogTitle sx={{ fontWeight: 700 }}>{tripCostForm.id ? t('trip_detail.trip_costs.dialog.edit_title') : t('trip_detail.trip_costs.dialog.add_title')}</DialogTitle>
                     <DialogContent>
                         <Stack spacing={1.75} sx={{ mt: 1 }}>
                             {tripCostDialogError ? <Alert severity="error">{tripCostDialogError}</Alert> : null}
 
                             <FormControl fullWidth size="small">
-                                <InputLabel id="trip-cost-category-label">Category</InputLabel>
+                                <InputLabel id="trip-cost-category-label">{t('trip_detail.trip_costs.table.category')}</InputLabel>
                                 <Select
                                     labelId="trip-cost-category-label"
-                                    label="Category"
+                                    label={t('trip_detail.trip_costs.table.category')}
                                     value={tripCostForm.category_id}
                                     onChange={(e) => setTripCostForm((p) => ({ ...p, category_id: e.target.value }))}
                                     disabled={tripCostDialogProcessing}
@@ -1716,7 +1801,7 @@ export default function TripDetail() {
 
                             <TextField
                                 size="small"
-                                label="Amount"
+                                label={t('trip_detail.trip_costs.table.amount')}
                                 type="number"
                                 value={tripCostForm.amount}
                                 onChange={(e) => setTripCostForm((p) => ({ ...p, amount: e.target.value }))}
@@ -1728,7 +1813,7 @@ export default function TripDetail() {
 
                             <TextField
                                 size="small"
-                                label="Note"
+                                label={t('trip_detail.trip_costs.table.note')}
                                 value={tripCostForm.note}
                                 onChange={(e) => setTripCostForm((p) => ({ ...p, note: e.target.value }))}
                                 fullWidth
@@ -1738,26 +1823,29 @@ export default function TripDetail() {
                     </DialogContent>
                     <DialogActions sx={{ px: 3, pb: 2.5 }}>
                         <Button onClick={closeTripCostDialog} disabled={tripCostDialogProcessing}>
-                            Cancel
+                            {t('ui.cancel')}
                         </Button>
                         <Button variant="contained" onClick={submitTripCostDialog} disabled={tripCostDialogProcessing}>
-                            Save
+                            {t('ui.save')}
                         </Button>
                     </DialogActions>
                 </Dialog>
 
                 <Dialog open={Boolean(itemDialog)} onClose={() => !itemDialogSaving && setItemDialog(null)} fullWidth maxWidth="xs">
-                    <DialogTitle>Edit cargo</DialogTitle>
+                    <DialogTitle>{t('trip_detail.cargo.edit_dialog.title')}</DialogTitle>
                     <DialogContent>
                         {itemDialog?.row ? (
                             <Stack spacing={2} sx={{ mt: 1 }}>
                                 <Typography variant="body2" color="text.secondary">
-                                    {itemDialog.row.voucher_item?.voucher?.voucher_no ?? '—'} · line {itemDialog.row.voucher_item?.line_no ?? '—'} ·{' '}
-                                    {itemDialog.row.voucher_item?.product?.name ?? '—'}
+                                    {t('trip_detail.cargo.line_label', {
+                                        voucher_no: itemDialog.row.voucher_item?.voucher?.voucher_no ?? '—',
+                                        line_no: itemDialog.row.voucher_item?.line_no ?? '—',
+                                        product: itemDialog.row.voucher_item?.product?.name ?? '—',
+                                    })}
                                 </Typography>
                                 <TextField
                                     size="small"
-                                    label="Loaded quantity"
+                                    label={t('trip_detail.cargo.edit_dialog.loaded_quantity')}
                                     type="number"
                                     required
                                     inputProps={{
@@ -1772,7 +1860,10 @@ export default function TripDetail() {
                                         (typeof errors.loaded_qty === 'string'
                                             ? errors.loaded_qty
                                             : errors.loaded_qty?.[0]) ||
-                                        `Max for this line on this trip: ${formatInt(maxLoadedQtyForTripItem(itemDialog.row, trip.items || []))} ${itemDialog.row.voucher_item?.product?.unit ?? itemDialog.row.voucher_item?.unit ?? ''}`
+                                        t('trip_detail.cargo.edit_dialog.max_for_line', {
+                                            max: formatInt(maxLoadedQtyForTripItem(itemDialog.row, trip.items || [])),
+                                            unit: itemDialog.row.voucher_item?.product?.unit ?? itemDialog.row.voucher_item?.unit ?? '',
+                                        })
                                     }
                                 />
                             </Stack>
@@ -1780,10 +1871,10 @@ export default function TripDetail() {
                     </DialogContent>
                     <DialogActions>
                         <Button onClick={() => setItemDialog(null)} disabled={itemDialogSaving}>
-                            Cancel
+                            {t('ui.cancel')}
                         </Button>
                         <Button variant="contained" onClick={saveItemDialog} disabled={itemDialogSaving}>
-                            Save
+                            {t('ui.save')}
                         </Button>
                     </DialogActions>
                 </Dialog>
@@ -1806,7 +1897,7 @@ export default function TripDetail() {
                             <ListItemIcon sx={{ minWidth: 36 }}>
                                 <LocalShippingIcon fontSize="small" />
                             </ListItemIcon>
-                            Confirm delivery
+                            {t('trip_detail.cargo.actions.confirm_delivery')}
                         </MenuItem>
                     ) : null}
                     {itemRowMenu?.row && canRecordDelivery && hasPendingDestinationReceipt(itemRowMenu.row) ? (
@@ -1820,7 +1911,7 @@ export default function TripDetail() {
                             <ListItemIcon sx={{ minWidth: 36 }}>
                                 <AddCircleOutlineIcon fontSize="small" />
                             </ListItemIcon>
-                            Receive at destination warehouse
+                            {t('trip_detail.cargo.actions.receive_at_destination')}
                         </MenuItem>
                     ) : null}
                     {itemRowMenu?.row && canLoadCargo ? (
@@ -1834,7 +1925,7 @@ export default function TripDetail() {
                             <ListItemIcon sx={{ minWidth: 36 }}>
                                 <EditIcon fontSize="small" />
                             </ListItemIcon>
-                            Edit cargo
+                            {t('trip_detail.cargo.actions.edit_cargo')}
                         </MenuItem>
                     ) : null}
                     {itemRowMenu?.row && canLoadCargo ? (
@@ -1848,38 +1939,41 @@ export default function TripDetail() {
                             <ListItemIcon sx={{ minWidth: 36 }}>
                                 <DeleteOutlineIcon fontSize="small" />
                             </ListItemIcon>
-                            Remove cargo
+                            {t('trip_detail.cargo.actions.remove_cargo')}
                         </MenuItem>
                     ) : null}
                 </Menu>
 
                 <Dialog open={Boolean(itemDeliveryDialog)} onClose={() => !itemDeliverySaving && setItemDeliveryDialog(null)} fullWidth maxWidth="sm">
-                    <DialogTitle>Confirm delivery</DialogTitle>
+                    <DialogTitle>{t('trip_detail.delivery_dialog.title')}</DialogTitle>
                     <DialogContent>
                         {itemDeliveryDialog?.row ? (
                             <Stack spacing={2} sx={{ mt: 1 }}>
                                 <Typography variant="body2" color="text.secondary">
-                                    {itemDeliveryDialog.row.voucher_item?.voucher?.voucher_no ?? '—'} · line{' '}
-                                    {itemDeliveryDialog.row.voucher_item?.line_no ?? '—'} · {itemDeliveryDialog.row.voucher_item?.product?.name ?? '—'}
+                                    {t('trip_detail.cargo.line_label', {
+                                        voucher_no: itemDeliveryDialog.row.voucher_item?.voucher?.voucher_no ?? '—',
+                                        line_no: itemDeliveryDialog.row.voucher_item?.line_no ?? '—',
+                                        product: itemDeliveryDialog.row.voucher_item?.product?.name ?? '—',
+                                    })}
                                 </Typography>
                                 <Typography variant="body2" color="text.secondary">
-                                    Destination (from voucher):{' '}
+                                    {t('trip_detail.delivery_dialog.destination_from_voucher')}{' '}
                                     <Box component="span" sx={{ color: 'text.primary', fontWeight: 600 }}>
                                         {formatVoucherDestination(itemDeliveryDialog.row.voucher_item)}
                                     </Box>
                                 </Typography>
                                 <Typography variant="body2">
-                                    Remaining on this cargo line:{' '}
+                                    {t('trip_detail.delivery_dialog.remaining_on_line')}{' '}
                                     <Box component="span" sx={{ fontWeight: 700 }}>
                                         {formatInt(remainingDeliverQty(itemDeliveryDialog.row))}{' '}
                                         {itemDeliveryDialog.row.voucher_item?.product?.unit ?? itemDeliveryDialog.row.voucher_item?.unit ?? ''}
                                     </Box>
                                 </Typography>
                                 <FormControl fullWidth size="small" error={Boolean(errors.delivery_status)}>
-                                    <InputLabel id="item-delivery-status">Receipt type</InputLabel>
+                                    <InputLabel id="item-delivery-status">{t('trip_detail.delivery_dialog.receipt_type')}</InputLabel>
                                     <Select
                                         labelId="item-delivery-status"
-                                        label="Receipt type"
+                                        label={t('trip_detail.delivery_dialog.receipt_type')}
                                         value={itemDeliveryDialog.delivery_status}
                                         onChange={(e) => {
                                             const next = e.target.value;
@@ -1905,9 +1999,9 @@ export default function TripDetail() {
                                             });
                                         }}
                                     >
-                                        <MenuItem value="FULL">Full remaining</MenuItem>
-                                        <MenuItem value="PARTIAL">Partial</MenuItem>
-                                        <MenuItem value="REJECTED">Rejected</MenuItem>
+                                        <MenuItem value="FULL">{t('trip_detail.delivery_dialog.receipt_types.full_remaining')}</MenuItem>
+                                        <MenuItem value="PARTIAL">{t('trip_detail.delivery_dialog.receipt_types.partial')}</MenuItem>
+                                        <MenuItem value="REJECTED">{t('trip_detail.delivery_dialog.receipt_types.rejected')}</MenuItem>
                                     </Select>
                                     {errors.delivery_status ? (
                                         <FormHelperText error>
@@ -1919,7 +2013,7 @@ export default function TripDetail() {
                                 </FormControl>
                                 <TextField
                                     size="small"
-                                    label="Received quantity"
+                                    label={t('trip_detail.delivery_dialog.received_quantity')}
                                     type="number"
                                     required
                                     disabled={itemDeliveryDialog.delivery_status === 'REJECTED'}
@@ -1941,15 +2035,15 @@ export default function TripDetail() {
                                             ? errors.received_qty
                                             : errors.received_qty?.[0] ||
                                               (itemDeliveryDialog.delivery_status === 'REJECTED'
-                                                  ? 'Rejected receipts use quantity 0.'
+                                                  ? t('trip_detail.delivery_dialog.hints.rejected_qty_zero')
                                                   : itemDeliveryDialog.delivery_status === 'FULL'
-                                                    ? 'Must match full remaining quantity.'
-                                                    : 'Must be greater than 0 and less than remaining for partial.')
+                                                    ? t('trip_detail.delivery_dialog.hints.full_must_match_remaining')
+                                                    : t('trip_detail.delivery_dialog.hints.partial_rules'))
                                     }
                                 />
                                 <TextField
                                     size="small"
-                                    label="Note (optional)"
+                                    label={t('ui.note_optional')}
                                     fullWidth
                                     multiline
                                     minRows={2}
@@ -1971,10 +2065,10 @@ export default function TripDetail() {
                     </DialogContent>
                     <DialogActions>
                         <Button onClick={() => setItemDeliveryDialog(null)} disabled={itemDeliverySaving}>
-                            Cancel
+                            {t('ui.cancel')}
                         </Button>
                         <Button variant="contained" onClick={saveItemDeliveryDialog} disabled={itemDeliverySaving}>
-                            Save receipt
+                            {t('trip_detail.delivery_dialog.save_receipt')}
                         </Button>
                     </DialogActions>
                 </Dialog>
@@ -1985,20 +2079,20 @@ export default function TripDetail() {
                     fullWidth
                     maxWidth="md"
                 >
-                    <DialogTitle>Confirm trip delivery</DialogTitle>
+                    <DialogTitle>{t('trip_detail.trip_delivery_dialog.title')}</DialogTitle>
                     <DialogContent>
                         <Stack spacing={2} sx={{ mt: 1 }}>
                             <Typography variant="body2" color="text.secondary">
-                                Records the full remaining quantity for every cargo line below in one step. Recipient and address come from each voucher line (already shown on this page).
+                                {t('trip_detail.trip_delivery_dialog.subtitle')}
                             </Typography>
                             <Box sx={{ overflowX: 'auto', mx: { xs: -1, sm: 0 } }}>
                                 <Table size="small" sx={{ minWidth: { xs: 480, sm: 560 } }}>
                                     <TableHead>
                                         <TableRow sx={{ bgcolor: (th) => (th.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>
-                                            <TableCell>Product</TableCell>
-                                            <TableCell>Voucher · line</TableCell>
-                                            <TableCell sx={{ minWidth: 140 }}>Destination</TableCell>
-                                            <TableCell align="right">Remaining</TableCell>
+                                            <TableCell>{t('trip_detail.trip_delivery_dialog.table.product')}</TableCell>
+                                            <TableCell>{t('trip_detail.trip_delivery_dialog.table.voucher_line')}</TableCell>
+                                            <TableCell sx={{ minWidth: 140 }}>{t('trip_detail.trip_delivery_dialog.table.destination')}</TableCell>
+                                            <TableCell align="right">{t('trip_detail.trip_delivery_dialog.table.remaining')}</TableCell>
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
@@ -2038,7 +2132,7 @@ export default function TripDetail() {
                             </Box>
                             <TextField
                                 size="small"
-                                label="Note (optional)"
+                                label={t('ui.note_optional')}
                                 fullWidth
                                 multiline
                                 minRows={2}
@@ -2050,17 +2144,17 @@ export default function TripDetail() {
                                         ? typeof errors.note === 'string'
                                             ? errors.note
                                             : errors.note?.[0]
-                                        : 'Optional; saved on each receipt in this batch.'
+                                        : t('trip_detail.trip_delivery_dialog.note_hint')
                                 }
                             />
                         </Stack>
                     </DialogContent>
                     <DialogActions>
                         <Button onClick={() => setTripDeliveryOpen(false)} disabled={tripDeliverySaving}>
-                            Cancel
+                            {t('ui.cancel')}
                         </Button>
                         <Button variant="contained" onClick={saveTripDeliveryDialog} disabled={tripDeliverySaving}>
-                            Confirm all
+                            {t('trip_detail.trip_delivery_dialog.confirm_all')}
                         </Button>
                     </DialogActions>
                 </Dialog>
@@ -2071,19 +2165,19 @@ export default function TripDetail() {
                     fullWidth
                     maxWidth="sm"
                 >
-                    <DialogTitle>Mark trip as departed?</DialogTitle>
+                    <DialogTitle>{t('trip_detail.depart_dialog.title')}</DialogTitle>
                     <DialogContent>
                         <Stack spacing={2} sx={{ mt: 0.5 }}>
                             <Typography variant="body2" color="text.secondary">
-                                Confirms the vehicle has departed. Voucher lines on this trip will move to <strong>In transit</strong> when applicable.
+                                {t('trip_detail.depart_dialog.subtitle')}
                             </Typography>
                             <Typography variant="body2">
-                                Cargo lines with load:{' '}
+                                {t('trip_detail.depart_dialog.lines_with_load')}{' '}
                                 <Box component="span" sx={{ fontWeight: 700 }}>
                                     {loadedCargoSummary.linesWithCargo}
                                 </Box>
                                 <br />
-                                Total loaded quantity (sum of lines):{' '}
+                                {t('trip_detail.depart_dialog.total_loaded_qty')}{' '}
                                 <Box component="span" sx={{ fontWeight: 700 }}>
                                     {formatInt(loadedCargoSummary.totalLoaded)}
                                 </Box>
@@ -2092,7 +2186,7 @@ export default function TripDetail() {
                     </DialogContent>
                     <DialogActions sx={{ flexWrap: 'wrap', gap: 1, px: 3, pb: 2 }}>
                         <Button onClick={() => setDepartDialogOpen(false)} disabled={statusActionSaving} sx={{ flex: { xs: '1 1 100%', sm: '0 0 auto' } }}>
-                            Cancel
+                            {t('ui.cancel')}
                         </Button>
                         <Button
                             variant="contained"
@@ -2101,7 +2195,7 @@ export default function TripDetail() {
                             startIcon={<FlightTakeoffIcon />}
                             sx={{ flex: { xs: '1 1 100%', sm: '0 0 auto' } }}
                         >
-                            Mark as departed
+                            {t('trip_detail.departure.actions.mark_departed')}
                         </Button>
                     </DialogActions>
                 </Dialog>
@@ -2112,15 +2206,15 @@ export default function TripDetail() {
                     fullWidth
                     maxWidth="xs"
                 >
-                    <DialogTitle>Undo departure?</DialogTitle>
+                    <DialogTitle>{t('trip_detail.undo_depart_dialog.title')}</DialogTitle>
                     <DialogContent>
                         <Typography variant="body2" color="text.secondary">
-                            Sets the trip back to <strong>planned</strong> so cargo loading can be adjusted again. Only available before any delivery has been recorded.
+                            {t('trip_detail.undo_depart_dialog.subtitle')}
                         </Typography>
                     </DialogContent>
                     <DialogActions sx={{ flexWrap: 'wrap', gap: 1, px: 3, pb: 2 }}>
                         <Button onClick={() => setUndoDepartDialogOpen(false)} disabled={statusActionSaving} sx={{ flex: { xs: '1 1 100%', sm: '0 0 auto' } }}>
-                            Cancel
+                            {t('ui.cancel')}
                         </Button>
                         <Button
                             variant="contained"
@@ -2130,7 +2224,7 @@ export default function TripDetail() {
                             startIcon={<UndoIcon />}
                             sx={{ flex: { xs: '1 1 100%', sm: '0 0 auto' } }}
                         >
-                            Undo departure
+                            {t('trip_detail.departure.actions.undo_departure')}
                         </Button>
                     </DialogActions>
                 </Dialog>

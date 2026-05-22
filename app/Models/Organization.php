@@ -11,11 +11,16 @@ class Organization extends Model
 {
     use HasFactory;
 
+    protected $casts = [
+        'voucher_print_template' => 'array',
+    ];
+
     protected $fillable = [
         'name',
         'code',
         'status',
         'default_locale',
+        'voucher_print_template',
     ];
 
     protected static function booted(): void

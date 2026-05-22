@@ -1,5 +1,6 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { useT } from '@/i18n';
 import {
     Alert,
     Box,
@@ -189,15 +190,16 @@ function statusChipColor(status) {
 }
 
 function LineCard({ item, lineNo, canEdit, onEdit }) {
+    const t = useT();
     return (
         <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, maxWidth: '100%', minWidth: 0 }}>
             <Stack spacing={1}>
                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-                    Line {lineNo}
+                    {t('voucher_detail.lines.line_no', { line_no: lineNo })}
                 </Typography>
                 {canEdit ? (
                     <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: -0.5 }}>
-                        <IconButton size="small" aria-label="Edit line" onClick={() => onEdit?.(item)}>
+                        <IconButton size="small" aria-label={t('voucher_detail.lines.actions.edit_line')} onClick={() => onEdit?.(item)}>
                             <EditIcon fontSize="small" />
                         </IconButton>
                     </Box>
@@ -207,13 +209,14 @@ function LineCard({ item, lineNo, canEdit, onEdit }) {
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                     {formatQty(item.qty)} {item.unit}
-                    {item.from_warehouse?.display_name ? ` · From ${item.from_warehouse.display_name}` : ''}
+                    {item.from_warehouse?.display_name ? ` · ${t('voucher_detail.lines.from_warehouse', { warehouse: item.from_warehouse.display_name })}` : ''}
                 </Typography>
                 <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-                    {item.is_fragile ? <Chip size="small" label="Fragile" color="warning" variant="outlined" /> : null}
+                    {item.is_fragile ? <Chip size="small" label={t('voucher_detail.lines.fragile')} color="warning" variant="outlined" /> : null}
                 </Stack>
                 <Typography variant="body2" color="text.secondary">
-                    Freight: {formatMoneyAmount(item.freight_amount)} {item.freight_rate != null ? `(rate ${formatMoneyAmount(item.freight_rate)})` : ''}
+                    {t('voucher_detail.lines.freight')} {formatMoneyAmount(item.freight_amount)}{' '}
+                    {item.freight_rate != null ? `(${t('voucher_detail.lines.freight_rate', { rate: formatMoneyAmount(item.freight_rate) })})` : ''}
                 </Typography>
             </Stack>
         </Paper>
@@ -222,6 +225,7 @@ function LineCard({ item, lineNo, canEdit, onEdit }) {
 
 export default function VoucherDetail() {
     const pageProps = usePage().props;
+    const t = useT();
     const voucher = pageProps.voucher;
     const adminAppUrl = pageProps.admin_app_url;
     const canRecordVoucherPayments = pageProps.can_record_voucher_payments ?? false;
@@ -339,25 +343,37 @@ export default function VoucherDetail() {
         return Math.round(sum * 100) / 100;
     }, [voucher?.additional_costs]);
 
-    const layoutTitle = voucher?.voucher_no ? `Voucher ${voucher.voucher_no}` : 'Voucher';
+    const paymentLabels = useMemo(
+        () => ({
+            UNPAID: t('vouchers.payment_status.unpaid'),
+            PARTIAL: t('vouchers.payment_status.partial'),
+            PAID: t('vouchers.payment_status.paid'),
+            WAIVED: t('vouchers.payment_status.waived'),
+        }),
+        [t],
+    );
+    const paymentMethodLabels = useMemo(
+        () => ({
+            CASH: t('voucher_detail.payment_methods.cash'),
+            TRANSFER: t('voucher_detail.payment_methods.transfer'),
+            OTHER: t('voucher_detail.payment_methods.other'),
+        }),
+        [t],
+    );
 
-    const totalAmountDisplay = useMemo(() => {
-        if (!voucher) return null;
-        const raw = voucher.total_amount;
-        if (raw != null && raw !== '') {
-            const n = Number(raw);
-            if (Number.isFinite(n)) return n;
-        }
-        if (!voucher.items?.length) return null;
+    const layoutTitle = voucher?.voucher_no ? t('voucher_detail.title_with_no', { voucher_no: voucher.voucher_no }) : t('voucher_detail.title');
+
+    const clientPayableTotal = useMemo(() => {
+        if (!voucher?.items?.length) return null;
         return freightTotalFromItems(voucher.items) ?? 0;
-    }, [voucher?.total_amount, voucher?.items]);
+    }, [voucher?.items]);
 
     if (!voucher) {
         return (
-            <AdminLayout title="Voucher">
-                <Head title="Voucher" />
+            <AdminLayout title={t('voucher_detail.title')}>
+                <Head title={t('voucher_detail.title')} />
                 <Typography variant="body2" color="text.secondary">
-                    Not found.
+                    {t('ui.not_found')}
                 </Typography>
             </AdminLayout>
         );
@@ -377,8 +393,20 @@ export default function VoucherDetail() {
                         variant="text"
                         sx={{ alignSelf: { xs: 'flex-start', sm: 'center' } }}
                     >
-                        Back to vouchers
+                        {t('voucher_detail.back_to_vouchers')}
                     </Button>
+                    <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>
+                        <Button
+                            component="a"
+                            href={`${adminAppUrl}/operations/vouchers/${voucher.id}/print`}
+                            target="_blank"
+                            rel="noreferrer"
+                            variant="outlined"
+                            size="small"
+                        >
+                            {t('voucher_detail.actions.print')}
+                        </Button>
+                    </Stack>
                 </Stack>
 
                 <Box
@@ -398,25 +426,26 @@ export default function VoucherDetail() {
                                 <Chip size="small" label={voucher.status} color={statusChipColor(voucher.status)} variant="outlined" />
                                 <Chip
                                     size="small"
-                                    label={PAYMENT_LABELS[voucher.payment_status] ?? voucher.payment_status}
+                                    label={paymentLabels[voucher.payment_status] ?? voucher.payment_status}
                                     variant="outlined"
                                 />
                             </Stack>
                             <Typography variant="body2" color="text.secondary">
-                                Read-only detail for confirmed and in-process vouchers. Drafts are edited in the wizard.
+                                {t('voucher_detail.read_only_hint')}
                             </Typography>
                             <Divider />
                             <KeyValueTable
                                 rows={[
                                     {
-                                        label: 'Date',
+                                        label: t('voucher_detail.fields.date'),
                                         value: typeof voucher.voucher_date === 'string' ? voucher.voucher_date.slice(0, 10) : voucher.voucher_date,
                                     },
-                                    { label: 'Source warehouse', value: voucher.source_warehouse?.display_name || '—' },
-                                    { label: 'Total qty', value: voucher.total_qty != null ? String(voucher.total_qty) : null },
-                                    { label: 'Weight', value: voucher.total_weight != null ? String(voucher.total_weight) : null },
-                                    { label: 'Total amount', value: formatMoneyAmount(totalAmountDisplay) },
-                                    { label: 'Created by', value: voucher.creator?.name },
+                                    { label: t('voucher_detail.fields.source_warehouse'), value: voucher.source_warehouse?.display_name || '—' },
+                                    { label: t('voucher_detail.fields.total_qty'), value: voucher.total_qty != null ? String(voucher.total_qty) : null },
+                                    { label: t('voucher_detail.fields.weight'), value: voucher.total_weight != null ? String(voucher.total_weight) : null },
+                                    { label: t('voucher_detail.fields.client_payable'), value: formatMoneyAmount(clientPayableTotal) },
+                                    { label: t('voucher_detail.fields.additional_costs_internal'), value: formatMoneyAmount(additionalCostsTotal) },
+                                    { label: t('voucher_detail.fields.created_by'), value: voucher.creator?.name },
                                 ]}
                             />
                         </Stack>
@@ -424,51 +453,50 @@ export default function VoucherDetail() {
 
                     <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>
-                            Payments
+                            {t('voucher_detail.payments.title')}
                         </Typography>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                            Total recorded: {formatMoneyAmount(paymentsTotal)}{' '}
+                            {t('voucher_detail.payments.total_recorded')} {formatMoneyAmount(paymentsTotal)}{' '}
                             {(voucher.payments && voucher.payments[0]?.currency) || 'MMK'}
-                            {totalAmountDisplay != null ? (
+                            {clientPayableTotal != null ? (
                                 <>
                                     {' '}
-                                    · Expected total {formatMoneyAmount(totalAmountDisplay)}
-                                    {!voucher.total_amount && voucher.items?.length ? ' (sum of freight lines)' : ''}
+                                    · {t('voucher_detail.payments.expected_client_payment')} {formatMoneyAmount(clientPayableTotal)}
                                 </>
                             ) : null}
                         </Typography>
                         {!canRecordVoucherPayments ? (
                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                                Recording payments requires the payments.manage permission.
+                                {t('voucher_detail.payments.permission_hint')}
                             </Typography>
                         ) : null}
                         <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, mb: 2 }}>
                             <Table size="small">
                                 <TableHead>
                                     <TableRow sx={{ bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>
-                                        <TableCell width={200}>Title</TableCell>
-                                        <TableCell>Cost</TableCell>
+                                        <TableCell width={200}>{t('voucher_detail.payments.breakdown.title')}</TableCell>
+                                        <TableCell>{t('voucher_detail.payments.breakdown.cost')}</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
                                     <TableRow hover>
                                         <TableCell>
                                             <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                                Payment status
+                                                {t('voucher_detail.payments.breakdown.payment_status')}
                                             </Typography>
                                         </TableCell>
-                                        <TableCell>{PAYMENT_LABELS[voucher.payment_status] ?? voucher.payment_status ?? '—'}</TableCell>
+                                        <TableCell>{paymentLabels[voucher.payment_status] ?? voucher.payment_status ?? '—'}</TableCell>
                                     </TableRow>
                                     <TableRow hover>
                                         <TableCell>
                                             <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                                Main
+                                                {t('voucher_detail.payments.breakdown.main')}
                                             </Typography>
                                             <Typography variant="caption" color="text.secondary">
-                                                Freight cost for all line
+                                                {t('voucher_detail.payments.breakdown.main_hint')}
                                             </Typography>
                                         </TableCell>
-                                        <TableCell>{formatMoneyAmount(freightTotalFromItems(voucher.items) ?? 0)}</TableCell>
+                                        <TableCell>{formatMoneyAmount(clientPayableTotal)}</TableCell>
                                     </TableRow>
                                     <TableRow hover>
                                         <TableCell>
@@ -476,14 +504,17 @@ export default function VoucherDetail() {
                                                 <IconButton
                                                     size="small"
                                                     onClick={() => setCostsOpen((p) => !p)}
-                                                    aria-label={costsOpen ? 'Collapse additional costs' : 'Expand additional costs'}
+                                                    aria-label={costsOpen ? t('voucher_detail.payments.breakdown.collapse_additional_costs') : t('voucher_detail.payments.breakdown.expand_additional_costs')}
                                                 >
                                                     {costsOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
                                                 </IconButton>
                                                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                                    Additional
+                                                    {t('voucher_detail.payments.breakdown.additional_internal')}
                                                 </Typography>
                                             </Stack>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {t('voucher_detail.payments.breakdown.additional_hint')}
+                                            </Typography>
                                         </TableCell>
                                         <TableCell>{formatMoneyAmount(additionalCostsTotal)}</TableCell>
                                     </TableRow>
@@ -506,8 +537,8 @@ export default function VoucherDetail() {
                                         </TableRow>
                                     ) : null}
                                     <TableRow hover>
-                                        <TableCell sx={{ fontWeight: 700 }}>Total</TableCell>
-                                        <TableCell sx={{ fontWeight: 700 }}>{formatMoneyAmount(totalAmountDisplay ?? 0)}</TableCell>
+                                        <TableCell sx={{ fontWeight: 700 }}>{t('voucher_detail.fields.client_payable')}</TableCell>
+                                        <TableCell sx={{ fontWeight: 700 }}>{formatMoneyAmount(clientPayableTotal)}</TableCell>
                                     </TableRow>
                                 </TableBody>
                             </Table>
@@ -517,16 +548,16 @@ export default function VoucherDetail() {
                                 <Stack direction="row" spacing={1}>
                                     {voucher.payment_status === 'WAIVED' ? (
                                         <Button size="small" variant="outlined" onClick={() => setWaived(false)}>
-                                            Unwaive
+                                            {t('voucher_detail.payments.actions.unwaive')}
                                         </Button>
                                     ) : (paymentsTotal <= 0.005 && voucher.payment_status !== 'PAID') ? (
                                         <Button size="small" variant="outlined" color="warning" onClick={() => setWaived(true)}>
-                                            Waive
+                                            {t('voucher_detail.payments.actions.waive')}
                                         </Button>
                                     ) : null}
                                     {voucher.payment_status !== 'PAID' && voucher.payment_status !== 'WAIVED' ? (
-                                        <Button size="small" variant="outlined" onClick={openPaymentDialog} disabled={voucher.total_amount == null}>
-                                            Record payment
+                                        <Button size="small" variant="outlined" onClick={openPaymentDialog} disabled={clientPayableTotal == null}>
+                                            {t('voucher_detail.payments.actions.record_payment')}
                                         </Button>
                                     ) : null}
                                 </Stack>
@@ -534,15 +565,15 @@ export default function VoucherDetail() {
                         ) : null}
                         {(voucher.payments || []).length === 0 ? (
                             <Typography variant="body2" color="text.secondary">
-                                No payments recorded yet.
+                                {t('voucher_detail.payments.empty')}
                             </Typography>
                         ) : (
                             <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
                                 <Table size="small">
                                     <TableHead>
                                         <TableRow sx={{ bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>
-                                            <TableCell>Paid at</TableCell>
-                                            <TableCell align="right">Amount</TableCell>
+                                            <TableCell>{t('voucher_detail.payments.table.paid_at')}</TableCell>
+                                            <TableCell align="right">{t('voucher_detail.payments.table.amount')}</TableCell>
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
@@ -583,16 +614,16 @@ export default function VoucherDetail() {
                                                                     <Box sx={{ px: 2, py: 1.5 }}>
                                                                         <Stack spacing={0.75}>
                                                                             <Typography variant="body2" color="text.secondary">
-                                                                                Method: {PAYMENT_METHOD_LABELS[p.payment_method] ?? p.payment_method ?? '—'}
+                                                                                {t('voucher_detail.payments.details.method')} {paymentMethodLabels[p.payment_method] ?? p.payment_method ?? '—'}
                                                                             </Typography>
                                                                             <Typography variant="body2" color="text.secondary">
-                                                                                Reference: {p.reference_no ?? '—'}
+                                                                                {t('voucher_detail.payments.details.reference')} {p.reference_no ?? '—'}
                                                                             </Typography>
                                                                             <Typography variant="body2" color="text.secondary">
-                                                                                Recorded by: {p.receiver?.name ?? '—'}
+                                                                                {t('voucher_detail.payments.details.recorded_by')} {p.receiver?.name ?? '—'}
                                                                             </Typography>
                                                                             <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
-                                                                                Note: {p.note ?? '—'}
+                                                                                {t('voucher_detail.payments.details.note')} {p.note ?? '—'}
                                                                             </Typography>
                                                                         </Stack>
                                                                     </Box>
@@ -611,38 +642,38 @@ export default function VoucherDetail() {
 
                     <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>
-                            Merchant
+                            {t('voucher_detail.merchant.title')}
                         </Typography>
                         <KeyValueTable
                             rows={[
-                                { label: 'Name', value: voucher.merchant?.name },
-                                { label: 'Phone', value: voucher.merchant?.phone },
+                                { label: t('voucher_detail.merchant.name'), value: voucher.merchant?.name },
+                                { label: t('voucher_detail.merchant.phone'), value: voucher.merchant?.phone },
                             ]}
                         />
                     </Paper>
 
                     <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>
-                            Default delivery (summary)
+                            {t('voucher_detail.default_delivery.title')}
                         </Typography>
                         <KeyValueTable
                             rows={[
                                 {
-                                    label: 'To warehouse',
+                                    label: t('voucher_detail.default_delivery.to_warehouse'),
                                     value: voucher.default_to_warehouse?.display_name || null,
                                 },
                                 {
-                                    label: 'Destination address',
+                                    label: t('voucher_detail.default_delivery.destination_address'),
                                     value: voucher.default_to_address_line1,
                                     preWrap: true,
                                 },
                                 {
-                                    label: 'Destination remark',
+                                    label: t('voucher_detail.default_delivery.destination_remark'),
                                     value: voucher.default_destination_remark,
                                     preWrap: true,
                                 },
-                                { label: 'Recipient name', value: voucher.default_recipient_name },
-                                { label: 'Recipient phone', value: voucher.default_recipient_phone },
+                                { label: t('voucher_detail.default_delivery.recipient_name'), value: voucher.default_recipient_name },
+                                { label: t('voucher_detail.default_delivery.recipient_phone'), value: voucher.default_recipient_phone },
                             ]}
                         />
                     </Paper>
@@ -651,7 +682,7 @@ export default function VoucherDetail() {
                 {voucher.remark ? (
                     <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-                            Remark
+                            {t('voucher_detail.remark')}
                         </Typography>
                         <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                             {voucher.remark}
@@ -661,7 +692,7 @@ export default function VoucherDetail() {
 
                 <Box>
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
-                        Lines
+                        {t('voucher_detail.lines.title')}
                     </Typography>
                     <Box sx={{ display: { xs: 'none', md: 'block' } }}>
                         <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
@@ -669,12 +700,12 @@ export default function VoucherDetail() {
                                 <TableHead>
                                     <TableRow sx={{ bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>
                                         <TableCell width={48}>#</TableCell>
-                                        <TableCell>Product</TableCell>
-                                        <TableCell>Qty</TableCell>
-                                        <TableCell>Unit</TableCell>
-                                        <TableCell>From</TableCell>
-                                        <TableCell align="right">Freight</TableCell>
-                                        <TableCell align="center">Fragile</TableCell>
+                                        <TableCell>{t('voucher_detail.lines.table.product')}</TableCell>
+                                        <TableCell>{t('voucher_detail.lines.table.qty')}</TableCell>
+                                        <TableCell>{t('voucher_detail.lines.table.unit')}</TableCell>
+                                        <TableCell>{t('voucher_detail.lines.table.from')}</TableCell>
+                                        <TableCell align="right">{t('voucher_detail.lines.table.freight')}</TableCell>
+                                        <TableCell align="center">{t('voucher_detail.lines.table.fragile')}</TableCell>
                                         {canManageVoucherLines ? <TableCell align="right" width={56} /> : null}
                                     </TableRow>
                                 </TableHead>
@@ -683,7 +714,7 @@ export default function VoucherDetail() {
                                         <TableRow>
                                             <TableCell colSpan={canManageVoucherLines ? 8 : 7}>
                                                 <Typography variant="body2" color="text.secondary">
-                                                    No lines.
+                                                    {t('voucher_detail.lines.empty')}
                                                 </Typography>
                                             </TableCell>
                                         </TableRow>
@@ -696,10 +727,10 @@ export default function VoucherDetail() {
                                             <TableCell>{it.unit}</TableCell>
                                             <TableCell>{it.from_warehouse?.display_name ?? '—'}</TableCell>
                                             <TableCell align="right">{formatMoneyAmount(it.freight_amount)}</TableCell>
-                                            <TableCell align="center">{it.is_fragile ? 'Yes' : '—'}</TableCell>
+                                            <TableCell align="center">{it.is_fragile ? t('ui.yes') : '—'}</TableCell>
                                             {canManageVoucherLines ? (
                                                 <TableCell align="right">
-                                                    <IconButton size="small" aria-label="Edit line" onClick={() => openLineEdit(it)}>
+                                                    <IconButton size="small" aria-label={t('voucher_detail.lines.actions.edit_line')} onClick={() => openLineEdit(it)}>
                                                         <EditIcon fontSize="small" />
                                                     </IconButton>
                                                 </TableCell>
@@ -714,7 +745,7 @@ export default function VoucherDetail() {
                     <Stack spacing={1.25} sx={{ display: { xs: 'flex', md: 'none' } }}>
                         {(voucher.items || []).length === 0 ? (
                             <Typography variant="body2" color="text.secondary">
-                                No lines.
+                                {t('voucher_detail.lines.empty')}
                             </Typography>
                         ) : (
                             (voucher.items || []).map((it, idx) => (
@@ -726,14 +757,14 @@ export default function VoucherDetail() {
 
                 <Dialog open={lineEditOpen} onClose={closeLineEdit} fullWidth maxWidth="sm">
                     <Box component="form" onSubmit={submitLineEdit} noValidate>
-                        <DialogTitle>Edit line</DialogTitle>
+                        <DialogTitle>{t('voucher_detail.lines.edit_dialog.title')}</DialogTitle>
                         <DialogContent>
                             <Stack spacing={2} sx={{ mt: 1 }}>
                                 <FormControl fullWidth size="small">
-                                    <InputLabel id="line-from-wh">From warehouse</InputLabel>
+                                    <InputLabel id="line-from-wh">{t('voucher_detail.lines.table.from')}</InputLabel>
                                     <Select
                                         labelId="line-from-wh"
-                                        label="From warehouse"
+                                        label={t('voucher_detail.lines.table.from')}
                                         value={lineForm.data.from_warehouse_id}
                                         onChange={(e) => lineForm.setData('from_warehouse_id', e.target.value)}
                                         error={Boolean(lineForm.errors.from_warehouse_id)}
@@ -755,7 +786,7 @@ export default function VoucherDetail() {
                                 ) : null}
                                 <TextField
                                     required
-                                    label="Qty"
+                                    label={t('voucher_detail.lines.table.qty')}
                                     type="number"
                                     inputProps={{ step: '1', min: '1' }}
                                     value={lineForm.data.qty}
@@ -766,7 +797,7 @@ export default function VoucherDetail() {
                                 />
                                 <TextField
                                     required
-                                    label="Unit"
+                                    label={t('voucher_detail.lines.table.unit')}
                                     value={lineForm.data.unit}
                                     onChange={(e) => lineForm.setData('unit', e.target.value)}
                                     error={Boolean(lineForm.errors.unit)}
@@ -774,7 +805,7 @@ export default function VoucherDetail() {
                                     size="small"
                                 />
                                 <TextField
-                                    label="Description"
+                                    label={t('voucher_detail.lines.edit_dialog.description')}
                                     value={lineForm.data.description}
                                     onChange={(e) => lineForm.setData('description', e.target.value)}
                                     error={Boolean(lineForm.errors.description)}
@@ -782,7 +813,7 @@ export default function VoucherDetail() {
                                     size="small"
                                 />
                                 <TextField
-                                    label="Freight rate"
+                                    label={t('voucher_detail.lines.edit_dialog.freight_rate')}
                                     type="number"
                                     inputProps={{ step: '1', min: '0' }}
                                     value={lineForm.data.freight_rate}
@@ -792,7 +823,7 @@ export default function VoucherDetail() {
                                     size="small"
                                 />
                                 <TextField
-                                    label="Freight amount"
+                                    label={t('voucher_detail.lines.edit_dialog.freight_amount')}
                                     type="number"
                                     inputProps={{ step: '1', min: '0' }}
                                     value={lineForm.data.freight_amount}
@@ -807,17 +838,17 @@ export default function VoucherDetail() {
                                             checked={Boolean(lineForm.data.is_fragile)}
                                             onChange={(e) => lineForm.setData('is_fragile', e.target.checked)}
                                         />
-                                        <Typography variant="body2">Fragile</Typography>
+                                        <Typography variant="body2">{t('voucher_detail.lines.fragile')}</Typography>
                                     </Stack>
                                 </FormControl>
                             </Stack>
                         </DialogContent>
                         <DialogActions>
                             <Button onClick={closeLineEdit} disabled={lineForm.processing}>
-                                Cancel
+                                {t('ui.cancel')}
                             </Button>
                             <Button type="submit" variant="contained" disabled={lineForm.processing}>
-                                Save
+                                {t('ui.save')}
                             </Button>
                         </DialogActions>
                     </Box>
@@ -825,12 +856,12 @@ export default function VoucherDetail() {
 
                 <Dialog open={paymentOpen} onClose={() => !paymentForm.processing && setPaymentOpen(false)} fullWidth maxWidth="sm">
                     <Box component="form" onSubmit={submitPayment} noValidate>
-                        <DialogTitle>Record payment</DialogTitle>
+                        <DialogTitle>{t('voucher_detail.payments.record_dialog.title')}</DialogTitle>
                         <DialogContent>
                             <Stack spacing={2} sx={{ mt: 1 }}>
                                 <TextField
                                     required
-                                    label="Amount"
+                                    label={t('voucher_detail.payments.record_dialog.amount')}
                                     type="number"
                                     inputProps={{ step: '1', min: '1' }}
                                     value={paymentForm.data.amount}
@@ -840,27 +871,27 @@ export default function VoucherDetail() {
                                     size="small"
                                 />
                                 <TextField
-                                    label="Currency"
+                                    label={t('voucher_detail.payments.record_dialog.currency')}
                                     size="small"
                                     value={paymentForm.data.currency}
                                     onChange={(e) => paymentForm.setData('currency', e.target.value)}
                                 />
                                 <FormControl fullWidth size="small">
-                                    <InputLabel id="pay-method">Method</InputLabel>
+                                    <InputLabel id="pay-method">{t('voucher_detail.payments.record_dialog.method')}</InputLabel>
                                     <Select
                                         labelId="pay-method"
-                                        label="Method"
+                                        label={t('voucher_detail.payments.record_dialog.method')}
                                         value={paymentForm.data.payment_method}
                                         onChange={(e) => paymentForm.setData('payment_method', e.target.value)}
                                     >
-                                        <MenuItem value="CASH">Cash</MenuItem>
-                                        <MenuItem value="TRANSFER">Transfer</MenuItem>
-                                        <MenuItem value="OTHER">Other</MenuItem>
+                                        <MenuItem value="CASH">{t('voucher_detail.payment_methods.cash')}</MenuItem>
+                                        <MenuItem value="TRANSFER">{t('voucher_detail.payment_methods.transfer')}</MenuItem>
+                                        <MenuItem value="OTHER">{t('voucher_detail.payment_methods.other')}</MenuItem>
                                     </Select>
                                 </FormControl>
                                 <TextField
                                     required
-                                    label="Paid at"
+                                    label={t('voucher_detail.payments.record_dialog.paid_at')}
                                     type="datetime-local"
                                     InputLabelProps={{ shrink: true }}
                                     value={paymentForm.data.paid_at}
@@ -870,7 +901,7 @@ export default function VoucherDetail() {
                                     size="small"
                                 />
                                 <TextField
-                                    label="Reference no."
+                                    label={t('voucher_detail.payments.record_dialog.reference_no')}
                                     size="small"
                                     value={paymentForm.data.reference_no}
                                     onChange={(e) => paymentForm.setData('reference_no', e.target.value)}
@@ -878,7 +909,7 @@ export default function VoucherDetail() {
                                     helperText={paymentForm.errors.reference_no}
                                 />
                                 <TextField
-                                    label="Note"
+                                    label={t('voucher_detail.payments.record_dialog.note')}
                                     size="small"
                                     multiline
                                     minRows={2}
@@ -891,10 +922,10 @@ export default function VoucherDetail() {
                         </DialogContent>
                         <DialogActions>
                             <Button type="button" onClick={() => setPaymentOpen(false)} disabled={paymentForm.processing}>
-                                Cancel
+                                {t('ui.cancel')}
                             </Button>
                             <Button type="submit" variant="contained" disabled={paymentForm.processing}>
-                                Save
+                                {t('ui.save')}
                             </Button>
                         </DialogActions>
                     </Box>

@@ -14,11 +14,21 @@ class EnsureUserHasPermission
     {
         $user = $request->user();
 
-        if (! $user || ! $user->hasPermission($permission)) {
+        if (! $user) {
             abort(403, 'You do not have access to this resource.');
         }
 
-        return $next($request);
+        $candidates = array_values(array_filter(array_map('trim', explode('|', $permission))));
+        if ($candidates === []) {
+            abort(403, 'You do not have access to this resource.');
+        }
+
+        foreach ($candidates as $code) {
+            if ($user->hasPermission($code)) {
+                return $next($request);
+            }
+        }
+
+        abort(403, 'You do not have access to this resource.');
     }
 }
-

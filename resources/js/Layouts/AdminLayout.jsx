@@ -1,27 +1,37 @@
 import { useMemo, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
+import MobileBottomNav from '@/Components/Dashboard/MobileBottomNav';
+import { createAdminDashboardTheme, glassSurface } from '@/theme/adminDashboardTheme';
 import {
     AppBar,
+    Avatar,
     Badge,
     Box,
     CssBaseline,
     Divider,
     Drawer,
+    FormControl,
     IconButton,
+    InputAdornment,
+    InputBase,
     List,
     ListItem,
     ListItemButton,
     ListItemIcon,
     ListItemText,
+    Menu,
+    MenuItem,
+    Select,
     Stack,
     ThemeProvider,
     Toolbar,
+    Tooltip,
     Typography,
-    createTheme,
     useMediaQuery,
 } from '@mui/material';
 import {
-    AccountCircle,
+    KeyboardArrowDown as KeyboardArrowDownIcon,
+    Search as SearchIcon,
     AdminPanelSettings as AdminPanelSettingsIcon,
     AdminPanelSettingsOutlined as AdminPanelSettingsOutlinedIcon,
     AutoAwesomeMosaic as UiShowcaseIcon,
@@ -53,89 +63,35 @@ import {
     LabelOutlined as LabelOutlinedIcon,
     SettingsOutlined as SettingsOutlinedIcon,
 } from '@mui/icons-material';
+import { useT } from '@/i18n';
 
 
-const drawerWidth = 208;
-const drawerWidthCollapsed = 64;
+const drawerWidth = 248;
+const drawerWidthCollapsed = 72;
 
 export default function AdminLayout({ children, title = 'Admin Panel' }) {
     const { url, props } = usePage();
+    const t = useT();
     const adminAppUrl = props.admin_app_url;
     const authUser = props.auth?.user;
     const permissionCodes = props.auth?.permission_codes ?? [];
     const vouchersPending = props.nav_counts?.vouchers_pending ?? 0;
     const tripsPending = props.nav_counts?.trips_pending ?? 0;
+    const locale = props.i18n?.locale ?? 'en';
+    const supportedLocales = props.i18n?.supported_locales ?? { en: 'English' };
+    const setLocaleUrl = props.i18n?.set_locale_url;
     const [desktopOpen, setDesktopOpen] = useState(true);
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [profileAnchor, setProfileAnchor] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
     const [dark, setDark] = useState(() => {
         if (typeof window === 'undefined') return false;
         return window.localStorage.getItem('admin-color-mode') === 'dark';
     });
 
-    const theme = useMemo(
-        () =>
-            createTheme({
-                palette: {
-                    mode: dark ? 'dark' : 'light',
-                    primary: { main: '#3b82f6' },
-                    background: {
-                        default: dark ? '#0f172a' : '#f3f4f6',
-                        paper: dark ? '#111827' : '#ffffff',
-                    },
-                },
-                shape: { borderRadius: 8 },
-                components: {
-                    MuiPaper: {
-                        defaultProps: {
-                            elevation: 0,
-                            variant: 'outlined',
-                        },
-                        styleOverrides: {
-                            root: {
-                                borderColor: dark ? 'rgba(148, 163, 184, 0.2)' : 'rgba(15, 23, 42, 0.1)',
-                            },
-                        },
-                    },
-                    MuiCard: {
-                        defaultProps: {
-                            elevation: 0,
-                            variant: 'outlined',
-                        },
-                        styleOverrides: {
-                            root: {
-                                borderColor: dark ? 'rgba(148, 163, 184, 0.2)' : 'rgba(15, 23, 42, 0.1)',
-                            },
-                        },
-                    },
-                    MuiTextField: {
-                        defaultProps: {
-                            size: 'small',
-                        },
-                    },
-                    MuiOutlinedInput: {
-                        styleOverrides: {
-                            root: {
-                                borderRadius: 10,
-                            },
-                        },
-                    },
-                    MuiButton: {
-                        defaultProps: {
-                            size: 'small',
-                            disableElevation: true,
-                        },
-                        styleOverrides: {
-                            root: {
-                                textTransform: 'none',
-                                fontWeight: 600,
-                                borderRadius: 10,
-                            },
-                        },
-                    },
-                },
-            }),
-        [dark],
-    );
+    const theme = useMemo(() => createAdminDashboardTheme(dark), [dark]);
+    const glass = useMemo(() => glassSurface(dark), [dark]);
+    const desktopDrawerWidth = desktopOpen ? drawerWidth : drawerWidthCollapsed;
 
     const drawerScrollbarSx = useMemo(() => {
         const thumb = dark ? 'rgba(148, 163, 184, 0.35)' : 'rgba(15, 23, 42, 0.20)';
@@ -192,12 +148,14 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
         const iconNode = (
             <Box
                 component="span"
+                data-nav-icon
                 sx={{
                     width: 30,
                     height: 30,
                     borderRadius: 999,
                     display: 'grid',
                     placeItems: 'center',
+                    bgcolor: active ? 'action.selected' : 'transparent',
                     '& svg': {
                         fontSize: 19,
                         color: active ? 'primary.main' : 'text.secondary',
@@ -216,11 +174,32 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
     };
 
     const navItemButtonSx = {
-        borderRadius: 1.5,
-        minHeight: 36,
-        px: 1,
+        position: 'relative',
+        borderRadius: 2,
+        minHeight: 40,
+        px: 1.25,
+        '&::before': {
+            content: '""',
+            position: 'absolute',
+            left: 6,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: 3,
+            height: 18,
+            borderRadius: 999,
+            bgcolor: 'transparent',
+        },
+        '&:hover [data-nav-icon]': {
+            bgcolor: 'action.hover',
+            '& svg': {
+                color: 'text.primary',
+            },
+        },
         '&.Mui-selected': {
             bgcolor: 'action.selected',
+            '&::before': {
+                bgcolor: 'primary.main',
+            },
         },
         '&.Mui-selected:hover': {
             bgcolor: 'action.selected',
@@ -229,16 +208,16 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
 
     const navGroups = [
         {
-            title: 'Dashboard',
-            items: [{ label: 'Dashboard', href: `${adminAppUrl}/dashboard`, icon: <DashboardIcon />, iconOutlined: <DashboardOutlinedIcon /> }],
+            title: t('nav.dashboard'),
+            items: [{ label: t('nav.dashboard'), href: `${adminAppUrl}/dashboard`, icon: <DashboardIcon />, iconOutlined: <DashboardOutlinedIcon /> }],
         },
         {
-            title: 'Operations',
+            title: t('nav.operations'),
             items: [
                 ...(permissionCodes.includes('vouchers.view') || permissionCodes.includes('vouchers.manage')
                     ? [
                           {
-                              label: 'Vouchers',
+                              label: t('nav.vouchers'),
                               href: `${adminAppUrl}/operations/vouchers`,
                               icon: <VoucherIcon />,
                               iconOutlined: <VoucherOutlinedIcon />,
@@ -249,7 +228,7 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                 ...(permissionCodes.includes('trips.view') || permissionCodes.includes('trips.manage')
                     ? [
                           {
-                              label: 'Trips',
+                              label: t('nav.trips'),
                               href: `${adminAppUrl}/operations/trips`,
                               icon: <TripRouteIcon />,
                               iconOutlined: <TripRouteOutlinedIcon />,
@@ -260,18 +239,18 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
             ],
         },
         {
-            title: 'Finance',
+            title: t('nav.finance'),
             items: [
                 ...(permissionCodes.includes('finance.view') || permissionCodes.includes('finance.manage')
                     ? [
                           {
-                              label: 'Finance Reports',
+                              label: t('nav.finance_reports'),
                               href: `${adminAppUrl}/finance/reports`,
                               icon: <FinanceReportsIcon />,
                               iconOutlined: <FinanceReportsOutlinedIcon />,
                           },
                           {
-                              label: 'Finance Ledger',
+                              label: t('nav.finance_ledger'),
                               href: `${adminAppUrl}/finance/ledger`,
                               icon: <VoucherIcon />,
                               iconOutlined: <VoucherOutlinedIcon />,
@@ -281,7 +260,7 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                 ...(permissionCodes.includes('finance.manage')
                     ? [
                           {
-                              label: 'Finance Categories',
+                              label: t('nav.finance_categories'),
                               href: `${adminAppUrl}/finance/categories`,
                               icon: <LabelIcon />,
                               iconOutlined: <LabelOutlinedIcon />,
@@ -291,22 +270,22 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
             ],
         },
         {
-            title: 'Master Data',
+            title: t('nav.master_data'),
             items: [
                 ...(permissionCodes.includes('warehouses.view') || permissionCodes.includes('warehouses.manage')
-                    ? [{ label: 'Warehouses', href: `${adminAppUrl}/master/warehouses`, icon: <WarehouseIcon />, iconOutlined: <WarehouseOutlinedIcon /> }]
+                    ? [{ label: t('nav.warehouses'), href: `${adminAppUrl}/master/warehouses`, icon: <WarehouseIcon />, iconOutlined: <WarehouseOutlinedIcon /> }]
                     : []),
                 ...(permissionCodes.includes('inventory.view') || permissionCodes.includes('inventory.manage')
                     ? [
-                          { label: 'Products', href: `${adminAppUrl}/master/products`, icon: <ProductIcon />, iconOutlined: <ProductOutlinedIcon /> },
-                          { label: 'Merchants', href: `${adminAppUrl}/master/merchants`, icon: <MerchantIcon />, iconOutlined: <MerchantOutlinedIcon /> },
-                          { label: 'Vehicles', href: `${adminAppUrl}/master/vehicles`, icon: <VehicleIcon />, iconOutlined: <VehicleOutlinedIcon /> },
+                          { label: t('nav.products'), href: `${adminAppUrl}/master/products`, icon: <ProductIcon />, iconOutlined: <ProductOutlinedIcon /> },
+                          { label: t('nav.merchants'), href: `${adminAppUrl}/master/merchants`, icon: <MerchantIcon />, iconOutlined: <MerchantOutlinedIcon /> },
+                          { label: t('nav.vehicles'), href: `${adminAppUrl}/master/vehicles`, icon: <VehicleIcon />, iconOutlined: <VehicleOutlinedIcon /> },
                       ]
                     : []),
                 ...(permissionCodes.includes('vouchers.manage')
                     ? [
                           {
-                              label: 'Voucher Cost Categories',
+                              label: t('nav.voucher_cost_categories'),
                               href: `${adminAppUrl}/master/voucher-additional-cost-categories`,
                               icon: <LabelIcon />,
                               iconOutlined: <LabelOutlinedIcon />,
@@ -316,7 +295,7 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                 ...(permissionCodes.includes('trips.manage')
                     ? [
                           {
-                              label: 'Trip Cost Categories',
+                              label: t('nav.trip_cost_categories'),
                               href: `${adminAppUrl}/master/trip-cost-categories`,
                               icon: <LabelIcon />,
                               iconOutlined: <LabelOutlinedIcon />,
@@ -326,19 +305,19 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
             ],
         },
         {
-            title: 'System',
+            title: t('nav.system'),
             items: [
                 ...(permissionCodes.includes('public_page.manage')
-                    ? [{ label: 'Settings', href: `${adminAppUrl}/system/organization-settings?tab=settings`, icon: <SettingsIcon />, iconOutlined: <SettingsOutlinedIcon /> }]
+                    ? [{ label: t('nav.settings'), href: `${adminAppUrl}/system/organization-settings?tab=settings`, icon: <SettingsIcon />, iconOutlined: <SettingsOutlinedIcon /> }]
                     : []),
-                { label: 'Users', href: `${adminAppUrl}/iam/users`, icon: <AdminPanelSettingsIcon />, iconOutlined: <AdminPanelSettingsOutlinedIcon /> },
-                { label: 'Roles', href: `${adminAppUrl}/iam/roles`, icon: <AdminPanelSettingsIcon />, iconOutlined: <AdminPanelSettingsOutlinedIcon /> },
-                { label: 'UI Showcase', href: `${adminAppUrl}/ui-showcase`, icon: <UiShowcaseIcon />, iconOutlined: <UiShowcaseOutlinedIcon /> },
+                { label: t('nav.users'), href: `${adminAppUrl}/iam/users`, icon: <AdminPanelSettingsIcon />, iconOutlined: <AdminPanelSettingsOutlinedIcon /> },
+                { label: t('nav.roles'), href: `${adminAppUrl}/iam/roles`, icon: <AdminPanelSettingsIcon />, iconOutlined: <AdminPanelSettingsOutlinedIcon /> },
+                { label: t('nav.ui_showcase'), href: `${adminAppUrl}/ui-showcase`, icon: <UiShowcaseIcon />, iconOutlined: <UiShowcaseOutlinedIcon /> },
             ],
         },
         {
-            title: 'Account',
-            items: [{ label: 'Profile', href: `${adminAppUrl}/profile`, icon: <PersonIcon />, iconOutlined: <PersonOutlinedIcon /> }],
+            title: t('nav.account'),
+            items: [{ label: t('nav.profile'), href: `${adminAppUrl}/profile`, icon: <PersonIcon />, iconOutlined: <PersonOutlinedIcon /> }],
         },
     ].filter((group) => group.items.length > 0);
 
@@ -352,6 +331,30 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
         }
     };
 
+    const drawerBrand = useMemo(() => {
+        const name = authUser?.name || t('ui.admin');
+        const email = authUser?.email || '';
+        const initial = String(name || '?')
+            .trim()
+            .slice(0, 1)
+            .toUpperCase();
+        return { name, email, initial };
+    }, [authUser?.email, authUser?.name, t]);
+
+    const drawerPaperBaseSx = useMemo(() => {
+        const bg = dark
+            ? 'linear-gradient(180deg, rgba(99,102,241,0.14) 0%, rgba(15,23,42,0) 32%)'
+            : 'linear-gradient(180deg, rgba(79,70,229,0.08) 0%, rgba(255,255,255,0) 32%)';
+        return {
+            ...glass,
+            borderRight: '1px solid',
+            borderColor: 'divider',
+            backgroundImage: bg,
+            overflowY: 'auto',
+            ...drawerScrollbarSx,
+        };
+    }, [dark, drawerScrollbarSx, glass]);
+
     return (
         <ThemeProvider theme={theme}>
             <Box sx={{ display: 'flex', minHeight: '100vh' }}>
@@ -362,40 +365,224 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                     color="default"
                     elevation={0}
                     sx={{
-                        zIndex: (muiTheme) => muiTheme.zIndex.drawer + 1,
-                        bgcolor: 'background.paper',
+                        zIndex: (muiTheme) => muiTheme.zIndex.drawer - 1,
+                        left: { md: desktopDrawerWidth },
+                        width: { md: `calc(100% - ${desktopDrawerWidth}px)` },
+                        transition: 'left 0.2s ease, width 0.2s ease',
+                        ...glass,
                         borderBottom: 1,
                         borderColor: 'divider',
                     }}
                 >
-                    <Toolbar variant="dense" sx={{ minHeight: 48 }}>
-                        <IconButton onClick={toggleNavigation} edge="start" sx={{ mr: 1 }}>
+                    <Toolbar sx={{ minHeight: { xs: 56, sm: 64 }, px: { xs: 1.5, sm: 2 }, gap: 1 }}>
+                        <IconButton onClick={toggleNavigation} edge="start" sx={{ mr: { xs: 0, sm: 0.5 } }}>
                             <MenuIcon />
                         </IconButton>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 600, flexGrow: 1 }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 800, display: { xs: 'none', sm: 'block' }, mr: 1 }}>
                             {title}
                         </Typography>
-                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                            <IconButton onClick={toggleTheme} size="small">
+                        <Box
+                            sx={{
+                                flex: 1,
+                                maxWidth: 420,
+                                display: { xs: 'none', md: 'flex' },
+                                alignItems: 'center',
+                                px: 1.5,
+                                py: 0.75,
+                                borderRadius: 3,
+                                bgcolor: dark ? 'rgba(15,23,42,0.5)' : 'rgba(241,245,249,0.9)',
+                                border: 1,
+                                borderColor: 'divider',
+                            }}
+                        >
+                            <InputBase
+                                fullWidth
+                                placeholder={t('ui.search')}
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                startAdornment={
+                                    <InputAdornment position="start">
+                                        <SearchIcon fontSize="small" color="action" />
+                                    </InputAdornment>
+                                }
+                                sx={{ fontSize: 14, fontWeight: 500 }}
+                            />
+                        </Box>
+                        <Box sx={{ flexGrow: 1 }} />
+                        <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+                            <IconButton onClick={toggleTheme} size="small" sx={{ borderRadius: 2 }}>
                                 {dark ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
                             </IconButton>
-                            <Typography
-                                variant="caption"
-                                color="text.secondary"
-                                sx={{ fontWeight: 600, display: { xs: 'none', sm: 'block' } }}
+                            <FormControl size="small" variant="standard" sx={{ minWidth: 96, display: { xs: 'none', sm: 'block' } }}>
+                                <Select
+                                    value={locale}
+                                    onChange={(e) => {
+                                        const next = e.target.value;
+                                        if (!setLocaleUrl) return;
+                                        router.post(setLocaleUrl, { locale: next }, { preserveScroll: true, preserveState: true });
+                                    }}
+                                    disableUnderline
+                                    sx={{
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        '& .MuiSelect-select': { py: 0.5, pr: 3 },
+                                    }}
+                                >
+                                    {Object.entries(supportedLocales).map(([code, label]) => (
+                                        <MenuItem key={code} value={code}>
+                                            {label}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                            <Stack
+                                direction="row"
+                                spacing={0.75}
+                                alignItems="center"
+                                onClick={(e) => setProfileAnchor(e.currentTarget)}
+                                sx={{
+                                    cursor: 'pointer',
+                                    pl: 0.5,
+                                    pr: 0.5,
+                                    py: 0.25,
+                                    borderRadius: 2,
+                                    '&:hover': { bgcolor: 'action.hover' },
+                                }}
                             >
-                                {authUser?.name || 'Admin'}
-                            </Typography>
-                            <IconButton size="small">
-                                <AccountCircle fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                                size="small"
-                                onClick={() => router.post(`${adminAppUrl}/logout`)}
-                                title="Logout"
+                                <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: 14, fontWeight: 800 }}>
+                                    {drawerBrand.initial}
+                                </Avatar>
+                                <Box sx={{ display: { xs: 'none', lg: 'block' }, minWidth: 0 }}>
+                                    <Typography variant="caption" sx={{ fontWeight: 800, display: 'block', lineHeight: 1.2 }} noWrap>
+                                        {authUser?.name || t('ui.admin')}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: 10 }}>
+                                        {authUser?.email || ''}
+                                    </Typography>
+                                </Box>
+                                <Box
+                                    sx={{
+                                        width: 24,
+                                        height: 32,
+                                        display: { xs: 'none', sm: 'grid' },
+                                        placeItems: 'center',
+                                        flexShrink: 0,
+                                    }}
+                                >
+                                    <KeyboardArrowDownIcon sx={{ fontSize: 20, display: 'block' }} />
+                                </Box>
+                            </Stack>
+                            <Menu
+                                anchorEl={profileAnchor}
+                                open={Boolean(profileAnchor)}
+                                onClose={() => setProfileAnchor(null)}
+                                transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+                                anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+                                PaperProps={{
+                                    sx: {
+                                        mt: 1.25,
+                                        minWidth: 280,
+                                        borderRadius: 4,
+                                        overflow: 'hidden',
+                                        border: 1,
+                                        borderColor: 'divider',
+                                        boxShadow: dark
+                                            ? '0 24px 60px rgba(0, 0, 0, 0.45)'
+                                            : '0 24px 60px rgba(15, 23, 42, 0.16)',
+                                        backgroundImage: dark
+                                            ? 'linear-gradient(180deg, rgba(99,102,241,0.16) 0%, rgba(30,41,59,0.96) 42%)'
+                                            : 'linear-gradient(180deg, rgba(79,70,229,0.10) 0%, rgba(255,255,255,0.98) 42%)',
+                                    },
+                                }}
+                                MenuListProps={{ sx: { p: 0 } }}
                             >
-                                <LogoutIcon fontSize="small" />
-                            </IconButton>
+                                <Box sx={{ p: 2 }}>
+                                    <Stack direction="row" spacing={1.5} alignItems="center">
+                                        <Avatar
+                                            sx={{
+                                                width: 48,
+                                                height: 48,
+                                                fontWeight: 900,
+                                                background: 'linear-gradient(135deg, #4F46E5, #7C3AED)',
+                                                boxShadow: '0 12px 26px rgba(79, 70, 229, 0.28)',
+                                            }}
+                                        >
+                                            {drawerBrand.initial}
+                                        </Avatar>
+                                        <Box sx={{ minWidth: 0 }}>
+                                            <Typography variant="subtitle2" sx={{ fontWeight: 900 }} noWrap title={drawerBrand.name}>
+                                                {drawerBrand.name}
+                                            </Typography>
+                                            {drawerBrand.email ? (
+                                                <Typography variant="caption" color="text.secondary" noWrap title={drawerBrand.email} sx={{ display: 'block' }}>
+                                                    {drawerBrand.email}
+                                                </Typography>
+                                            ) : null}
+                                        </Box>
+                                    </Stack>
+                                </Box>
+                                <Divider />
+                                <Box sx={{ p: 0.75 }}>
+                                    {[
+                                        { label: t('nav.dashboard'), href: `${adminAppUrl}/dashboard`, icon: <DashboardIcon fontSize="small" /> },
+                                        { label: t('nav.profile'), href: `${adminAppUrl}/profile`, icon: <PersonIcon fontSize="small" /> },
+                                        ...(permissionCodes.includes('public_page.manage')
+                                            ? [{ label: t('nav.settings'), href: `${adminAppUrl}/system/organization-settings?tab=settings`, icon: <SettingsIcon fontSize="small" /> }]
+                                            : []),
+                                    ].map((item) => (
+                                        <MenuItem
+                                            key={item.label}
+                                            component={Link}
+                                            href={item.href}
+                                            onClick={() => setProfileAnchor(null)}
+                                            sx={{ borderRadius: 2.5, px: 1.25, py: 1.1, gap: 1.25 }}
+                                        >
+                                            <Box
+                                                sx={{
+                                                    width: 34,
+                                                    height: 34,
+                                                    borderRadius: 2,
+                                                    display: 'grid',
+                                                    placeItems: 'center',
+                                                    bgcolor: 'action.hover',
+                                                    color: 'primary.main',
+                                                }}
+                                            >
+                                                {item.icon}
+                                            </Box>
+                                            <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                                                {item.label}
+                                            </Typography>
+                                        </MenuItem>
+                                    ))}
+                                </Box>
+                                <Divider />
+                                <Box sx={{ p: 0.75 }}>
+                                    <MenuItem
+                                        onClick={() => {
+                                            setProfileAnchor(null);
+                                            router.post(`${adminAppUrl}/logout`);
+                                        }}
+                                        sx={{ borderRadius: 2.5, px: 1.25, py: 1.1, gap: 1.25, color: 'error.main' }}
+                                    >
+                                        <Box
+                                            sx={{
+                                                width: 34,
+                                                height: 34,
+                                                borderRadius: 2,
+                                                display: 'grid',
+                                                placeItems: 'center',
+                                                bgcolor: dark ? 'rgba(239,68,68,0.16)' : 'rgba(239,68,68,0.10)',
+                                            }}
+                                        >
+                                            <LogoutIcon fontSize="small" />
+                                        </Box>
+                                        <Typography variant="body2" sx={{ fontWeight: 900 }}>
+                                            {t('ui.logout')}
+                                        </Typography>
+                                    </MenuItem>
+                                </Box>
+                            </Menu>
                         </Stack>
                     </Toolbar>
                 </AppBar>
@@ -410,15 +597,26 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                         '& .MuiDrawer-paper': {
                             width: drawerWidth,
                             boxSizing: 'border-box',
-                            borderRight: '1px solid',
-                            borderColor: 'divider',
-                            bgcolor: 'background.paper',
-                            overflowY: 'auto',
-                            ...drawerScrollbarSx,
+                            ...drawerPaperBaseSx,
                         },
                     }}
                 >
-                    <Toolbar variant="dense" sx={{ minHeight: 48 }} />
+                    <Box sx={{ px: 1.5, pt: 1.25, pb: 1 }}>
+                        <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
+                            <Avatar sx={{ width: 36, height: 36, bgcolor: 'primary.main', fontWeight: 900 }}>{drawerBrand.initial}</Avatar>
+                            <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 800 }} noWrap title={drawerBrand.name}>
+                                    {drawerBrand.name}
+                                </Typography>
+                                {drawerBrand.email ? (
+                                    <Typography variant="caption" color="text.secondary" noWrap title={drawerBrand.email}>
+                                        {drawerBrand.email}
+                                    </Typography>
+                                ) : null}
+                            </Box>
+                        </Stack>
+                    </Box>
+                    <Divider sx={{ mx: 1.5, mb: 0.75 }} />
                     <Box sx={{ py: 0.75 }}>
                         {navGroups.map((group, idx) => (
                             <Box key={`mobile-${group.title}`}>
@@ -461,17 +659,34 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                         '& .MuiDrawer-paper': {
                             width: desktopOpen ? drawerWidth : drawerWidthCollapsed,
                             boxSizing: 'border-box',
-                            borderRight: '1px solid',
-                            borderColor: 'divider',
-                            bgcolor: 'background.paper',
                             overflowX: 'hidden',
-                            overflowY: 'auto',
                             transition: 'width 0.2s ease',
-                            ...drawerScrollbarSx,
+                            ...drawerPaperBaseSx,
                         },
                     }}
                 >
-                    <Toolbar variant="dense" sx={{ minHeight: 48 }} />
+                    <Box sx={{ px: desktopOpen ? 1.5 : 0.75, pt: 1.25, pb: 1 }}>
+                        <Stack
+                            direction="row"
+                            spacing={desktopOpen ? 1.25 : 0}
+                            sx={{ alignItems: 'center', justifyContent: desktopOpen ? 'flex-start' : 'center' }}
+                        >
+                            <Avatar sx={{ width: 36, height: 36, bgcolor: 'primary.main', fontWeight: 900 }}>{drawerBrand.initial}</Avatar>
+                            {desktopOpen ? (
+                                <Box sx={{ minWidth: 0 }}>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }} noWrap title={drawerBrand.name}>
+                                        {drawerBrand.name}
+                                    </Typography>
+                                    {drawerBrand.email ? (
+                                        <Typography variant="caption" color="text.secondary" noWrap title={drawerBrand.email}>
+                                            {drawerBrand.email}
+                                        </Typography>
+                                    ) : null}
+                                </Box>
+                            ) : null}
+                        </Stack>
+                    </Box>
+                    <Divider sx={{ mx: desktopOpen ? 1.5 : 0.75, mb: 0.75 }} />
                     <Box sx={{ py: 0.75 }}>
                         {navGroups.map((group, idx) => (
                             <Box key={group.title}>
@@ -486,17 +701,22 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                                 <List dense disablePadding>
                                     {group.items.map((item) => (
                                         <ListItem key={item.label} disablePadding sx={{ px: 0.75, py: 0.15 }}>
-                                            <ListItemButton
-                                                component={Link}
-                                                href={item.href}
-                                                selected={isActive(item.href)}
-                                                sx={navItemButtonSx}
-                                            >
-                                                <ListItemIcon sx={{ minWidth: 0, mr: desktopOpen ? 1.25 : 0, justifyContent: 'center' }}>
-                                                    {navIcon(item, isActive(item.href))}
-                                                </ListItemIcon>
-                                                {desktopOpen && <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 600, fontSize: 12.5 }} />}
-                                            </ListItemButton>
+                                            {desktopOpen ? (
+                                                <ListItemButton component={Link} href={item.href} selected={isActive(item.href)} sx={navItemButtonSx}>
+                                                    <ListItemIcon sx={{ minWidth: 0, mr: 1.25, justifyContent: 'center' }}>
+                                                        {navIcon(item, isActive(item.href))}
+                                                    </ListItemIcon>
+                                                    <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 600, fontSize: 12.5 }} />
+                                                </ListItemButton>
+                                            ) : (
+                                                <Tooltip title={item.label} placement="right" arrow>
+                                                    <ListItemButton component={Link} href={item.href} selected={isActive(item.href)} sx={navItemButtonSx}>
+                                                        <ListItemIcon sx={{ minWidth: 0, mr: 0, justifyContent: 'center' }}>
+                                                            {navIcon(item, isActive(item.href))}
+                                                        </ListItemIcon>
+                                                    </ListItemButton>
+                                                </Tooltip>
+                                            )}
                                         </ListItem>
                                     ))}
                                 </List>
@@ -508,10 +728,19 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
 
                 <Box
                     component="main"
-                    sx={{ flexGrow: 1, pt: 7, px: { xs: 1.25, sm: 2 }, pb: { xs: 1.25, sm: 2 }, bgcolor: 'background.default' }}
+                    sx={{
+                        flexGrow: 1,
+                        pt: { xs: 8, sm: 9 },
+                        px: { xs: 1.5, sm: 2.5, lg: 3 },
+                        pb: { xs: 10, sm: 2.5, md: 3 },
+                        bgcolor: 'background.default',
+                        maxWidth: '100%',
+                    }}
                 >
                     {children}
                 </Box>
+
+                <MobileBottomNav adminAppUrl={adminAppUrl} />
             </Box>
         </ThemeProvider>
     );

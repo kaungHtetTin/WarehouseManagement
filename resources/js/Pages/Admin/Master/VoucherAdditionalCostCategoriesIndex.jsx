@@ -1,5 +1,6 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import { Head, router, usePage } from '@inertiajs/react';
+import { useT } from '@/i18n';
 import {
     Alert,
     Box,
@@ -41,6 +42,7 @@ const emptyForm = {
 export default function VoucherAdditionalCostCategoriesIndex() {
     const theme = useTheme();
     const isCompactList = useMediaQuery(theme.breakpoints.down('md'));
+    const t = useT();
     const { categories = [], admin_app_url: adminAppUrl, flash = {}, auth } = usePage().props;
     const permissionCodes = auth?.permission_codes ?? [];
     const canManage = permissionCodes.includes('vouchers.manage');
@@ -102,7 +104,7 @@ export default function VoucherAdditionalCostCategoriesIndex() {
     const removeRow = (row) => {
         handleTableActionClose();
         if (!canManage) return;
-        if (!window.confirm(`Delete category "${row.name}"?`)) return;
+        if (!window.confirm(t('master.voucher_cost_categories.confirm.delete', { name: row.name }))) return;
         router.delete(`${adminAppUrl}/master/voucher-additional-cost-categories/${row.id}`, { preserveScroll: true });
     };
 
@@ -111,7 +113,7 @@ export default function VoucherAdditionalCostCategoriesIndex() {
         setError('');
         const name = form.name.trim();
         if (!name) {
-            setError('Enter a category name.');
+            setError(t('master.voucher_cost_categories.errors.enter_name'));
             return;
         }
 
@@ -139,8 +141,8 @@ export default function VoucherAdditionalCostCategoriesIndex() {
     };
 
     return (
-        <AdminLayout title="Voucher Cost Categories">
-            <Head title="Voucher Cost Categories" />
+        <AdminLayout title={t('nav.voucher_cost_categories')}>
+            <Head title={t('nav.voucher_cost_categories')} />
             <Stack spacing={2}>
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
@@ -156,14 +158,20 @@ export default function VoucherAdditionalCostCategoriesIndex() {
                 >
                     <Box>
                         <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                            Voucher Cost Categories
+                            {t('nav.voucher_cost_categories')}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                            Predefined categories for voucher additional costs.
+                            {t('master.voucher_cost_categories.subtitle')}
                         </Typography>
                     </Box>
                     {canManage && (
-                        <Fab size="small" color="primary" onClick={openCreate} aria-label="Add category" sx={{ boxShadow: 2 }}>
+                        <Fab
+                            size="small"
+                            color="primary"
+                            onClick={openCreate}
+                            aria-label={t('master.voucher_cost_categories.actions.add_category')}
+                            sx={{ boxShadow: 2 }}
+                        >
                             <AddIcon fontSize="small" />
                         </Fab>
                     )}
@@ -180,14 +188,14 @@ export default function VoucherAdditionalCostCategoriesIndex() {
                                         </Typography>
                                         <Stack direction="row" spacing={0.75} sx={{ mt: 0.75, flexWrap: 'wrap', gap: 0.5 }}>
                                             <Chip size="small" label={row.status ?? 'ACTIVE'} color={statusColor(row.status)} variant="outlined" />
-                                            <Chip size="small" label={`Order ${row.sort_order ?? 0}`} variant="outlined" />
+                                            <Chip size="small" label={t('master.voucher_cost_categories.order_chip', { order: row.sort_order ?? 0 })} variant="outlined" />
                                         </Stack>
                                     </Box>
                                     {canManage && (
                                         <IconButton
                                             size="small"
                                             onClick={(e) => handleTableActionOpen(e, row)}
-                                            aria-label="Category actions"
+                                            aria-label={t('master.voucher_cost_categories.actions.row_actions')}
                                             sx={{ flexShrink: 0, mt: -0.25 }}
                                         >
                                             <MoreVertIcon fontSize="small" />
@@ -199,7 +207,7 @@ export default function VoucherAdditionalCostCategoriesIndex() {
                         {sorted.length === 0 && (
                             <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, boxShadow: 'none' }}>
                                 <Typography variant="body2" color="text.secondary">
-                                    No categories yet.
+                                    {t('master.voucher_cost_categories.empty')}
                                 </Typography>
                             </Paper>
                         )}
@@ -209,10 +217,10 @@ export default function VoucherAdditionalCostCategoriesIndex() {
                         <Table size="small">
                             <TableHead>
                                 <TableRow>
-                                    <TableCell>Name</TableCell>
-                                    <TableCell>Status</TableCell>
-                                    <TableCell>Sort</TableCell>
-                                    <TableCell align="right">Actions</TableCell>
+                                    <TableCell>{t('master.voucher_cost_categories.table.name')}</TableCell>
+                                    <TableCell>{t('master.voucher_cost_categories.table.status')}</TableCell>
+                                    <TableCell>{t('master.voucher_cost_categories.table.sort')}</TableCell>
+                                    <TableCell align="right">{t('ui.actions')}</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -225,7 +233,11 @@ export default function VoucherAdditionalCostCategoriesIndex() {
                                         <TableCell>{row.sort_order ?? 0}</TableCell>
                                         <TableCell align="right" sx={{ width: 56 }}>
                                             {canManage && (
-                                                <IconButton size="small" onClick={(e) => handleTableActionOpen(e, row)} aria-label="Category actions">
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={(e) => handleTableActionOpen(e, row)}
+                                                    aria-label={t('master.voucher_cost_categories.actions.row_actions')}
+                                                >
                                                     <MoreVertIcon fontSize="small" />
                                                 </IconButton>
                                             )}
@@ -236,7 +248,7 @@ export default function VoucherAdditionalCostCategoriesIndex() {
                                     <TableRow>
                                         <TableCell colSpan={4}>
                                             <Typography variant="body2" color="text.secondary">
-                                                No categories yet.
+                                                {t('master.voucher_cost_categories.empty')}
                                             </Typography>
                                         </TableCell>
                                     </TableRow>
@@ -254,20 +266,22 @@ export default function VoucherAdditionalCostCategoriesIndex() {
                     anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
                 >
                     <MenuItem dense onClick={() => selectedRow && openEdit(selectedRow)} disabled={!canManage}>
-                        Edit
+                        {t('ui.edit')}
                     </MenuItem>
                     <MenuItem dense sx={{ color: 'error.main' }} onClick={() => selectedRow && removeRow(selectedRow)} disabled={!canManage}>
-                        Delete
+                        {t('ui.delete')}
                     </MenuItem>
                 </Menu>
 
                 <Dialog open={dialogOpen} onClose={closeDialog} fullWidth maxWidth="sm">
-                    <DialogTitle>{form.id ? 'Edit category' : 'Add category'}</DialogTitle>
+                    <DialogTitle>
+                        {form.id ? t('master.voucher_cost_categories.dialog.edit_title') : t('master.voucher_cost_categories.dialog.add_title')}
+                    </DialogTitle>
                     <DialogContent>
                         <Stack spacing={2} sx={{ mt: 1 }}>
                             {error ? <Alert severity="warning">{error}</Alert> : null}
                             <TextField
-                                label="Name"
+                                label={t('master.voucher_cost_categories.fields.name')}
                                 size="small"
                                 fullWidth
                                 value={form.name}
@@ -275,19 +289,19 @@ export default function VoucherAdditionalCostCategoriesIndex() {
                             />
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                                 <FormControl size="small" fullWidth>
-                                    <InputLabel id="vacc-status">Status</InputLabel>
+                                    <InputLabel id="vacc-status">{t('master.voucher_cost_categories.table.status')}</InputLabel>
                                     <Select
                                         labelId="vacc-status"
-                                        label="Status"
+                                        label={t('master.voucher_cost_categories.table.status')}
                                         value={form.status}
                                         onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}
                                     >
-                                        <MenuItem value="ACTIVE">Active</MenuItem>
-                                        <MenuItem value="INACTIVE">Inactive</MenuItem>
+                                        <MenuItem value="ACTIVE">{t('master.voucher_cost_categories.status.active')}</MenuItem>
+                                        <MenuItem value="INACTIVE">{t('master.voucher_cost_categories.status.inactive')}</MenuItem>
                                     </Select>
                                 </FormControl>
                                 <TextField
-                                    label="Sort order"
+                                    label={t('master.voucher_cost_categories.fields.sort_order')}
                                     size="small"
                                     fullWidth
                                     type="number"
@@ -300,10 +314,10 @@ export default function VoucherAdditionalCostCategoriesIndex() {
                     </DialogContent>
                     <DialogActions>
                         <Button onClick={closeDialog} disabled={processing}>
-                            Cancel
+                            {t('ui.cancel')}
                         </Button>
                         <Button onClick={submit} variant="contained" disabled={!canManage || processing}>
-                            Save
+                            {t('ui.save')}
                         </Button>
                     </DialogActions>
                 </Dialog>
@@ -311,4 +325,3 @@ export default function VoucherAdditionalCostCategoriesIndex() {
         </AdminLayout>
     );
 }
-

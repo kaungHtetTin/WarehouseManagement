@@ -5,6 +5,7 @@ import {
     Avatar,
     Box,
     Button,
+    Checkbox,
     CircularProgress,
     Divider,
     Dialog,
@@ -12,11 +13,13 @@ import {
     DialogContent,
     DialogTitle,
     Drawer,
+    FormControlLabel,
     Grid,
     IconButton,
     InputAdornment,
     List,
     ListItem,
+    MenuItem,
     Paper,
     Slider,
     Stack,
@@ -32,6 +35,7 @@ import {
     OpenInNew as OpenInNewIcon,
     Menu as MenuIcon,
     Public as PublicIcon,
+    ReceiptLong as VoucherIcon,
     Save as SaveIcon,
     Settings as SettingsIcon,
     Tag as TagIcon,
@@ -68,6 +72,295 @@ function coerceArray(value) {
     return [];
 }
 
+function n2(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+}
+
+function safeStr(value) {
+    return typeof value === 'string' ? value.trim() : '';
+}
+
+function fmtQty(value) {
+    const n = n2(value);
+    if (n == null) return '—';
+    return new Intl.NumberFormat(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 3 }).format(n);
+}
+
+function fmtMoney(value) {
+    const n = n2(value);
+    if (n == null) return '—';
+    return new Intl.NumberFormat(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(n));
+}
+
+function VoucherPrintLivePreview({ voucher, template }) {
+    const containerRef = useRef(null);
+    const [scale, setScale] = useState(1);
+    const isReceipt = String(template?.paper_size || '').toUpperCase() === 'RECEIPT_80';
+    const sheetWidth = isReceipt ? 302 : 794;
+
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+
+        const compute = () => {
+            const w = el.clientWidth || 1;
+            const minScale = isReceipt ? 0.8 : 0.45;
+            const maxScale = isReceipt ? 1.9 : 1.05;
+            const next = Math.min(maxScale, Math.max(minScale, w / sheetWidth));
+            setScale((prev) => (Math.abs(prev - next) < 0.01 ? prev : next));
+        };
+
+        compute();
+
+        if (typeof ResizeObserver === 'undefined') {
+            window.addEventListener('resize', compute);
+            return () => window.removeEventListener('resize', compute);
+        }
+
+        const ro = new ResizeObserver(() => compute());
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [sheetWidth, isReceipt]);
+
+    const freightTotal = useMemo(() => {
+        const items = Array.isArray(voucher?.items) ? voucher.items : [];
+        let sum = 0;
+        for (const it of items) {
+            const n = n2(it?.freight_amount);
+            if (n == null) continue;
+            sum += n;
+        }
+        return Math.round(sum * 100) / 100;
+    }, [voucher?.items]);
+
+    const paymentsTotal = useMemo(() => {
+        const rows = Array.isArray(voucher?.payments) ? voucher.payments : [];
+        let sum = 0;
+        for (const row of rows) {
+            const n = n2(row?.amount);
+            if (n == null) continue;
+            sum += n;
+        }
+        return Math.round(sum * 100) / 100;
+    }, [voucher?.payments]);
+
+    const headerTitle = safeStr(template?.header_title) || 'Voucher';
+    const headerSubtitle = safeStr(template?.header_subtitle);
+    const showLogo = Boolean(template?.show_logo);
+    const logoUrl = safeStr(template?.logo_url);
+    const showContact = Boolean(template?.show_contact);
+    const contactPhone = safeStr(template?.contact_phone);
+    const contactEmail = safeStr(template?.contact_email);
+    const contactAddress = safeStr(template?.contact_address);
+    const footerNote = safeStr(template?.footer_note);
+    const showPaymentStatus = Boolean(template?.show_payment_status);
+    const showSignature = Boolean(template?.show_signature_boxes);
+
+    const fromWarehouseName = voucher?.source_warehouse?.display_name || voucher?.source_warehouse?.city || '—';
+    const toWarehouseName = voucher?.default_to_warehouse?.display_name || voucher?.default_to_warehouse?.city || '—';
+
+    return (
+        <Box ref={containerRef} sx={{ width: '100%', overflowX: 'auto' }}>
+            <Box sx={{ width: sheetWidth * scale, mx: 'auto' }}>
+                <Box
+                    sx={{
+                        width: sheetWidth,
+                        transform: `scale(${scale})`,
+                        transformOrigin: 'top left',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 1.5,
+                        bgcolor: '#fff',
+                    }}
+                >
+                <Box sx={{ p: isReceipt ? 1.25 : 2 }}>
+                    <Stack spacing={1.25}>
+                        <Stack direction="row" spacing={2} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                            <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', minWidth: 0 }}>
+                                {showLogo && logoUrl ? (
+                                    <Box component="img" src={logoUrl} alt="Logo" sx={{ width: 40, height: 40, objectFit: 'contain', borderRadius: 1 }} />
+                                ) : null}
+                                <Box sx={{ minWidth: 0 }}>
+                                    <Typography variant={isReceipt ? 'body1' : 'subtitle1'} sx={{ fontWeight: 900, lineHeight: 1.1 }}>
+                                        {headerTitle}
+                                    </Typography>
+                                    {headerSubtitle ? (
+                                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>
+                                            {headerSubtitle}
+                                        </Typography>
+                                    ) : null}
+                                </Box>
+                            </Stack>
+                            <Box sx={{ textAlign: 'right' }}>
+                                <Typography variant="body2" sx={{ fontWeight: 900 }}>
+                                    {voucher?.voucher_no || '—'}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>
+                                    {voucher?.voucher_date || '—'}
+                                </Typography>
+                            </Box>
+                        </Stack>
+
+                        {showContact && (contactPhone || contactEmail || contactAddress) ? (
+                            <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+                                {[contactPhone ? `Phone: ${contactPhone}` : null, contactEmail ? `Email: ${contactEmail}` : null, contactAddress || null]
+                                    .filter(Boolean)
+                                    .join(' • ')}
+                            </Typography>
+                        ) : null}
+
+                        <Divider />
+
+                        <Box sx={{ display: 'grid', gridTemplateColumns: isReceipt ? '110px 1fr' : '140px 1fr', gap: '6px 12px' }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                                From warehouse
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 800 }}>
+                                {fromWarehouseName}
+                            </Typography>
+
+                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                                Destination warehouse
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 800 }}>
+                                {toWarehouseName}
+                            </Typography>
+
+                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                                Recipient
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 800 }}>
+                                {voucher?.default_recipient_name || '—'}
+                            </Typography>
+
+                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                                Recipient phone
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 800 }}>
+                                {voucher?.default_recipient_phone || '—'}
+                            </Typography>
+
+                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                                Destination address
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 800 }}>
+                                {voucher?.default_to_address_line1 || '—'}
+                            </Typography>
+
+                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                                Remark
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 800 }}>
+                                {voucher?.default_destination_remark || '—'}
+                            </Typography>
+
+                            {showPaymentStatus ? (
+                                <>
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                                        Payment status
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ fontWeight: 800 }}>
+                                        {voucher?.payment_status || '—'}
+                                    </Typography>
+                                </>
+                            ) : null}
+                        </Box>
+
+                        <Divider />
+
+                        <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
+                            Items
+                        </Typography>
+                        <Box sx={{ border: '1px solid rgba(0,0,0,0.12)', borderRadius: 1, overflow: 'hidden' }}>
+                            <Box
+                                sx={{
+                                    display: 'grid',
+                                    gridTemplateColumns: isReceipt ? '36px 1fr 70px' : '52px 1fr 110px 80px',
+                                    bgcolor: 'rgba(0,0,0,0.03)',
+                                    p: 1,
+                                }}
+                            >
+                                {(isReceipt ? ['No', 'Item', 'Qty'] : ['No', 'Item', 'Qty', 'Fragile']).map((h) => (
+                                    <Typography key={h} variant="caption" sx={{ fontWeight: 900 }}>
+                                        {h}
+                                    </Typography>
+                                ))}
+                            </Box>
+                            {(voucher?.items || []).map((it, idx) => (
+                                <Box
+                                    key={it?.id || idx}
+                                    sx={{
+                                        display: 'grid',
+                                        gridTemplateColumns: isReceipt ? '36px 1fr 70px' : '52px 1fr 110px 80px',
+                                        p: 1,
+                                        borderTop: idx === 0 ? 'none' : '1px solid rgba(0,0,0,0.08)',
+                                    }}
+                                >
+                                    <Typography variant="caption">{idx + 1}</Typography>
+                                    <Box sx={{ minWidth: 0 }}>
+                                        <Typography variant="caption" sx={{ fontWeight: 800 }}>
+                                            {it?.product?.name || '—'}
+                                        </Typography>
+                                        {it?.description ? (
+                                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'pre-wrap' }}>
+                                                {it.description}
+                                            </Typography>
+                                        ) : null}
+                                    </Box>
+                                    <Typography variant="caption" sx={{ textAlign: 'right' }}>
+                                        {fmtQty(it?.qty)}
+                                    </Typography>
+                                    {isReceipt ? null : <Typography variant="caption">{it?.is_fragile ? 'Yes' : 'No'}</Typography>}
+                                </Box>
+                            ))}
+                        </Box>
+
+                        <Stack direction="row" spacing={2} sx={{ justifyContent: 'flex-end' }}>
+                            <Box sx={{ minWidth: isReceipt ? 1 : 260, width: isReceipt ? '100%' : 'auto' }}>
+                                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px' }}>
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                                        Client payable
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ fontWeight: 900, textAlign: 'right' }}>
+                                        {fmtMoney(freightTotal)}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                                        Paid
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ fontWeight: 900, textAlign: 'right' }}>
+                                        {fmtMoney(paymentsTotal)}
+                                    </Typography>
+                                </Box>
+                            </Box>
+                        </Stack>
+
+                        {showSignature ? (
+                            <Stack direction="row" spacing={2} sx={{ pt: 1 }}>
+                                {['Prepared by', 'Checked by', 'Received by'].map((label) => (
+                                    <Box key={label} sx={{ flex: 1 }}>
+                                        <Box sx={{ borderBottom: '1px solid rgba(0,0,0,0.55)', height: 34 }} />
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+                                            {label}
+                                        </Typography>
+                                    </Box>
+                                ))}
+                            </Stack>
+                        ) : null}
+
+                        {footerNote ? (
+                            <Typography variant="caption" color="text.secondary" sx={{ pt: 1, textAlign: 'center' }}>
+                                {footerNote}
+                            </Typography>
+                        ) : null}
+                    </Stack>
+                </Box>
+                </Box>
+            </Box>
+        </Box>
+    );
+}
+
 export default function OrganizationSettings() {
     const page = usePage();
     const pageProps = page.props;
@@ -75,6 +368,7 @@ export default function OrganizationSettings() {
     const adminAppUrl = pageProps.admin_app_url;
     const organization = pageProps.organization;
     const publicPage = pageProps.publicPage;
+    const voucherPrintTemplate = pageProps.voucherPrintTemplate;
     const flash = pageProps.flash ?? {};
 
     const theme = useTheme();
@@ -85,7 +379,9 @@ export default function OrganizationSettings() {
     const [activeTab, setActiveTab] = useState(() => {
         try {
             const tab = new URL(page.url, window.location.origin).searchParams.get('tab');
-            return tab === 'public' ? 'public' : 'settings';
+            if (tab === 'public') return 'public';
+            if (tab === 'voucher_print') return 'voucher_print';
+            return 'settings';
         } catch {
             return 'settings';
         }
@@ -117,10 +413,66 @@ export default function OrganizationSettings() {
         gallery: coerceArray(publicPage?.gallery),
     });
 
+    const voucherPrintForm = useForm({
+        paper_size: voucherPrintTemplate?.paper_size ?? 'A4',
+        header_title: voucherPrintTemplate?.header_title ?? organization?.name ?? '',
+        header_subtitle: voucherPrintTemplate?.header_subtitle ?? 'Voucher',
+        show_logo: Boolean(voucherPrintTemplate?.show_logo),
+        logo_url: voucherPrintTemplate?.logo_url ?? '',
+        show_contact: Boolean(voucherPrintTemplate?.show_contact),
+        contact_phone: voucherPrintTemplate?.contact_phone ?? '',
+        contact_email: voucherPrintTemplate?.contact_email ?? '',
+        contact_address: voucherPrintTemplate?.contact_address ?? '',
+        footer_note: voucherPrintTemplate?.footer_note ?? '',
+        show_payment_status: Boolean(voucherPrintTemplate?.show_payment_status),
+        show_signature_boxes: Boolean(voucherPrintTemplate?.show_signature_boxes),
+    });
+
+    const voucherPrintPreviewVoucher = useMemo(() => {
+        const date = new Date().toISOString().slice(0, 10);
+        return {
+            voucher_no: 'PREVIEW-V-0001',
+            voucher_date: date,
+            payment_status: 'UNPAID',
+            source_warehouse: { display_name: 'Yangon Warehouse', city: 'Yangon' },
+            default_to_warehouse: { display_name: 'Mandalay Warehouse', city: 'Mandalay' },
+            default_recipient_name: 'Receiver Name',
+            default_recipient_phone: '09XXXXXXXXX',
+            default_to_address_line1: 'Street / Township / City',
+            default_destination_remark: 'Handle with care.',
+            additional_costs: [{ amount: 2000 }, { amount: 1500 }],
+            items: [
+                { id: 1, qty: 10, is_fragile: false, description: 'Sample note', product: { name: 'Carton Box' } },
+                { id: 2, qty: 2.5, is_fragile: true, description: null, product: { name: 'Glass Item' } },
+                { id: 3, qty: 1, is_fragile: false, description: null, product: { name: 'Spare Parts' } },
+            ],
+        };
+    }, []);
+
+    const voucherPrintPreviewTemplate = useMemo(() => {
+        const logoFromPublic = safeStr(publicPage?.logo_url);
+        return {
+            paper_size: voucherPrintForm.data.paper_size,
+            header_title: voucherPrintForm.data.header_title,
+            header_subtitle: voucherPrintForm.data.header_subtitle,
+            show_logo: voucherPrintForm.data.show_logo,
+            logo_url: safeStr(voucherPrintForm.data.logo_url) || logoFromPublic || '',
+            show_contact: voucherPrintForm.data.show_contact,
+            contact_phone: voucherPrintForm.data.contact_phone,
+            contact_email: voucherPrintForm.data.contact_email,
+            contact_address: voucherPrintForm.data.contact_address,
+            footer_note: voucherPrintForm.data.footer_note,
+            show_payment_status: voucherPrintForm.data.show_payment_status,
+            show_signature_boxes: voucherPrintForm.data.show_signature_boxes,
+        };
+    }, [voucherPrintForm.data, publicPage?.logo_url]);
+
     const logoUploadForm = useForm({ logo: null });
+    const voucherPrintLogoUploadForm = useForm({ logo: null });
     const coverUploadForm = useForm({ cover: null });
     const galleryUploadForm = useForm({ photo: null });
     const logoFileInputRef = useRef(null);
+    const voucherPrintLogoFileInputRef = useRef(null);
     const coverFileInputRef = useRef(null);
     const galleryFileInputRef = useRef(null);
     const canvasRef = useRef(null);
@@ -265,6 +617,7 @@ export default function OrganizationSettings() {
         return [
             { key: 'settings', label: 'Settings', icon: <SettingsIcon fontSize="small" /> },
             { key: 'public', label: 'Public Page', icon: <PublicIcon fontSize="small" /> },
+            { key: 'voucher_print', label: 'Voucher Print', icon: <VoucherIcon fontSize="small" /> },
         ];
     }, []);
 
@@ -281,6 +634,11 @@ export default function OrganizationSettings() {
                 setRemovedGalleryUrls([]);
             },
         });
+    };
+
+    const submitVoucherPrint = (e) => {
+        e.preventDefault();
+        voucherPrintForm.patch(`${adminAppUrl}/system/organization-settings/voucher-print-template`, { preserveScroll: true });
     };
 
     useEffect(() => {
@@ -309,6 +667,13 @@ export default function OrganizationSettings() {
     const handleTabChange = (nextTab) => {
         setActiveTab(nextTab);
         updateUrlTab(nextTab);
+    };
+
+    const openVoucherPrintLogoPicker = () => {
+        setCropMode('voucher_logo');
+        if (voucherPrintLogoFileInputRef.current) {
+            voucherPrintLogoFileInputRef.current.click();
+        }
     };
 
     const openLogoPicker = () => {
@@ -346,10 +711,14 @@ export default function OrganizationSettings() {
         setOffset({ x: 0, y: 0 });
         setCropOpen(false);
         logoUploadForm.reset();
+        voucherPrintLogoUploadForm.reset();
         coverUploadForm.reset();
         galleryUploadForm.reset();
         if (logoFileInputRef.current) {
             logoFileInputRef.current.value = '';
+        }
+        if (voucherPrintLogoFileInputRef.current) {
+            voucherPrintLogoFileInputRef.current.value = '';
         }
         if (coverFileInputRef.current) {
             coverFileInputRef.current.value = '';
@@ -381,6 +750,12 @@ export default function OrganizationSettings() {
         const file = e.target.files?.[0];
         if (!file) return;
         loadImage(file, 'logo');
+    };
+
+    const onVoucherPrintLogoFileChange = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        loadImage(file, 'voucher_logo');
     };
 
     const onCoverFileChange = (e) => {
@@ -415,6 +790,17 @@ export default function OrganizationSettings() {
                 outW: 1200,
                 outH: 900,
                 saveLabel: 'Add photo',
+            };
+        }
+
+        if (cropMode === 'voucher_logo') {
+            return {
+                title: 'Crop voucher logo (1:1)',
+                previewW: 240,
+                previewH: 240,
+                outW: 512,
+                outH: 512,
+                saveLabel: 'Save voucher logo',
             };
         }
 
@@ -541,7 +927,8 @@ export default function OrganizationSettings() {
         outCanvas.toBlob(
             (blob) => {
                 if (!blob) return;
-                const fileName = cropMode === 'cover' ? 'cover.jpg' : cropMode === 'gallery' ? 'photo.jpg' : 'logo.png';
+                const fileName =
+                    cropMode === 'cover' ? 'cover.jpg' : cropMode === 'gallery' ? 'photo.jpg' : cropMode === 'voucher_logo' ? 'voucher_logo.png' : 'logo.png';
                 const file = new File([blob], fileName, { type: blob.type || 'image/jpeg' });
 
                 if (cropMode === 'cover') {
@@ -581,6 +968,28 @@ export default function OrganizationSettings() {
                     return;
                 }
 
+                if (cropMode === 'voucher_logo') {
+                    voucherPrintLogoUploadForm.clearErrors();
+                    voucherPrintLogoUploadForm.transform(() => ({ logo: file }));
+                    voucherPrintLogoUploadForm.post(`${adminAppUrl}/system/organization-settings/voucher-print-logo`, {
+                        forceFormData: true,
+                        preserveScroll: true,
+                        preserveState: true,
+                        onSuccess: (page) => {
+                            const nextLogo = page?.props?.voucherPrintTemplate?.logo_url;
+                            if (nextLogo) {
+                                voucherPrintForm.setData('logo_url', nextLogo);
+                                voucherPrintForm.setData('show_logo', true);
+                            }
+                            closeCropper();
+                        },
+                        onFinish: () => {
+                            voucherPrintLogoUploadForm.transform((data) => data);
+                        },
+                    });
+                    return;
+                }
+
                 logoUploadForm.clearErrors();
                 logoUploadForm.transform(() => ({ logo: file }));
                 logoUploadForm.post(`${adminAppUrl}/system/organization-settings/logo`, {
@@ -595,13 +1004,19 @@ export default function OrganizationSettings() {
                     },
                 });
             },
-            cropMode === 'logo' ? 'image/png' : 'image/jpeg',
-            cropMode === 'logo' ? 0.92 : 0.9,
+            cropMode === 'logo' || cropMode === 'voucher_logo' ? 'image/png' : 'image/jpeg',
+            cropMode === 'logo' || cropMode === 'voucher_logo' ? 0.92 : 0.9,
         );
     };
 
     const cropUploading =
-        cropMode === 'cover' ? coverUploadForm.processing : cropMode === 'gallery' ? galleryUploadForm.processing : logoUploadForm.processing;
+        cropMode === 'cover'
+            ? coverUploadForm.processing
+            : cropMode === 'gallery'
+              ? galleryUploadForm.processing
+              : cropMode === 'voucher_logo'
+                ? voucherPrintLogoUploadForm.processing
+                : logoUploadForm.processing;
 
     const SidebarContent = (
         <>
@@ -729,13 +1144,23 @@ export default function OrganizationSettings() {
                                     >
                                         Save
                                     </Button>
-                                ) : (
+                                ) : activeTab === 'public' ? (
                                     <Button
                                         variant="contained"
                                         size="small"
                                         disabled={publicForm.processing}
                                         onClick={(e) => submitPublic(e)}
                                         startIcon={publicForm.processing ? <CircularProgress size={16} /> : <SaveIcon fontSize="small" />}
+                                    >
+                                        Save
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        variant="contained"
+                                        size="small"
+                                        disabled={voucherPrintForm.processing}
+                                        onClick={(e) => submitVoucherPrint(e)}
+                                        startIcon={voucherPrintForm.processing ? <CircularProgress size={16} /> : <SaveIcon fontSize="small" />}
                                     >
                                         Save
                                     </Button>
@@ -984,7 +1409,7 @@ export default function OrganizationSettings() {
                                     </Grid>
                                 </Grid>
                             </Box>
-                        ) : (
+                        ) : activeTab === 'public' ? (
                             <Box component="form" onSubmit={submitPublic} noValidate>
                                 <Grid container spacing={1.5}>
                                     <Grid size={{ xs: 12, md: 6 }}>
@@ -1409,6 +1834,228 @@ export default function OrganizationSettings() {
                                                 </Stack>
                                             </SettingsCard>
                                         </Stack>
+                                    </Grid>
+                                </Grid>
+                            </Box>
+                        ) : (
+                            <Box component="form" onSubmit={submitVoucherPrint} noValidate>
+                                <Grid container spacing={1.5}>
+                                    <Grid size={{ xs: 12, md: 7 }}>
+                                        <SettingsCard>
+                                            <Stack spacing={1.5}>
+                                                <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
+                                                    <Avatar
+                                                        sx={{
+                                                            width: 36,
+                                                            height: 36,
+                                                            borderRadius: 2.25,
+                                                            bgcolor: 'rgba(59,130,246,0.10)',
+                                                            color: '#3B82F6',
+                                                        }}
+                                                    >
+                                                        <VoucherIcon fontSize="small" />
+                                                    </Avatar>
+                                                    <Box>
+                                                        <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>
+                                                            Voucher Print Template
+                                                        </Typography>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            Customize the printed voucher frame.
+                                                        </Typography>
+                                                    </Box>
+                                                </Stack>
+
+                                                <Divider />
+                                                <TextField
+                                                    select
+                                                    label="Paper size"
+                                                    value={voucherPrintForm.data.paper_size}
+                                                    onChange={(e) => voucherPrintForm.setData('paper_size', e.target.value)}
+                                                    error={Boolean(voucherPrintForm.errors.paper_size)}
+                                                    helperText={voucherPrintForm.errors.paper_size || 'A4 for office printer, Receipt 80mm for thermal printer.'}
+                                                >
+                                                    <MenuItem value="A4">A4</MenuItem>
+                                                    <MenuItem value="RECEIPT_80">Receipt 80mm</MenuItem>
+                                                </TextField>
+
+                                                <TextField
+                                                    required
+                                                    label="Header title"
+                                                    value={voucherPrintForm.data.header_title}
+                                                    onChange={(e) => voucherPrintForm.setData('header_title', e.target.value)}
+                                                    error={Boolean(voucherPrintForm.errors.header_title)}
+                                                    helperText={voucherPrintForm.errors.header_title || 'Example: Warehouse & Transport'}
+                                                />
+                                                <TextField
+                                                    label="Header subtitle"
+                                                    value={voucherPrintForm.data.header_subtitle}
+                                                    onChange={(e) => voucherPrintForm.setData('header_subtitle', e.target.value)}
+                                                    error={Boolean(voucherPrintForm.errors.header_subtitle)}
+                                                    helperText={voucherPrintForm.errors.header_subtitle || 'Example: Voucher'}
+                                                />
+
+                                                <FormControlLabel
+                                                    control={
+                                                        <Checkbox
+                                                            checked={voucherPrintForm.data.show_logo}
+                                                            onChange={(e) => voucherPrintForm.setData('show_logo', e.target.checked)}
+                                                        />
+                                                    }
+                                                    label="Show logo"
+                                                />
+                                                <input
+                                                    ref={voucherPrintLogoFileInputRef}
+                                                    type="file"
+                                                    accept="image/*"
+                                                    style={{ display: 'none' }}
+                                                    onChange={onVoucherPrintLogoFileChange}
+                                                />
+                                                <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                                                    <IconButton
+                                                        onClick={openVoucherPrintLogoPicker}
+                                                        disabled={voucherPrintLogoUploadForm.processing}
+                                                        sx={{
+                                                            width: 72,
+                                                            height: 72,
+                                                            borderRadius: 2.5,
+                                                            border: '1px dashed',
+                                                            borderColor: 'divider',
+                                                            bgcolor: 'rgba(15,23,42,0.02)',
+                                                            overflow: 'hidden',
+                                                            p: 0,
+                                                            flexShrink: 0,
+                                                            '&:hover': { borderColor: 'primary.main', bgcolor: 'rgba(59,130,246,0.06)' },
+                                                        }}
+                                                    >
+                                                        {(safeStr(voucherPrintForm.data.logo_url) || safeStr(publicPage?.logo_url)) ? (
+                                                            <Box
+                                                                component="img"
+                                                                src={safeStr(voucherPrintForm.data.logo_url) || safeStr(publicPage?.logo_url)}
+                                                                alt="Voucher logo"
+                                                                sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                            />
+                                                        ) : (
+                                                            <VoucherIcon sx={{ color: 'text.disabled' }} />
+                                                        )}
+                                                    </IconButton>
+                                                    <Box sx={{ minWidth: 0 }}>
+                                                        <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                                                            Upload voucher logo
+                                                        </Typography>
+                                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                                            Upload and crop 1:1
+                                                        </Typography>
+                                                        {voucherPrintLogoUploadForm.errors.logo ? (
+                                                            <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
+                                                                {voucherPrintLogoUploadForm.errors.logo}
+                                                            </Typography>
+                                                        ) : null}
+                                                    </Box>
+                                                </Stack>
+                                                <TextField
+                                                    label="Logo URL"
+                                                    value={voucherPrintForm.data.logo_url}
+                                                    onChange={(e) => voucherPrintForm.setData('logo_url', e.target.value)}
+                                                    error={Boolean(voucherPrintForm.errors.logo_url)}
+                                                    helperText={voucherPrintForm.errors.logo_url || 'Leave blank to use public page logo (if available).'}
+                                                />
+
+                                                <Divider />
+
+                                                <FormControlLabel
+                                                    control={
+                                                        <Checkbox
+                                                            checked={voucherPrintForm.data.show_contact}
+                                                            onChange={(e) => voucherPrintForm.setData('show_contact', e.target.checked)}
+                                                        />
+                                                    }
+                                                    label="Show contact"
+                                                />
+                                                <Grid container spacing={1.5}>
+                                                    <Grid size={{ xs: 12, sm: 6 }}>
+                                                        <TextField
+                                                            label="Phone"
+                                                            value={voucherPrintForm.data.contact_phone}
+                                                            onChange={(e) => voucherPrintForm.setData('contact_phone', e.target.value)}
+                                                            error={Boolean(voucherPrintForm.errors.contact_phone)}
+                                                        />
+                                                    </Grid>
+                                                    <Grid size={{ xs: 12, sm: 6 }}>
+                                                        <TextField
+                                                            label="Email"
+                                                            value={voucherPrintForm.data.contact_email}
+                                                            onChange={(e) => voucherPrintForm.setData('contact_email', e.target.value)}
+                                                            error={Boolean(voucherPrintForm.errors.contact_email)}
+                                                        />
+                                                    </Grid>
+                                                    <Grid size={{ xs: 12 }}>
+                                                        <TextField
+                                                            label="Address"
+                                                            value={voucherPrintForm.data.contact_address}
+                                                            onChange={(e) => voucherPrintForm.setData('contact_address', e.target.value)}
+                                                            error={Boolean(voucherPrintForm.errors.contact_address)}
+                                                            multiline
+                                                            minRows={2}
+                                                        />
+                                                    </Grid>
+                                                </Grid>
+
+                                                <Divider />
+
+                                                <TextField
+                                                    label="Footer note"
+                                                    value={voucherPrintForm.data.footer_note}
+                                                    onChange={(e) => voucherPrintForm.setData('footer_note', e.target.value)}
+                                                    error={Boolean(voucherPrintForm.errors.footer_note)}
+                                                    helperText={voucherPrintForm.errors.footer_note || 'Optional'}
+                                                />
+
+                                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                                                    <FormControlLabel
+                                                        control={
+                                                            <Checkbox
+                                                                checked={voucherPrintForm.data.show_payment_status}
+                                                                onChange={(e) => voucherPrintForm.setData('show_payment_status', e.target.checked)}
+                                                            />
+                                                        }
+                                                        label="Show payment status"
+                                                    />
+                                                    <FormControlLabel
+                                                        control={
+                                                            <Checkbox
+                                                                checked={voucherPrintForm.data.show_signature_boxes}
+                                                                onChange={(e) => voucherPrintForm.setData('show_signature_boxes', e.target.checked)}
+                                                            />
+                                                        }
+                                                        label="Show signature boxes"
+                                                    />
+                                                </Stack>
+                                            </Stack>
+                                        </SettingsCard>
+                                    </Grid>
+                                    <Grid size={{ xs: 12, md: 5 }}>
+                                        <SettingsCard>
+                                            <Stack spacing={1.5}>
+                                                <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                                                    Preview
+                                                </Typography>
+                                                <Typography variant="body2" color="text.secondary">
+                                                    Updates instantly as you change the fields.
+                                                </Typography>
+                                                <Box
+                                                    sx={{
+                                                        bgcolor: 'grey.50',
+                                                        borderRadius: 2,
+                                                        p: voucherPrintForm.data.paper_size === 'RECEIPT_80' ? 0.75 : 1.25,
+                                                        border: '1px solid',
+                                                        borderColor: 'divider',
+                                                        overflowX: 'auto',
+                                                    }}
+                                                >
+                                                    <VoucherPrintLivePreview voucher={voucherPrintPreviewVoucher} template={voucherPrintPreviewTemplate} />
+                                                </Box>
+                                            </Stack>
+                                        </SettingsCard>
                                     </Grid>
                                 </Grid>
                             </Box>

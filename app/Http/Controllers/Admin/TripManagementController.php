@@ -381,6 +381,27 @@ class TripManagementController extends Controller
             ->where('direction', 'INCOME')
             ->first(['id', 'amount', 'occurred_at', 'category_id']);
 
+        $pendingDeliveryLines = collect($model->items ?? [])
+            ->filter(fn ($i) => $i instanceof TripItem)
+            ->filter(function (TripItem $i) {
+                $loaded = (float) ($i->loaded_qty ?? 0);
+                $delivered = (float) ($i->delivered_qty ?? 0);
+                if ($loaded <= 0.0001) {
+                    return false;
+                }
+                return $delivered + 0.0001 < $loaded;
+            })
+            ->count();
+
+        $unpaidVouchers = collect($model->items ?? [])
+            ->map(fn ($i) => $i instanceof TripItem ? $i->voucherItem?->voucher : null)
+            ->filter(fn ($v) => $v !== null && (int) ($v->id ?? 0) > 0)
+            ->unique(fn ($v) => (int) $v->id)
+            ->filter(fn ($v) => (string) ($v->payment_status ?? '') !== 'PAID')
+            ->count();
+
+        $tripNetIncomeEligible = $voucherIds !== [] && $pendingDeliveryLines === 0 && $unpaidVouchers === 0;
+
         return Inertia::render('Admin/Operations/TripDetail', [
             'trip' => $model,
             'can_manage_cargo' => $canManageCargo,
@@ -388,6 +409,7 @@ class TripManagementController extends Controller
             'can_record_delivery' => $canRecordDelivery,
             'can_manage_trip_costs' => $canManageTripCosts,
             'can_record_trip_net_income' => (bool) ($user && $user->hasPermission('finance.manage')),
+            'can_delete_trip' => (bool) ($user && $user->hasPermission('trips.manage') && in_array($model->status, ['PLANNED', 'CANCELLED'], true)),
             'can_mark_departed' => $departureCaps['can_mark_departed'],
             'can_undo_depart' => $departureCaps['can_undo_depart'],
             'warehouses' => $canManageCargo
@@ -402,9 +424,125 @@ class TripManagementController extends Controller
             'trip_cost_entries' => $tripCostEntries,
             'trip_extra_cost_total' => $tripExtraCostTotal,
             'trip_net_income' => $tripNetIncome,
+            'trip_net_income_eligibility' => [
+                'eligible' => $tripNetIncomeEligible,
+                'pending_delivery_lines' => $pendingDeliveryLines,
+                'unpaid_vouchers' => $unpaidVouchers,
+            ],
             'trip_net_income_recorded' => $netIncomeEntry !== null,
             'trip_net_income_entry' => $netIncomeEntry,
         ]);
+    }
+
+    public function destroy(Request $request, string $trip): RedirectResponse
+    {
+        $actor = $request->user();
+        abort_if(! $actor->hasPermission('trips.manage'), 403);
+
+        $organizationId = $actor->organization_id;
+        abort_if($organizationId === null, 404);
+
+        try {
+            DB::transaction(function () use ($organizationId, $trip, $actor) {
+                $tripLocked = Trip::query()
+                    ->whereKey($trip)
+                    ->where('organization_id', $organizationId)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if (! in_array($tripLocked->status, ['PLANNED', 'CANCELLED'], true)) {
+                    throw ValidationException::withMessages([
+                        'trip' => ['Trip can only be deleted when status is PLANNED or CANCELLED.'],
+                    ]);
+                }
+
+                $items = TripItem::query()
+                    ->where('organization_id', $organizationId)
+                    ->where('trip_id', $tripLocked->id)
+                    ->lockForUpdate()
+                    ->get(['id', 'voucher_item_id', 'delivered_qty']);
+
+                $tripItemIds = $items->pluck('id')->map(fn ($id) => (int) $id)->all();
+                $voucherItemIds = $items->pluck('voucher_item_id')->map(fn ($id) => (int) $id)->filter(fn ($id) => $id > 0)->unique()->values()->all();
+                $voucherIds = $voucherItemIds === []
+                    ? []
+                    : VoucherItem::query()
+                        ->where('organization_id', $organizationId)
+                        ->whereIn('id', $voucherItemIds)
+                        ->pluck('voucher_id')
+                        ->map(fn ($id) => (int) $id)
+                        ->filter(fn ($id) => $id > 0)
+                        ->unique()
+                        ->values()
+                        ->all();
+
+                if ($items->contains(fn ($i) => (float) $i->delivered_qty > 0.0001)) {
+                    throw ValidationException::withMessages([
+                        'trip' => ['Trip has delivered quantity and cannot be deleted.'],
+                    ]);
+                }
+
+                if ($tripItemIds !== [] && DeliveryConfirmation::query()
+                    ->where('organization_id', $organizationId)
+                    ->whereIn('trip_item_id', $tripItemIds)
+                    ->exists()) {
+                    throw ValidationException::withMessages([
+                        'trip' => ['Trip has delivery confirmations and cannot be deleted.'],
+                    ]);
+                }
+
+                if ($tripItemIds !== [] && WarehouseFulfillmentInstruction::query()
+                    ->where('organization_id', $organizationId)
+                    ->whereIn('trip_item_id', $tripItemIds)
+                    ->exists()) {
+                    throw ValidationException::withMessages([
+                        'trip' => ['Trip has fulfillment processing records and cannot be deleted.'],
+                    ]);
+                }
+
+                FinanceEntry::query()
+                    ->where('organization_id', $organizationId)
+                    ->where(function ($q) use ($tripLocked) {
+                        $q->where(function ($q2) use ($tripLocked) {
+                            $q2->where('scope', 'TRIP_COST')
+                                ->where('reference_type', 'TRIP')
+                                ->where('reference_id', $tripLocked->id);
+                        })->orWhere(function ($q2) use ($tripLocked) {
+                            $q2->where('reference_type', 'TRIP_NET_INCOME')
+                                ->where('reference_id', $tripLocked->id);
+                        });
+                    })
+                    ->delete();
+
+                $tripNo = $tripLocked->trip_no;
+                $tripLocked->delete();
+
+                if ($voucherItemIds !== []) {
+                    $voucherItems = VoucherItem::query()
+                        ->where('organization_id', $organizationId)
+                        ->whereIn('id', $voucherItemIds)
+                        ->lockForUpdate()
+                        ->get();
+
+                    foreach ($voucherItems as $vi) {
+                        $this->refreshVoucherItemLoadedQty($vi);
+                        $this->refreshVoucherItemDeliveredQty($vi);
+                    }
+                }
+
+                if ($voucherIds !== []) {
+                    $this->voucherOperationalStatusSync->syncForVoucherIds($organizationId, $voucherIds, $actor);
+                }
+
+                AuditLogger::record($actor, 'trip.delete', $tripLocked, [
+                    'trip_no' => $tripNo,
+                ]);
+            });
+        } catch (ValidationException $e) {
+            return Redirect::back()->withErrors($e->errors());
+        }
+
+        return Redirect::route('admin.trips.index')->with('success', 'Trip deleted.');
     }
 
     public function storeNetIncomeLedgerEntry(Request $request, string $trip): RedirectResponse
@@ -439,6 +577,32 @@ class TripManagementController extends Controller
             ->filter(fn ($id) => $id > 0)
             ->values()
             ->all();
+
+        $pendingDeliveryLines = (int) TripItem::query()
+            ->where('organization_id', $organizationId)
+            ->where('trip_id', $tripModel->id)
+            ->where('loaded_qty', '>', 0)
+            ->whereRaw('delivered_qty + 0.0001 < loaded_qty')
+            ->count();
+        if ($pendingDeliveryLines > 0) {
+            return Redirect::route('admin.trips.show', $tripModel)
+                ->with('error', 'Deliver all cargo lines on this trip before adding net income to the ledger.');
+        }
+
+        if ($voucherIds === []) {
+            return Redirect::route('admin.trips.show', $tripModel)
+                ->with('error', 'Trip has no vouchers, so net income cannot be recorded.');
+        }
+
+        $unpaidVouchers = (int) Voucher::query()
+            ->where('organization_id', $organizationId)
+            ->whereIn('id', $voucherIds)
+            ->where('payment_status', '!=', 'PAID')
+            ->count();
+        if ($unpaidVouchers > 0) {
+            return Redirect::route('admin.trips.show', $tripModel)
+                ->with('error', 'All vouchers on this trip must be paid before adding net income to the ledger.');
+        }
 
         $voucherPaymentsTotal = 0.0;
         if ($voucherIds !== []) {

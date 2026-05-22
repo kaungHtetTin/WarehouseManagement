@@ -1,5 +1,6 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import { Head, router, usePage } from '@inertiajs/react';
+import { useT } from '@/i18n';
 import {
     Alert,
     Box,
@@ -37,6 +38,7 @@ const initialForm = {
 export default function WarehousesIndex() {
     const theme = useTheme();
     const isCompactList = useMediaQuery(theme.breakpoints.down('md'));
+    const t = useT();
     const page = usePage();
     const { warehouses = [], admin_app_url: adminAppUrl, flash = {}, auth } = page.props;
     const permissionCodes = auth?.permission_codes ?? [];
@@ -95,7 +97,7 @@ export default function WarehousesIndex() {
 
         const options = {
             preserveScroll: true,
-            onError: () => setError('Unable to save warehouse. Please check fields and try again.'),
+            onError: () => setError(t('master.warehouses.errors.save_failed')),
             onFinish: () => setProcessing(false),
             onSuccess: closeDialog,
         };
@@ -110,7 +112,7 @@ export default function WarehousesIndex() {
     const removeRow = (row) => {
         handleTableActionClose();
         if (!canManage) return;
-        if (!window.confirm(`Delete warehouse "${row.display_name || row.city || ''}"?`)) return;
+        if (!window.confirm(t('master.warehouses.confirm.delete', { name: row.display_name || row.city || '' }))) return;
 
         router.delete(`${adminAppUrl}/master/warehouses/${row.id}`, {
             preserveScroll: true,
@@ -118,8 +120,8 @@ export default function WarehousesIndex() {
     };
 
     return (
-        <AdminLayout title="Warehouses">
-            <Head title="Warehouses" />
+        <AdminLayout title={t('nav.warehouses')}>
+            <Head title={t('nav.warehouses')} />
             <Stack spacing={2}>
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
@@ -135,19 +137,19 @@ export default function WarehousesIndex() {
                 >
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                            Warehouses
+                            {t('nav.warehouses')}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                            Master data for warehouse locations in your organization.
+                            {t('master.warehouses.subtitle')}
                         </Typography>
                     </Box>
                     {canManage && (
-                        <Tooltip title="New warehouse" placement="bottom">
+                        <Tooltip title={t('master.warehouses.actions.new')} placement="bottom">
                             <Fab
                                 color="primary"
                                 size="small"
                                 onClick={openCreate}
-                                aria-label="Create warehouse"
+                                aria-label={t('master.warehouses.actions.create')}
                                 sx={{ boxShadow: 2, alignSelf: { xs: 'flex-end', md: 'auto' } }}
                             >
                                 <AddIcon fontSize="small" />
@@ -178,7 +180,7 @@ export default function WarehousesIndex() {
                                         <IconButton
                                             size="small"
                                             onClick={(event) => handleTableActionOpen(event, row)}
-                                            aria-label="Warehouse actions"
+                                            aria-label={t('master.warehouses.actions.row_actions')}
                                             sx={{ flexShrink: 0, mt: -0.25 }}
                                         >
                                             <MoreVertIcon fontSize="small" />
@@ -190,7 +192,7 @@ export default function WarehousesIndex() {
                         {warehouses.length === 0 && (
                             <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, boxShadow: 'none' }}>
                                 <Typography variant="body2" color="text.secondary">
-                                    No warehouses yet.
+                                    {t('master.warehouses.empty')}
                                 </Typography>
                             </Paper>
                         )}
@@ -200,9 +202,9 @@ export default function WarehousesIndex() {
                         <Table size="small">
                             <TableHead>
                                 <TableRow>
-                                    <TableCell>City</TableCell>
-                                    <TableCell>Address</TableCell>
-                                    <TableCell align="right">Actions</TableCell>
+                                    <TableCell>{t('master.warehouses.table.city')}</TableCell>
+                                    <TableCell>{t('master.warehouses.table.address')}</TableCell>
+                                    <TableCell align="right">{t('ui.actions')}</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -215,7 +217,7 @@ export default function WarehousesIndex() {
                                                 <IconButton
                                                     size="small"
                                                     onClick={(event) => handleTableActionOpen(event, row)}
-                                                    aria-label="Warehouse actions"
+                                                    aria-label={t('master.warehouses.actions.row_actions')}
                                                 >
                                                     <MoreVertIcon fontSize="small" />
                                                 </IconButton>
@@ -227,7 +229,7 @@ export default function WarehousesIndex() {
                                     <TableRow>
                                         <TableCell colSpan={3}>
                                             <Typography variant="body2" color="text.secondary">
-                                                No warehouses yet.
+                                                {t('master.warehouses.empty')}
                                             </Typography>
                                         </TableCell>
                                     </TableRow>
@@ -251,7 +253,7 @@ export default function WarehousesIndex() {
                             handleTableActionClose();
                         }}
                     >
-                        Edit
+                        {t('ui.edit')}
                     </MenuItem>
                     <MenuItem
                         dense
@@ -260,19 +262,23 @@ export default function WarehousesIndex() {
                             if (selectedRow) removeRow(selectedRow);
                         }}
                     >
-                        Delete
+                        {t('ui.delete')}
                     </MenuItem>
                 </Menu>
             </Stack>
 
             <Dialog open={open} onClose={closeDialog} fullWidth maxWidth="sm">
-                <DialogTitle>{form.id ? 'Edit Warehouse' : 'Create Warehouse'}</DialogTitle>
+                <DialogTitle>{form.id ? t('master.warehouses.dialog.edit_title') : t('master.warehouses.dialog.create_title')}</DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 0.5 }}>
                         {error && <Alert severity="error">{error}</Alert>}
-                        <TextField label="City" value={form.city} onChange={(e) => setForm((prev) => ({ ...prev, city: e.target.value }))} />
                         <TextField
-                            label="Address"
+                            label={t('master.warehouses.fields.city')}
+                            value={form.city}
+                            onChange={(e) => setForm((prev) => ({ ...prev, city: e.target.value }))}
+                        />
+                        <TextField
+                            label={t('master.warehouses.fields.address')}
                             value={form.address}
                             onChange={(e) => setForm((prev) => ({ ...prev, address: e.target.value }))}
                         />
@@ -280,10 +286,10 @@ export default function WarehousesIndex() {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={closeDialog} disabled={processing}>
-                        Cancel
+                        {t('ui.cancel')}
                     </Button>
                     <Button onClick={submit} variant="contained" disabled={processing || !canManage}>
-                        Save
+                        {t('ui.save')}
                     </Button>
                 </DialogActions>
             </Dialog>

@@ -1,12 +1,15 @@
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import React, { useEffect } from 'react';
 import {
     Alert,
     Box,
     Button,
     CircularProgress,
+    FormControl,
     IconButton,
     InputAdornment,
+    MenuItem,
+    Select,
     Stack,
     TextField,
     Typography,
@@ -14,18 +17,24 @@ import {
     useTheme,
 } from '@mui/material';
 import {
-    AdminPanelSettings as AdminIcon,
     Badge as BadgeIcon,
     Business as BusinessIcon,
     Email as EmailIcon,
     Lock as LockIcon,
+    LocalShipping as LocalShippingIcon,
     Person as PersonIcon,
     Visibility as VisibilityIcon,
     VisibilityOff as VisibilityOffIcon,
+    Warehouse as WarehouseIcon,
 } from '@mui/icons-material';
+import { useT } from '@/i18n';
 
 export default function Register() {
-    const { admin_app_url } = usePage().props;
+    const { admin_app_url, i18n } = usePage().props;
+    const t = useT();
+    const locale = i18n?.locale ?? 'en';
+    const supportedLocales = i18n?.supported_locales ?? { en: 'English' };
+    const setLocaleUrl = i18n?.set_locale_url;
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const [showPassword, setShowPassword] = React.useState(false);
@@ -53,7 +62,7 @@ export default function Register() {
 
     return (
         <Box sx={{ minHeight: '100vh', display: 'flex', bgcolor: 'background.paper' }}>
-            <Head title="Register" />
+            <Head title={t('auth.register_title')} />
             <Box
                 sx={{
                     width: '100%',
@@ -70,7 +79,7 @@ export default function Register() {
                             sx={{
                                 height: '100%',
                                 background:
-                                    'linear-gradient(rgba(15, 23, 42, 0.82), rgba(15, 23, 42, 0.82)), url("https://images.unsplash.com/photo-1523240795612-9a054b0db644?ixlib=rb-4.0.3&auto=format&fit=crop&w=1600&q=80")',
+                                    'linear-gradient(rgba(15, 23, 42, 0.84), rgba(15, 23, 42, 0.84)), url("https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?ixlib=rb-4.0.3&auto=format&fit=crop&w=1600&q=80")',
                                 backgroundSize: 'cover',
                                 backgroundPosition: 'center',
                                 display: 'flex',
@@ -93,20 +102,23 @@ export default function Register() {
                                             justifyContent: 'center',
                                         }}
                                     >
-                                        <AdminIcon sx={{ color: 'white', fontSize: 28 }} />
+                                        <WarehouseIcon sx={{ color: 'white', fontSize: 28 }} />
                                     </Box>
                                     <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: '-0.5px' }}>
-                                        Calamus Education
+                                        {t('app.name')}
                                     </Typography>
                                 </Stack>
                                 <Typography variant="h2" sx={{ fontWeight: 800, lineHeight: 1.1 }}>
-                                    Create your admin <br />
+                                    {t('register.hero_title_line1')} <br />
                                     <Box component="span" sx={{ color: 'primary.main' }}>
-                                        workspace account
+                                        {t('register.hero_title_line2')}
                                     </Box>
                                 </Typography>
                                 <Typography variant="h6" sx={{ color: 'grey.400', fontWeight: 400, maxWidth: 500 }}>
-                                    Start with a secure account to access dashboard tools and management workflows.
+                                    {t('register.hero_subtitle')}
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: 'grey.400' }}>
+                                    {t('login.footer_credit')}
                                 </Typography>
                             </Stack>
                         </Box>
@@ -139,20 +151,20 @@ export default function Register() {
                                             justifyContent: 'center',
                                         }}
                                     >
-                                        <AdminIcon sx={{ color: 'white', fontSize: 20 }} />
+                                    <LocalShippingIcon sx={{ color: 'white', fontSize: 20 }} />
                                     </Box>
                                     <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                                        Calamus
+                                    {t('app.short_name')}
                                     </Typography>
                                 </Stack>
                             )}
 
                             <Stack spacing={0.5} sx={{ mb: 3 }}>
                                 <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: '-0.5px' }}>
-                                    Register
+                                    {t('auth.register')}
                                 </Typography>
                                 <Typography variant="body2" color="text.secondary">
-                                    Create your account details to continue.
+                                    {t('register.prompt')}
                                 </Typography>
                             </Stack>
 
@@ -164,10 +176,26 @@ export default function Register() {
 
                             <Box component="form" onSubmit={submit}>
                                 <Stack spacing={2}>
+                                    <FormControl size="small">
+                                        <Select
+                                            value={locale}
+                                            onChange={(e) => {
+                                                const next = e.target.value;
+                                                if (!setLocaleUrl) return;
+                                                router.post(setLocaleUrl, { locale: next }, { preserveScroll: true, preserveState: true });
+                                            }}
+                                        >
+                                            {Object.entries(supportedLocales).map(([code, label]) => (
+                                                <MenuItem key={code} value={code}>
+                                                    {label}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </FormControl>
                                     <TextField
                                         fullWidth
                                         size="small"
-                                        label="Organization Name"
+                                        label={t('register.organization_name')}
                                         value={data.organization_name}
                                         onChange={(e) => setData('organization_name', e.target.value)}
                                         error={!!errors.organization_name}
@@ -184,7 +212,7 @@ export default function Register() {
                                     <TextField
                                         fullWidth
                                         size="small"
-                                        label="Full Name"
+                                        label={t('register.full_name')}
                                         value={data.name}
                                         onChange={(e) => setData('name', e.target.value)}
                                         error={!!errors.name}
@@ -202,7 +230,7 @@ export default function Register() {
                                     <TextField
                                         fullWidth
                                         size="small"
-                                        label="Email Address"
+                                        label={t('auth.email_address')}
                                         type="email"
                                         value={data.email}
                                         onChange={(e) => setData('email', e.target.value)}
@@ -220,7 +248,7 @@ export default function Register() {
                                     <TextField
                                         fullWidth
                                         size="small"
-                                        label="Password"
+                                        label={t('auth.password')}
                                         type={showPassword ? 'text' : 'password'}
                                         value={data.password}
                                         onChange={(e) => setData('password', e.target.value)}
@@ -249,7 +277,7 @@ export default function Register() {
                                     <TextField
                                         fullWidth
                                         size="small"
-                                        label="Confirm Password"
+                                        label={t('auth.confirm_password')}
                                         type={showConfirmPassword ? 'text' : 'password'}
                                         value={data.password_confirmation}
                                         onChange={(e) => setData('password_confirmation', e.target.value)}
@@ -293,14 +321,17 @@ export default function Register() {
                                             fontSize: '0.875rem',
                                         }}
                                     >
-                                        {processing ? <CircularProgress size={20} color="inherit" /> : 'Create Account'}
+                                        {processing ? <CircularProgress size={20} color="inherit" /> : t('auth.create_account')}
                                     </Button>
 
                                     <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
-                                        Already registered?{' '}
+                                        {t('register.already_registered')}{' '}
                                         <Link href={`${admin_app_url}/login`} style={{ color: theme.palette.primary.main, fontWeight: 600 }}>
-                                            Sign in
+                                            {t('auth.sign_in')}
                                         </Link>
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
+                                        {t('login.footer_credit')}
                                     </Typography>
                                 </Stack>
                             </Box>

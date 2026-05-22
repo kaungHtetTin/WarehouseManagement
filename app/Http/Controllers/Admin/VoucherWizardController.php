@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -166,33 +167,51 @@ class VoucherWizardController extends Controller
                 'nullable',
                 Rule::exists('merchants', 'id')->where(fn ($q) => $q->where('organization_id', $organizationId)),
             ],
-            'merchant' => ['required', 'array'],
-            'merchant.name' => ['required', 'string', 'max:255'],
+            'merchant' => ['nullable', 'array'],
+            'merchant.name' => ['nullable', 'string', 'max:255'],
             'merchant.phone' => ['nullable', 'string', 'max:64'],
             'payment_status' => ['sometimes', Rule::in(['UNPAID', 'PARTIAL', 'PAID', 'WAIVED'])],
         ], $this->rulesWizardDefaultDestination($organizationId), $this->rulesWizardMeta()));
 
         $voucher = DB::transaction(function () use ($actor, $organizationId, $validated) {
             $merchantId = $validated['merchant_id'] ?? null;
+            $merchantPayload = isset($validated['merchant']) && is_array($validated['merchant']) ? $validated['merchant'] : null;
+            $merchantName = $merchantPayload !== null ? trim((string) ($merchantPayload['name'] ?? '')) : '';
+            $merchantPhone = $merchantPayload !== null && array_key_exists('phone', $merchantPayload) ? $merchantPayload['phone'] : null;
+            $merchantPhone = $merchantPhone !== null ? trim((string) $merchantPhone) : null;
+            $merchantPhone = $merchantPhone === '' ? null : $merchantPhone;
+
             if ($merchantId === null) {
-                $merchant = Merchant::query()->create([
-                    'organization_id' => $organizationId,
-                    'name' => $validated['merchant']['name'],
-                    'phone' => $validated['merchant']['phone'] ?? null,
-                ]);
-                AuditLogger::record($actor, 'merchant.create', $merchant, ['name' => $merchant->name, 'context' => 'voucher_wizard']);
-                $merchantId = $merchant->id;
+                if ($merchantName !== '') {
+                    $merchant = Merchant::query()->create([
+                        'organization_id' => $organizationId,
+                        'name' => $merchantName,
+                        'phone' => $merchantPhone,
+                    ]);
+                    AuditLogger::record($actor, 'merchant.create', $merchant, ['name' => $merchant->name, 'context' => 'voucher_wizard']);
+                    $merchantId = $merchant->id;
+                }
             } else {
-                $merchant = Merchant::query()
-                    ->whereKey($merchantId)
-                    ->where('organization_id', $organizationId)
-                    ->firstOrFail();
-                $merchant->fill([
-                    'name' => $validated['merchant']['name'] ?? $merchant->name,
-                    'phone' => array_key_exists('phone', $validated['merchant'] ?? []) ? ($validated['merchant']['phone'] ?? null) : $merchant->phone,
-                ]);
-                $merchant->save();
-                AuditLogger::record($actor, 'merchant.update', $merchant, ['name' => $merchant->name, 'context' => 'voucher_wizard']);
+                if ($merchantPayload !== null) {
+                    $merchant = Merchant::query()
+                        ->whereKey($merchantId)
+                        ->where('organization_id', $organizationId)
+                        ->firstOrFail();
+
+                    $patch = [];
+                    if ($merchantName !== '') {
+                        $patch['name'] = $merchantName;
+                    }
+                    if (array_key_exists('phone', $merchantPayload)) {
+                        $patch['phone'] = $merchantPhone;
+                    }
+
+                    if ($patch !== []) {
+                        $merchant->fill($patch);
+                        $merchant->save();
+                        AuditLogger::record($actor, 'merchant.update', $merchant, ['name' => $merchant->name, 'context' => 'voucher_wizard']);
+                    }
+                }
             }
 
             $voucher = Voucher::query()->create(array_merge([
@@ -239,32 +258,60 @@ class VoucherWizardController extends Controller
             ],
             'remark' => ['nullable', 'string', 'max:2000'],
             'merchant_id' => [
-                'required',
+                'nullable',
                 Rule::exists('merchants', 'id')->where(fn ($q) => $q->where('organization_id', $organizationId)),
             ],
-            'merchant' => ['required', 'array'],
-            'merchant.name' => ['required', 'string', 'max:255'],
+            'merchant' => ['nullable', 'array'],
+            'merchant.name' => ['nullable', 'string', 'max:255'],
             'merchant.phone' => ['nullable', 'string', 'max:64'],
             'payment_status' => ['sometimes', Rule::in(['UNPAID', 'PARTIAL', 'PAID', 'WAIVED'])],
         ], $this->rulesWizardDefaultDestination($organizationId), $this->rulesWizardMeta()));
 
         DB::transaction(function () use ($actor, $voucherModel, $organizationId, $validated) {
-            $merchant = Merchant::query()
-                ->whereKey($validated['merchant_id'])
-                ->where('organization_id', $organizationId)
-                ->firstOrFail();
+            $merchantId = $validated['merchant_id'] ?? null;
+            $merchantPayload = isset($validated['merchant']) && is_array($validated['merchant']) ? $validated['merchant'] : null;
+            $merchantName = $merchantPayload !== null ? trim((string) ($merchantPayload['name'] ?? '')) : '';
+            $merchantPhone = $merchantPayload !== null && array_key_exists('phone', $merchantPayload) ? $merchantPayload['phone'] : null;
+            $merchantPhone = $merchantPhone !== null ? trim((string) $merchantPhone) : null;
+            $merchantPhone = $merchantPhone === '' ? null : $merchantPhone;
 
-            $merchant->fill([
-                'name' => $validated['merchant']['name'],
-                'phone' => $validated['merchant']['phone'] ?? null,
-            ]);
-            $merchant->save();
-            AuditLogger::record($actor, 'merchant.update', $merchant, ['name' => $merchant->name, 'context' => 'voucher_wizard']);
+            if ($merchantId === null) {
+                if ($merchantName !== '') {
+                    $merchant = Merchant::query()->create([
+                        'organization_id' => $organizationId,
+                        'name' => $merchantName,
+                        'phone' => $merchantPhone,
+                    ]);
+                    AuditLogger::record($actor, 'merchant.create', $merchant, ['name' => $merchant->name, 'context' => 'voucher_wizard']);
+                    $merchantId = $merchant->id;
+                }
+            } else {
+                if ($merchantPayload !== null) {
+                    $merchant = Merchant::query()
+                        ->whereKey($merchantId)
+                        ->where('organization_id', $organizationId)
+                        ->firstOrFail();
+
+                    $patch = [];
+                    if ($merchantName !== '') {
+                        $patch['name'] = $merchantName;
+                    }
+                    if (array_key_exists('phone', $merchantPayload)) {
+                        $patch['phone'] = $merchantPhone;
+                    }
+
+                    if ($patch !== []) {
+                        $merchant->fill($patch);
+                        $merchant->save();
+                        AuditLogger::record($actor, 'merchant.update', $merchant, ['name' => $merchant->name, 'context' => 'voucher_wizard']);
+                    }
+                }
+            }
 
             $voucherModel->fill(array_merge([
                 'voucher_date' => $validated['voucher_date'],
                 'source_warehouse_id' => $validated['source_warehouse_id'],
-                'merchant_id' => $merchant->id,
+                'merchant_id' => $merchantId,
                 'remark' => $validated['remark'] ?? null,
                 'payment_status' => $validated['payment_status'] ?? $voucherModel->payment_status,
             ], $this->payloadWizardDefaultDestination($validated), $this->payloadWizardMeta($validated)));
@@ -521,8 +568,8 @@ class VoucherWizardController extends Controller
                 Rule::exists('warehouses', 'id')->where(fn ($q) => $q->where('organization_id', $organizationId)),
             ],
             'default_to_address_line1' => ['nullable', 'string', 'max:500'],
-            'default_recipient_name' => ['nullable', 'string', 'max:255'],
-            'default_recipient_phone' => ['nullable', 'string', 'max:64'],
+            'default_recipient_name' => ['required', 'string', 'max:255'],
+            'default_recipient_phone' => ['required', 'string', 'max:64'],
             'default_destination_remark' => ['nullable', 'string', 'max:2000'],
         ];
     }
@@ -546,6 +593,14 @@ class VoucherWizardController extends Controller
             ? trim((string) $validated['default_to_address_line1'])
             : '';
         $addressLine1 = $addressLine1 !== '' ? $addressLine1 : ($warehouse->address ?? null);
+        if ($addressLine1 === null || trim((string) $addressLine1) === '') {
+            throw ValidationException::withMessages([
+                'default_to_address_line1' => 'Destination address is required.',
+            ]);
+        }
+
+        $recipientName = trim((string) $validated['default_recipient_name']);
+        $recipientPhone = trim((string) $validated['default_recipient_phone']);
 
         return [
             'default_to_warehouse_id' => $warehouseId,
@@ -555,8 +610,8 @@ class VoucherWizardController extends Controller
             'default_to_township' => null,
             'default_to_region' => null,
             'default_to_postal_code' => null,
-            'default_recipient_name' => $validated['default_recipient_name'] ?? null,
-            'default_recipient_phone' => $validated['default_recipient_phone'] ?? null,
+            'default_recipient_name' => $recipientName,
+            'default_recipient_phone' => $recipientPhone,
             'default_destination_remark' => $validated['default_destination_remark'] ?? null,
         ];
     }
@@ -706,30 +761,12 @@ class VoucherWizardController extends Controller
             return (float) $i->qty * (float) $w;
         });
 
-        $costSum = 0.0;
-        $costs = $voucher->additional_costs;
-        if (is_array($costs)) {
-            foreach ($costs as $row) {
-                if (! is_array($row)) {
-                    continue;
-                }
-                $a = $row['amount'] ?? null;
-                if ($a === null || $a === '') {
-                    continue;
-                }
-                $n = (float) $a;
-                if ($n > 0) {
-                    $costSum += $n;
-                }
-            }
-        }
-
         $voucher->total_qty = $totalQty;
         if ($voucher->total_weight === null) {
             $voucher->total_weight = round((float) $totalWeight, 3);
         }
 
-        $computedTotal = round((float) $freightSum + (float) $costSum, 2);
+        $computedTotal = round((float) $freightSum, 2);
         $voucher->total_amount = $computedTotal > 0.0001 ? $computedTotal : null;
         $voucher->save();
     }

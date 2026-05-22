@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Organization;
+use App\Models\OrganizationPublicPage;
 use App\Models\Product;
 use App\Models\TripItem;
 use App\Models\User;
@@ -51,7 +53,7 @@ class VoucherManagementController extends Controller
         $paymentFilter = in_array($rawPaymentFilter, ['UNPAID', 'PARTIAL', 'PAID', 'WAIVED', 'all'], true) ? $rawPaymentFilter : 'all';
 
         $rawStatusFilter = (string) $request->query('status', 'all');
-        $statusFilter = in_array($rawStatusFilter, ['all', 'not_delivered', 'delivered'], true)
+        $statusFilter = in_array($rawStatusFilter, ['all', 'confirmed', 'loading', 'in_transit', 'delivered'], true)
             ? $rawStatusFilter
             : 'all';
 
@@ -72,8 +74,60 @@ class VoucherManagementController extends Controller
 
         if ($statusFilter === 'delivered') {
             $query->whereIn('status', ['DELIVERED', 'CLOSED']);
-        } elseif ($statusFilter === 'not_delivered') {
-            $query->whereNotIn('status', ['DELIVERED', 'CLOSED']);
+        } elseif ($statusFilter === 'loading') {
+            $query
+                ->whereNotIn('status', ['DELIVERED', 'CLOSED'])
+                ->whereExists(function ($q) use ($organizationId) {
+                    $q->selectRaw('1')
+                        ->from('trip_items as ti')
+                        ->join('voucher_items as vi', function ($j) use ($organizationId) {
+                            $j->on('vi.id', '=', 'ti.voucher_item_id')
+                                ->where('vi.organization_id', '=', $organizationId);
+                        })
+                        ->join('trips as t', function ($j) use ($organizationId) {
+                            $j->on('t.id', '=', 'ti.trip_id')
+                                ->where('t.organization_id', '=', $organizationId);
+                        })
+                        ->where('ti.organization_id', $organizationId)
+                        ->whereColumn('vi.voucher_id', 'vouchers.id')
+                        ->whereIn('t.status', ['PLANNED', 'LOADING']);
+                });
+        } elseif ($statusFilter === 'in_transit') {
+            $query
+                ->whereNotIn('status', ['DELIVERED', 'CLOSED'])
+                ->whereExists(function ($q) use ($organizationId) {
+                    $q->selectRaw('1')
+                        ->from('trip_items as ti')
+                        ->join('voucher_items as vi', function ($j) use ($organizationId) {
+                            $j->on('vi.id', '=', 'ti.voucher_item_id')
+                                ->where('vi.organization_id', '=', $organizationId);
+                        })
+                        ->join('trips as t', function ($j) use ($organizationId) {
+                            $j->on('t.id', '=', 'ti.trip_id')
+                                ->where('t.organization_id', '=', $organizationId);
+                        })
+                        ->where('ti.organization_id', $organizationId)
+                        ->whereColumn('vi.voucher_id', 'vouchers.id')
+                        ->whereIn('t.status', ['DEPARTED', 'AT_STOP']);
+                });
+        } elseif ($statusFilter === 'confirmed') {
+            $query
+                ->where('status', 'CONFIRMED')
+                ->whereNotExists(function ($q) use ($organizationId) {
+                    $q->selectRaw('1')
+                        ->from('trip_items as ti')
+                        ->join('voucher_items as vi', function ($j) use ($organizationId) {
+                            $j->on('vi.id', '=', 'ti.voucher_item_id')
+                                ->where('vi.organization_id', '=', $organizationId);
+                        })
+                        ->join('trips as t', function ($j) use ($organizationId) {
+                            $j->on('t.id', '=', 'ti.trip_id')
+                                ->where('t.organization_id', '=', $organizationId);
+                        })
+                        ->where('ti.organization_id', $organizationId)
+                        ->whereColumn('vi.voucher_id', 'vouchers.id')
+                        ->whereIn('t.status', ['PLANNED', 'LOADING', 'DEPARTED', 'AT_STOP']);
+                });
         }
 
         $vouchers = $query
@@ -127,6 +181,85 @@ class VoucherManagementController extends Controller
             'can_record_voucher_payments' => $user->hasPermission('payments.manage'),
             'can_manage_voucher_lines' => $user->hasPermission('vouchers.manage'),
             'warehouses' => $this->operationalContext->accessibleWarehousesForUi($user)->values(),
+        ]);
+    }
+
+    public function print(Request $request, string $voucher): Response
+    {
+        $user = $request->user();
+        $organizationId = $user->organization_id;
+        abort_if($organizationId === null, 404);
+
+        $model = Voucher::query()
+            ->whereKey($voucher)
+            ->where('organization_id', $organizationId)
+            ->with([
+                'merchant:id,name,phone,nrc_or_id,address',
+                'sourceWarehouse:id,city,address',
+                'defaultToWarehouse:id,city,address',
+                'creator:id,name',
+                'payments' => fn ($q) => $q
+                    ->orderByDesc('paid_at')
+                    ->select(['id', 'organization_id', 'voucher_id', 'amount', 'currency', 'paid_at']),
+                'items' => fn ($q) => $q->orderBy('line_no')->with([
+                    'product:id,name,unit,sku',
+                    'fromWarehouse:id,city,address',
+                ]),
+            ])
+            ->firstOrFail();
+
+        $organization = Organization::query()
+            ->whereKey($organizationId)
+            ->firstOrFail();
+
+        $page = OrganizationPublicPage::query()->firstOrCreate(
+            ['organization_id' => $organizationId],
+            [
+                'slug' => $organization->code,
+                'is_published' => false,
+                'business_name' => $organization->name,
+            ],
+        );
+
+        $templateDefaults = [
+            'paper_size' => 'A4',
+            'header_title' => $organization->name,
+            'header_subtitle' => 'Voucher',
+            'show_logo' => true,
+            'logo_url' => $page->logo_url,
+            'show_contact' => true,
+            'contact_phone' => $page->phone,
+            'contact_email' => $page->email,
+            'contact_address' => $page->address,
+            'footer_note' => null,
+            'show_payment_status' => true,
+            'show_signature_boxes' => true,
+        ];
+
+        $raw = is_array($organization->voucher_print_template) ? $organization->voucher_print_template : [];
+        $template = array_merge($templateDefaults, $raw);
+
+        $paperParam = strtoupper(trim((string) $request->query('paper', '')));
+        if (in_array($paperParam, ['A4', 'RECEIPT_80'], true)) {
+            $template['paper_size'] = $paperParam;
+        } elseif (in_array($paperParam, ['80', '80MM', 'RECEIPT', 'RECEIPT80'], true)) {
+            $template['paper_size'] = 'RECEIPT_80';
+        }
+
+        if (empty($template['logo_url'])) {
+            $template['logo_url'] = null;
+        }
+        if (empty($template['footer_note'])) {
+            $template['footer_note'] = null;
+        }
+
+        return Inertia::render('Admin/Operations/VoucherPrint', [
+            'voucher' => $model,
+            'template' => $template,
+            'tracking_url' => route('public.voucher.track', [
+                'org' => $organization->code,
+                'voucherNo' => $model->voucher_no,
+            ]),
         ]);
     }
 
@@ -736,30 +869,12 @@ class VoucherManagementController extends Controller
             return (float) $i->qty * (float) $w;
         });
 
-        $costSum = 0.0;
-        $costs = $voucher->additional_costs;
-        if (is_array($costs)) {
-            foreach ($costs as $row) {
-                if (! is_array($row)) {
-                    continue;
-                }
-                $a = $row['amount'] ?? null;
-                if ($a === null || $a === '') {
-                    continue;
-                }
-                $n = (float) $a;
-                if ($n > 0) {
-                    $costSum += $n;
-                }
-            }
-        }
-
         $voucher->total_qty = $totalQty;
         if ($voucher->total_weight === null) {
             $voucher->total_weight = round((float) $totalWeight, 3);
         }
 
-        $computedTotal = round((float) $freightSum + (float) $costSum, 2);
+        $computedTotal = round((float) $freightSum, 2);
         $voucher->total_amount = $computedTotal > 0.0001 ? $computedTotal : null;
         $voucher->save();
     }

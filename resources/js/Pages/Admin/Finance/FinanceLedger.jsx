@@ -1,5 +1,6 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import { Head, Link, router, usePage } from '@inertiajs/react';
+import { useT } from '@/i18n';
 import {
     Alert,
     Box,
@@ -53,6 +54,7 @@ export default function FinanceLedger() {
     const theme = useTheme();
     const isSmUp = useMediaQuery(theme.breakpoints.up('sm'));
     const isMdUp = useMediaQuery(theme.breakpoints.up('md'));
+    const t = useT();
 
     const pageProps = usePage().props;
     const adminAppUrl = pageProps.admin_app_url;
@@ -145,16 +147,16 @@ export default function FinanceLedger() {
         setEntryDialogError('');
 
         if (!entryForm.category_id) {
-            setEntryDialogError('Select a category.');
+            setEntryDialogError(t('finance.ledger.errors.select_category'));
             return;
         }
         const amount = Number(entryForm.amount);
         if (!Number.isFinite(amount) || amount <= 0) {
-            setEntryDialogError('Enter a valid amount.');
+            setEntryDialogError(t('finance.ledger.errors.valid_amount'));
             return;
         }
         if (!entryForm.occurred_at) {
-            setEntryDialogError('Select a date.');
+            setEntryDialogError(t('finance.ledger.errors.select_date'));
             return;
         }
 
@@ -186,15 +188,15 @@ export default function FinanceLedger() {
 
     const removeEntry = (row) => {
         if (!canManageFinance) return;
-        if (!window.confirm('Delete this finance entry?')) return;
+        if (!window.confirm(t('finance.ledger.confirm.delete_entry'))) return;
         router.delete(`${adminAppUrl}/finance/entries/${row.id}`, { preserveScroll: true });
     };
 
     const directionChipColor = (d) => (d === 'INCOME' ? 'success' : 'warning');
 
     return (
-        <AdminLayout title="Finance Ledger">
-            <Head title="Finance Ledger" />
+        <AdminLayout title={t('finance.ledger.title')}>
+            <Head title={t('finance.ledger.title')} />
             <Stack spacing={2.5}>
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
@@ -204,15 +206,15 @@ export default function FinanceLedger() {
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ justifyContent: 'space-between', alignItems: { sm: 'center' } }}>
                             <Box>
                                 <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                                    Finance Ledger
+                                    {t('finance.ledger.title')}
                                 </Typography>
                                 <Typography variant="body2" color="text.secondary">
-                                    All income/expense events (manual + system generated).
+                                    {t('finance.ledger.subtitle')}
                                 </Typography>
                             </Box>
                             {canManageFinance ? (
                                 <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-                                    Add entry
+                                    {t('finance.ledger.actions.add_entry')}
                                 </Button>
                             ) : null}
                         </Stack>
@@ -222,7 +224,7 @@ export default function FinanceLedger() {
                         <Grid container spacing={1.5}>
                             <Grid item xs={12} sm={6} md={3}>
                                 <Typography variant="caption" color="text.secondary">
-                                    Total income
+                                    {t('finance.totals.total_income')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 800 }}>
                                     {formatMoney(totals.income, 'MMK')}
@@ -230,7 +232,7 @@ export default function FinanceLedger() {
                             </Grid>
                             <Grid item xs={12} sm={6} md={3}>
                                 <Typography variant="caption" color="text.secondary">
-                                    Total expense
+                                    {t('finance.totals.total_expense')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 800 }}>
                                     {formatMoney(totals.expense, 'MMK')}
@@ -238,7 +240,7 @@ export default function FinanceLedger() {
                             </Grid>
                             <Grid item xs={12} sm={6} md={3}>
                                 <Typography variant="caption" color="text.secondary">
-                                    Net
+                                    {t('finance.totals.net')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 800 }}>
                                     {formatMoney(totals.net, 'MMK')}
@@ -252,7 +254,7 @@ export default function FinanceLedger() {
                             <TextField
                                 size="small"
                                 type="date"
-                                label="From"
+                                label={t('filters.from')}
                                 InputLabelProps={{ shrink: true }}
                                 value={from}
                                 onChange={(e) => {
@@ -264,7 +266,7 @@ export default function FinanceLedger() {
                             <TextField
                                 size="small"
                                 type="date"
-                                label="To"
+                                label={t('filters.to')}
                                 InputLabelProps={{ shrink: true }}
                                 value={to}
                                 onChange={(e) => {
@@ -274,33 +276,33 @@ export default function FinanceLedger() {
                                 sx={{ width: { xs: '100%', md: 170 } }}
                             />
                             <FormControl size="small" sx={{ width: { xs: '100%', md: 170 } }}>
-                                <InputLabel id="fin-direction">Direction</InputLabel>
+                                <InputLabel id="fin-direction">{t('finance.ledger.filters.direction')}</InputLabel>
                                 <Select
                                     labelId="fin-direction"
-                                    label="Direction"
+                                    label={t('finance.ledger.filters.direction')}
                                     value={direction}
                                     onChange={(e) => {
                                         setDirection(e.target.value);
                                         applyFilters({ direction: e.target.value });
                                     }}
                                 >
-                                    <MenuItem value="all">All</MenuItem>
-                                    <MenuItem value="INCOME">INCOME</MenuItem>
-                                    <MenuItem value="EXPENSE">EXPENSE</MenuItem>
+                                    <MenuItem value="all">{t('filters.all')}</MenuItem>
+                                    <MenuItem value="INCOME">{t('finance.direction.income')}</MenuItem>
+                                    <MenuItem value="EXPENSE">{t('finance.direction.expense')}</MenuItem>
                                 </Select>
                             </FormControl>
                             <FormControl size="small" sx={{ width: { xs: '100%', md: 240 } }}>
-                                <InputLabel id="fin-category">Category</InputLabel>
+                                <InputLabel id="fin-category">{t('finance.ledger.filters.category')}</InputLabel>
                                 <Select
                                     labelId="fin-category"
-                                    label="Category"
+                                    label={t('finance.ledger.filters.category')}
                                     value={categoryId}
                                     onChange={(e) => {
                                         setCategoryId(e.target.value);
                                         applyFilters({ category_id: e.target.value });
                                     }}
                                 >
-                                    <MenuItem value="all">All</MenuItem>
+                                    <MenuItem value="all">{t('filters.all')}</MenuItem>
                                     {effectiveCategories.map((c) => (
                                         <MenuItem key={c.id} value={String(c.id)}>
                                             {c.scope} · {c.name}
@@ -311,7 +313,7 @@ export default function FinanceLedger() {
                         </Stack>
                         <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                             <FilterIcon fontSize="inherit" />
-                            Showing up to the latest 500 entries for the selected filters.
+                            {t('finance.ledger.filters.limit_hint')}
                         </Typography>
                     </Stack>
                 </Paper>
@@ -321,12 +323,12 @@ export default function FinanceLedger() {
                         <Table size="small">
                             <TableHead>
                                 <TableRow>
-                                    <TableCell>Date</TableCell>
-                                    <TableCell>Direction</TableCell>
-                                    <TableCell>Category</TableCell>
-                                    <TableCell align="right">Amount</TableCell>
-                                    <TableCell>Note</TableCell>
-                                    <TableCell align="right">Actions</TableCell>
+                                    <TableCell>{t('finance.ledger.table.date')}</TableCell>
+                                    <TableCell>{t('finance.ledger.table.direction')}</TableCell>
+                                    <TableCell>{t('finance.ledger.table.category')}</TableCell>
+                                    <TableCell align="right">{t('finance.ledger.table.amount')}</TableCell>
+                                    <TableCell>{t('finance.ledger.table.note')}</TableCell>
+                                    <TableCell align="right">{t('ui.actions')}</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -350,7 +352,7 @@ export default function FinanceLedger() {
                                                 {canEdit ? (
                                                     <IconButton
                                                         size="small"
-                                                        aria-label="Entry actions"
+                                                        aria-label={t('finance.ledger.actions.entry_actions')}
                                                         onClick={(e) => setRowMenu({ anchorEl: e.currentTarget, row })}
                                                     >
                                                         <MoreVertIcon fontSize="small" />
@@ -366,7 +368,7 @@ export default function FinanceLedger() {
                                     <TableRow>
                                         <TableCell colSpan={6}>
                                             <Typography variant="body2" color="text.secondary">
-                                                No entries for the selected filters.
+                                                {t('finance.ledger.empty')}
                                             </Typography>
                                         </TableCell>
                                     </TableRow>
@@ -393,10 +395,10 @@ export default function FinanceLedger() {
                                             </Box>
                                             {canEdit ? (
                                                 <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
-                                                    <IconButton size="small" onClick={() => openEdit(row)} aria-label="Edit entry">
+                                                    <IconButton size="small" onClick={() => openEdit(row)} aria-label={t('ui.edit')}>
                                                         <EditIcon fontSize="small" />
                                                     </IconButton>
-                                                    <IconButton size="small" onClick={() => removeEntry(row)} aria-label="Delete entry" sx={{ color: 'error.main' }}>
+                                                    <IconButton size="small" onClick={() => removeEntry(row)} aria-label={t('ui.delete')} sx={{ color: 'error.main' }}>
                                                         <DeleteIcon fontSize="small" />
                                                     </IconButton>
                                                 </Box>
@@ -410,13 +412,13 @@ export default function FinanceLedger() {
                                         <Grid container spacing={1}>
                                             <Grid item xs={12} sm={6}>
                                                 <Typography variant="caption" color="text.secondary">
-                                                    Category
+                                                    {t('finance.ledger.table.category')}
                                                 </Typography>
                                                 <Typography variant="body2">{row.category?.name ?? '—'}</Typography>
                                             </Grid>
                                             <Grid item xs={12} sm={6}>
                                                 <Typography variant="caption" color="text.secondary">
-                                                    Note
+                                                    {t('finance.ledger.table.note')}
                                                 </Typography>
                                                 <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
                                                     {row.note || '—'}
@@ -430,7 +432,7 @@ export default function FinanceLedger() {
                         {entries.length === 0 ? (
                             <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
                                 <Typography variant="body2" color="text.secondary">
-                                    No entries for the selected filters.
+                                    {t('finance.ledger.empty')}
                                 </Typography>
                             </Paper>
                         ) : null}
@@ -453,7 +455,7 @@ export default function FinanceLedger() {
                             openEdit(row);
                         }}
                     >
-                        Edit
+                        {t('ui.edit')}
                     </MenuItem>
                     <MenuItem
                         dense
@@ -465,22 +467,24 @@ export default function FinanceLedger() {
                             removeEntry(row);
                         }}
                     >
-                        Delete
+                        {t('ui.delete')}
                     </MenuItem>
                 </Menu>
 
                 <Dialog open={entryDialogOpen} onClose={closeDialog} fullWidth maxWidth="sm">
-                    <DialogTitle sx={{ fontWeight: 800 }}>{entryForm.id ? 'Edit entry' : 'Add entry'}</DialogTitle>
+                    <DialogTitle sx={{ fontWeight: 800 }}>
+                        {entryForm.id ? t('finance.ledger.dialog.edit_title') : t('finance.ledger.dialog.add_title')}
+                    </DialogTitle>
                     <DialogContent>
                         <Stack spacing={1.5} sx={{ mt: 1 }}>
                             {entryDialogError ? <Alert severity="error">{entryDialogError}</Alert> : null}
 
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
                                 <FormControl fullWidth size="small">
-                                    <InputLabel id="entry-direction">Direction</InputLabel>
+                                    <InputLabel id="entry-direction">{t('finance.ledger.table.direction')}</InputLabel>
                                     <Select
                                         labelId="entry-direction"
-                                        label="Direction"
+                                        label={t('finance.ledger.table.direction')}
                                         value={entryForm.direction}
                                         onChange={(e) => {
                                             const next = e.target.value;
@@ -488,18 +492,18 @@ export default function FinanceLedger() {
                                         }}
                                         disabled={entryDialogProcessing}
                                     >
-                                        <MenuItem value="EXPENSE">EXPENSE</MenuItem>
-                                        <MenuItem value="INCOME">INCOME</MenuItem>
+                                        <MenuItem value="EXPENSE">{t('finance.direction.expense')}</MenuItem>
+                                        <MenuItem value="INCOME">{t('finance.direction.income')}</MenuItem>
                                     </Select>
                                 </FormControl>
                             </Stack>
 
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
                                 <FormControl fullWidth size="small">
-                                    <InputLabel id="entry-category">Category</InputLabel>
+                                    <InputLabel id="entry-category">{t('finance.ledger.table.category')}</InputLabel>
                                     <Select
                                         labelId="entry-category"
-                                        label="Category"
+                                        label={t('finance.ledger.table.category')}
                                         value={entryForm.category_id}
                                         onChange={(e) => setEntryForm((p) => ({ ...p, category_id: e.target.value }))}
                                         disabled={entryDialogProcessing}
@@ -518,7 +522,7 @@ export default function FinanceLedger() {
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
                                 <TextField
                                     size="small"
-                                    label="Amount"
+                                    label={t('finance.ledger.table.amount')}
                                     type="number"
                                     value={entryForm.amount}
                                     onChange={(e) => setEntryForm((p) => ({ ...p, amount: e.target.value }))}
@@ -529,7 +533,7 @@ export default function FinanceLedger() {
                                 />
                                 <TextField
                                     size="small"
-                                    label="Currency"
+                                    label={t('finance.ledger.fields.currency')}
                                     value={entryForm.currency}
                                     onChange={(e) => setEntryForm((p) => ({ ...p, currency: e.target.value }))}
                                     fullWidth
@@ -538,7 +542,7 @@ export default function FinanceLedger() {
                                 <TextField
                                     size="small"
                                     type="date"
-                                    label="Date"
+                                    label={t('finance.ledger.table.date')}
                                     InputLabelProps={{ shrink: true }}
                                     value={entryForm.occurred_at}
                                     onChange={(e) => setEntryForm((p) => ({ ...p, occurred_at: e.target.value }))}
@@ -550,7 +554,7 @@ export default function FinanceLedger() {
 
                             <TextField
                                 size="small"
-                                label="Note"
+                                label={t('finance.ledger.table.note')}
                                 value={entryForm.note}
                                 onChange={(e) => setEntryForm((p) => ({ ...p, note: e.target.value }))}
                                 fullWidth
@@ -562,10 +566,10 @@ export default function FinanceLedger() {
                     </DialogContent>
                     <DialogActions sx={{ px: 3, pb: 2.5 }}>
                         <Button onClick={closeDialog} disabled={entryDialogProcessing}>
-                            Cancel
+                            {t('ui.cancel')}
                         </Button>
                         <Button variant="contained" onClick={submitEntry} disabled={entryDialogProcessing}>
-                            Save
+                            {t('ui.save')}
                         </Button>
                     </DialogActions>
                 </Dialog>

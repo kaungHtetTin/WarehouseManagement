@@ -35,11 +35,24 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $path = parse_url(url('/'), PHP_URL_PATH) ?: '';
+        $locale = app()->getLocale();
+        $fallbackLocale = (string) config('app.fallback_locale', 'en');
+        $supportedLocales = (array) config('app.supported_locales', ['en' => 'English']);
+        $translations = $this->loadJsonTranslations($locale);
+        $fallbackTranslations = $locale === $fallbackLocale ? $translations : $this->loadJsonTranslations($fallbackLocale);
 
         return array_merge(parent::share($request), [
             'app_url' => config('app.url'),
             'admin_app_url' => config('app.admin_app_url'),
             'app_base' => $path,
+            'i18n' => [
+                'locale' => $locale,
+                'fallback_locale' => $fallbackLocale,
+                'supported_locales' => $supportedLocales,
+                'translations' => $translations,
+                'fallback_translations' => $fallbackTranslations,
+                'set_locale_url' => url('/locale'),
+            ],
             'auth' => [
                 'user' => $request->user(),
                 'permission_codes' => fn () => $request->user()?->allPermissionCodes() ?? [],
@@ -55,6 +68,23 @@ class HandleInertiaRequests extends Middleware
                 'error' => fn () => $request->session()->get('error'),
             ],
         ]);
+    }
+
+    private function loadJsonTranslations(string $locale): array
+    {
+        $path = lang_path($locale.'.json');
+        if (! is_file($path)) {
+            return [];
+        }
+
+        $raw = file_get_contents($path);
+        if (! is_string($raw) || $raw === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+
+        return is_array($decoded) ? $decoded : [];
     }
 
     private function fulfillmentInboxPendingCount(Request $request): int

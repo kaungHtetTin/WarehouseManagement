@@ -20,8 +20,12 @@ use App\Http\Controllers\Admin\WarehouseFulfillmentController;
 use App\Http\Controllers\Admin\OrganizationPublicPageController;
 use App\Http\Controllers\Admin\OrganizationSettingsController;
 use App\Http\Controllers\PublicOrganizationPageController;
+use App\Http\Controllers\PublicVoucherTrackingController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -35,6 +39,22 @@ use Inertia\Inertia;
 | contains the "web" middleware group. Now create something great!
 |
 */
+
+Route::post('/locale', function (Request $request) {
+    $supported = array_keys((array) config('app.supported_locales', ['en' => 'English']));
+    $fallback = (string) config('app.fallback_locale', 'en');
+
+    $locale = (string) $request->input('locale', $fallback);
+    if (! in_array($locale, $supported, true)) {
+        $locale = $fallback;
+    }
+
+    $request->session()->put('locale', $locale);
+    Cookie::queue(cookie()->forever('locale', $locale));
+    App::setLocale($locale);
+
+    return back();
+})->name('locale.set');
 
 Route::prefix('admin')->name('admin.')->group(function () {
     Route::middleware('guest')->group(function () {
@@ -63,6 +83,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::patch('/system/organization-settings', [OrganizationSettingsController::class, 'update'])
             ->middleware('permission:public_page.manage')
             ->name('organization-settings.update');
+        Route::patch('/system/organization-settings/voucher-print-template', [OrganizationSettingsController::class, 'updateVoucherPrintTemplate'])
+            ->middleware('permission:public_page.manage')
+            ->name('organization-settings.voucher-print-template');
+        Route::post('/system/organization-settings/voucher-print-logo', [OrganizationSettingsController::class, 'uploadVoucherPrintLogo'])
+            ->middleware('permission:public_page.manage')
+            ->name('organization-settings.voucher-print-logo');
         Route::post('/system/organization-settings/logo', [OrganizationSettingsController::class, 'uploadLogo'])
             ->middleware('permission:public_page.manage')
             ->name('organization-settings.logo');
@@ -251,6 +277,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/operations/trips/{trip}', [TripManagementController::class, 'show'])
             ->middleware('permission:trips.view')
             ->name('trips.show');
+        Route::delete('/operations/trips/{trip}', [TripManagementController::class, 'destroy'])
+            ->middleware('permission:trips.manage')
+            ->name('trips.destroy');
         Route::get('/operations/trips/{trip}/manifest', [TripManagementController::class, 'manifest'])
             ->middleware('permission:trips.view')
             ->name('trips.manifest');
@@ -345,6 +374,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/operations/vouchers/{voucher}', [VoucherManagementController::class, 'show'])
             ->middleware('permission:vouchers.view')
             ->name('vouchers.show');
+        Route::get('/operations/vouchers/{voucher}/print', [VoucherManagementController::class, 'print'])
+            ->middleware('permission:vouchers.view|vouchers.manage')
+            ->name('vouchers.print');
         Route::post('/operations/vouchers/{voucher}/payments', [VoucherManagementController::class, 'storePayment'])
             ->middleware('permission:payments.manage')
             ->name('vouchers.payments.store');
@@ -370,6 +402,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
 });
 
 Route::get('/p/{slug}', [PublicOrganizationPageController::class, 'show'])->name('public-page.show');
+Route::get('/track/{org}/{voucherNo}', [PublicVoucherTrackingController::class, 'show'])
+    ->where(['org' => '[A-Za-z0-9_-]+', 'voucherNo' => '[A-Za-z0-9_-]+' ])
+    ->name('public.voucher.track');
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [

@@ -1,5 +1,6 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import { Head, router, usePage } from '@inertiajs/react';
+import { useT } from '@/i18n';
 import {
     Alert,
     Box,
@@ -40,6 +41,7 @@ const initialForm = {
 export default function CategoriesIndex() {
     const theme = useTheme();
     const isCompactList = useMediaQuery(theme.breakpoints.down('md'));
+    const t = useT();
     const { categories = [], admin_app_url: adminAppUrl, flash = {}, auth } = usePage().props;
     const [open, setOpen] = useState(false);
     const [form, setForm] = useState(initialForm);
@@ -97,7 +99,7 @@ export default function CategoriesIndex() {
 
         const options = {
             preserveScroll: true,
-            onError: () => setError('Unable to save category. Please check fields and try again.'),
+            onError: () => setError(t('master.categories.errors.save_failed')),
             onFinish: () => setProcessing(false),
             onSuccess: closeDialog,
         };
@@ -112,13 +114,13 @@ export default function CategoriesIndex() {
     const removeCategory = (category) => {
         handleTableActionClose();
         if (!canManage) return;
-        if (!window.confirm(`Delete category "${category.name}"?`)) return;
+        if (!window.confirm(t('master.categories.confirm.delete', { name: category.name }))) return;
         router.delete(`${adminAppUrl}/master/categories/${category.id}`, { preserveScroll: true });
     };
 
     return (
-        <AdminLayout title="Categories">
-            <Head title="Categories" />
+        <AdminLayout title={t('nav.categories')}>
+            <Head title={t('nav.categories')} />
             <Stack spacing={2}>
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
@@ -134,10 +136,10 @@ export default function CategoriesIndex() {
                 >
                     <Box>
                         <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                            Categories
+                            {t('nav.categories')}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                            Product grouping for inventory management.
+                            {t('master.categories.subtitle')}
                         </Typography>
                     </Box>
                     {canManage && (
@@ -150,7 +152,7 @@ export default function CategoriesIndex() {
                                 alignSelf: { xs: 'flex-end', md: 'auto' },
                             }}
                         >
-                            <Fab size="small" color="primary" onClick={openCreate} aria-label="Create category" sx={{ boxShadow: 2 }}>
+                            <Fab size="small" color="primary" onClick={openCreate} aria-label={t('master.categories.actions.create')} sx={{ boxShadow: 2 }}>
                                 <AddIcon fontSize="small" />
                             </Fab>
                         </Stack>
@@ -171,15 +173,15 @@ export default function CategoriesIndex() {
                                             color="text.secondary"
                                             sx={{ mt: 0.25, wordBreak: 'break-word', fontSize: '0.8125rem' }}
                                         >
-                                            {category.code ? `Code: ${category.code}` : 'No code'}
-                                            {category.parent?.name ? ` · Parent: ${category.parent.name}` : ''}
+                                            {category.code ? t('master.categories.code_value', { code: category.code }) : t('master.categories.no_code')}
+                                            {category.parent?.name ? ` · ${t('master.categories.parent_value', { parent: category.parent.name })}` : ''}
                                         </Typography>
                                     </Box>
                                     {canManage && (
                                         <IconButton
                                             size="small"
                                             onClick={(event) => handleTableActionOpen(event, category)}
-                                            aria-label="Category actions"
+                                            aria-label={t('master.categories.actions.row_actions')}
                                             sx={{ flexShrink: 0, mt: -0.25 }}
                                         >
                                             <MoreVertIcon fontSize="small" />
@@ -191,7 +193,7 @@ export default function CategoriesIndex() {
                         {categories.length === 0 && (
                             <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, boxShadow: 'none' }}>
                                 <Typography variant="body2" color="text.secondary">
-                                    No categories yet.
+                                    {t('master.categories.empty')}
                                 </Typography>
                             </Paper>
                         )}
@@ -201,10 +203,10 @@ export default function CategoriesIndex() {
                         <Table size="small">
                             <TableHead>
                                 <TableRow>
-                                    <TableCell>Name</TableCell>
-                                    <TableCell>Code</TableCell>
-                                    <TableCell>Parent</TableCell>
-                                    <TableCell align="right">Actions</TableCell>
+                                    <TableCell>{t('master.categories.table.name')}</TableCell>
+                                    <TableCell>{t('master.categories.table.code')}</TableCell>
+                                    <TableCell>{t('master.categories.table.parent')}</TableCell>
+                                    <TableCell align="right">{t('ui.actions')}</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -218,7 +220,7 @@ export default function CategoriesIndex() {
                                                 <IconButton
                                                     size="small"
                                                     onClick={(event) => handleTableActionOpen(event, category)}
-                                                    aria-label="Category actions"
+                                                aria-label={t('master.categories.actions.row_actions')}
                                                 >
                                                     <MoreVertIcon fontSize="small" />
                                                 </IconButton>
@@ -230,7 +232,7 @@ export default function CategoriesIndex() {
                                     <TableRow>
                                         <TableCell colSpan={4}>
                                             <Typography variant="body2" color="text.secondary">
-                                                No categories yet.
+                                                {t('master.categories.empty')}
                                             </Typography>
                                         </TableCell>
                                     </TableRow>
@@ -254,7 +256,7 @@ export default function CategoriesIndex() {
                             handleTableActionClose();
                         }}
                     >
-                        Edit
+                        {t('ui.edit')}
                     </MenuItem>
                     <MenuItem
                         dense
@@ -263,26 +265,34 @@ export default function CategoriesIndex() {
                             if (selectedCategory) removeCategory(selectedCategory);
                         }}
                     >
-                        Delete
+                        {t('ui.delete')}
                     </MenuItem>
                 </Menu>
             </Stack>
 
             <Dialog open={open} onClose={closeDialog} fullWidth maxWidth="sm">
-                <DialogTitle>{form.id ? 'Edit Category' : 'Create Category'}</DialogTitle>
+                <DialogTitle>{form.id ? t('master.categories.dialog.edit_title') : t('master.categories.dialog.create_title')}</DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 0.5 }}>
                         {error && <Alert severity="error">{error}</Alert>}
-                        <TextField label="Name" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
-                        <TextField label="Code" value={form.code} onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))} />
+                        <TextField
+                            label={t('master.categories.fields.name')}
+                            value={form.name}
+                            onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                        />
+                        <TextField
+                            label={t('master.categories.fields.code')}
+                            value={form.code}
+                            onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))}
+                        />
                         <FormControl fullWidth>
-                            <InputLabel>Parent Category</InputLabel>
+                            <InputLabel>{t('master.categories.fields.parent_category')}</InputLabel>
                             <Select
-                                label="Parent Category"
+                                label={t('master.categories.fields.parent_category')}
                                 value={form.parent_id}
                                 onChange={(e) => setForm((p) => ({ ...p, parent_id: e.target.value }))}
                             >
-                                <MenuItem value="">None</MenuItem>
+                                <MenuItem value="">{t('ui.none')}</MenuItem>
                                 {categories
                                     .filter((c) => c.id !== form.id)
                                     .map((category) => (
@@ -296,10 +306,10 @@ export default function CategoriesIndex() {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={closeDialog} disabled={processing}>
-                        Cancel
+                        {t('ui.cancel')}
                     </Button>
                     <Button onClick={submit} variant="contained" disabled={processing || !canManage}>
-                        Save
+                        {t('ui.save')}
                     </Button>
                 </DialogActions>
             </Dialog>

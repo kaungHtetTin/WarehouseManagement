@@ -1,5 +1,6 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import { Head, router, usePage } from '@inertiajs/react';
+import { useT } from '@/i18n';
 import {
     Alert,
     Box,
@@ -33,28 +34,19 @@ import { useMemo, useState } from 'react';
 
 const emptyForm = {
     id: null,
-    scope: 'GENERAL',
     direction: 'EXPENSE',
     name: '',
     status: 'ACTIVE',
     sort_order: '0',
 };
 
-const SCOPE_OPTIONS = [
-    { value: 'all', label: 'All scopes' },
-    { value: 'GENERAL', label: 'GENERAL' },
-    { value: 'VOUCHER', label: 'VOUCHER' },
-    { value: 'TRIP_COST', label: 'TRIP_COST' },
-];
-
 export default function FinanceCategoriesIndex() {
     const theme = useTheme();
     const isCompactList = useMediaQuery(theme.breakpoints.down('md'));
-    const { categories = [], filters = {}, admin_app_url: adminAppUrl, flash = {}, auth } = usePage().props;
+    const t = useT();
+    const { categories = [], admin_app_url: adminAppUrl, flash = {}, auth } = usePage().props;
     const permissionCodes = auth?.permission_codes ?? [];
     const canManage = permissionCodes.includes('finance.manage');
-
-    const selectedScope = filters.scope ?? 'all';
 
     const [dialogOpen, setDialogOpen] = useState(false);
     const [processing, setProcessing] = useState(false);
@@ -67,7 +59,6 @@ export default function FinanceCategoriesIndex() {
 
     const statusColor = (s) => (s === 'ACTIVE' ? 'success' : 'default');
     const directionColor = (d) => (d === 'INCOME' ? 'success' : d === 'EXPENSE' ? 'warning' : 'default');
-    const scopeColor = (s) => (s === 'GENERAL' ? 'default' : s === 'VOUCHER' ? 'info' : 'primary');
 
     const sorted = useMemo(() => {
         const out = [...categories];
@@ -86,7 +77,7 @@ export default function FinanceCategoriesIndex() {
 
     const openCreate = () => {
         setError('');
-        setForm({ ...emptyForm, scope: selectedScope !== 'all' ? selectedScope : 'GENERAL' });
+        setForm({ ...emptyForm });
         setDialogOpen(true);
     };
 
@@ -94,7 +85,6 @@ export default function FinanceCategoriesIndex() {
         setError('');
         setForm({
             id: row.id,
-            scope: row.scope ?? 'GENERAL',
             direction: row.direction ?? 'EXPENSE',
             name: row.name ?? '',
             status: row.status ?? 'ACTIVE',
@@ -121,7 +111,7 @@ export default function FinanceCategoriesIndex() {
     const removeRow = (row) => {
         handleTableActionClose();
         if (!canManage) return;
-        if (!window.confirm(`Delete category "${row.name}"?`)) return;
+        if (!window.confirm(t('finance.categories.confirm.delete', { name: row.name }))) return;
         router.delete(`${adminAppUrl}/finance/categories/${row.id}`, { preserveScroll: true });
     };
 
@@ -130,12 +120,11 @@ export default function FinanceCategoriesIndex() {
         setError('');
         const name = form.name.trim();
         if (!name) {
-            setError('Enter a category name.');
+            setError(t('finance.categories.errors.enter_name'));
             return;
         }
 
         const payload = {
-            scope: form.scope,
             direction: form.direction,
             name,
             status: form.status,
@@ -160,8 +149,8 @@ export default function FinanceCategoriesIndex() {
     };
 
     return (
-        <AdminLayout title="Finance Categories">
-            <Head title="Finance Categories" />
+        <AdminLayout title={t('finance.categories.title')}>
+            <Head title={t('finance.categories.title')} />
             <Stack spacing={2}>
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
@@ -177,31 +166,14 @@ export default function FinanceCategoriesIndex() {
                 >
                     <Box>
                         <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                            Finance Categories
+                            {t('finance.categories.title')}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                            Predefined categories for income/expense analysis.
+                            {t('finance.categories.subtitle')}
                         </Typography>
-                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1.25 }}>
-                            <FormControl size="small" sx={{ width: { xs: '100%', sm: 220 } }}>
-                                <InputLabel id="finance-scope-filter">Scope</InputLabel>
-                                <Select
-                                    labelId="finance-scope-filter"
-                                    label="Scope"
-                                    value={selectedScope}
-                                    onChange={(e) => router.get(`${adminAppUrl}/finance/categories`, { scope: e.target.value }, { preserveScroll: true })}
-                                >
-                                    {SCOPE_OPTIONS.map((o) => (
-                                        <MenuItem key={o.value} value={o.value}>
-                                            {o.label}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
-                        </Stack>
                     </Box>
                     {canManage && (
-                        <Fab size="small" color="primary" onClick={openCreate} aria-label="Add category" sx={{ boxShadow: 2 }}>
+                        <Fab size="small" color="primary" onClick={openCreate} aria-label={t('finance.categories.actions.add_category')} sx={{ boxShadow: 2 }}>
                             <AddIcon fontSize="small" />
                         </Fab>
                     )}
@@ -217,17 +189,16 @@ export default function FinanceCategoriesIndex() {
                                             {row.name}
                                         </Typography>
                                         <Stack direction="row" spacing={0.75} sx={{ mt: 0.75, flexWrap: 'wrap', gap: 0.5 }}>
-                                            <Chip size="small" label={row.scope ?? 'GENERAL'} color={scopeColor(row.scope)} variant="outlined" />
                                             <Chip size="small" label={row.direction ?? 'BOTH'} color={directionColor(row.direction)} variant="outlined" />
                                             <Chip size="small" label={row.status ?? 'ACTIVE'} color={statusColor(row.status)} variant="outlined" />
-                                            <Chip size="small" label={`Order ${row.sort_order ?? 0}`} variant="outlined" />
+                                            <Chip size="small" label={t('finance.categories.order_chip', { order: row.sort_order ?? 0 })} variant="outlined" />
                                         </Stack>
                                     </Box>
                                     {canManage && (
                                         <IconButton
                                             size="small"
                                             onClick={(e) => handleTableActionOpen(e, row)}
-                                            aria-label="Category actions"
+                                            aria-label={t('finance.categories.actions.row_actions')}
                                             sx={{ flexShrink: 0, mt: -0.25 }}
                                         >
                                             <MoreVertIcon fontSize="small" />
@@ -239,7 +210,7 @@ export default function FinanceCategoriesIndex() {
                         {sorted.length === 0 && (
                             <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, boxShadow: 'none' }}>
                                 <Typography variant="body2" color="text.secondary">
-                                    No categories yet.
+                                    {t('finance.categories.empty')}
                                 </Typography>
                             </Paper>
                         )}
@@ -249,21 +220,17 @@ export default function FinanceCategoriesIndex() {
                         <Table size="small">
                             <TableHead>
                                 <TableRow>
-                                    <TableCell>Name</TableCell>
-                                    <TableCell>Scope</TableCell>
-                                    <TableCell>Direction</TableCell>
-                                    <TableCell>Status</TableCell>
-                                    <TableCell>Sort</TableCell>
-                                    <TableCell align="right">Actions</TableCell>
+                                    <TableCell>{t('finance.categories.table.name')}</TableCell>
+                                    <TableCell>{t('finance.categories.table.direction')}</TableCell>
+                                    <TableCell>{t('finance.categories.table.status')}</TableCell>
+                                    <TableCell>{t('finance.categories.table.sort')}</TableCell>
+                                    <TableCell align="right">{t('ui.actions')}</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {sorted.map((row) => (
                                     <TableRow key={row.id} hover>
                                         <TableCell>{row.name}</TableCell>
-                                        <TableCell>
-                                            <Chip size="small" label={row.scope ?? 'GENERAL'} color={scopeColor(row.scope)} variant="outlined" />
-                                        </TableCell>
                                         <TableCell>
                                             <Chip size="small" label={row.direction ?? 'BOTH'} color={directionColor(row.direction)} variant="outlined" />
                                         </TableCell>
@@ -273,7 +240,7 @@ export default function FinanceCategoriesIndex() {
                                         <TableCell>{row.sort_order ?? 0}</TableCell>
                                         <TableCell align="right" sx={{ width: 56 }}>
                                             {canManage && (
-                                                <IconButton size="small" onClick={(e) => handleTableActionOpen(e, row)} aria-label="Category actions">
+                                                <IconButton size="small" onClick={(e) => handleTableActionOpen(e, row)} aria-label={t('finance.categories.actions.row_actions')}>
                                                     <MoreVertIcon fontSize="small" />
                                                 </IconButton>
                                             )}
@@ -282,9 +249,9 @@ export default function FinanceCategoriesIndex() {
                                 ))}
                                 {sorted.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={6}>
+                                        <TableCell colSpan={5}>
                                             <Typography variant="body2" color="text.secondary">
-                                                No categories yet.
+                                                {t('finance.categories.empty')}
                                             </Typography>
                                         </TableCell>
                                     </TableRow>
@@ -302,37 +269,25 @@ export default function FinanceCategoriesIndex() {
                     anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
                 >
                     <MenuItem dense onClick={() => selectedRow && openEdit(selectedRow)} disabled={!canManage}>
-                        Edit
+                        {t('ui.edit')}
                     </MenuItem>
                     <MenuItem dense sx={{ color: 'error.main' }} onClick={() => selectedRow && removeRow(selectedRow)} disabled={!canManage}>
-                        Delete
+                        {t('ui.delete')}
                     </MenuItem>
                 </Menu>
 
                 <Dialog open={dialogOpen} onClose={closeDialog} fullWidth maxWidth="xs">
-                    <DialogTitle sx={{ fontWeight: 700 }}>{form.id ? 'Edit category' : 'Add category'}</DialogTitle>
+                    <DialogTitle sx={{ fontWeight: 700 }}>
+                        {form.id ? t('finance.categories.dialog.edit_title') : t('finance.categories.dialog.add_title')}
+                    </DialogTitle>
                     <DialogContent>
                         <Stack spacing={1.5} sx={{ pt: 0.5 }}>
                             {error ? <Alert severity="error">{error}</Alert> : null}
                             <FormControl fullWidth size="small">
-                                <InputLabel id="finance-category-scope">Scope</InputLabel>
-                                <Select
-                                    labelId="finance-category-scope"
-                                    label="Scope"
-                                    value={form.scope}
-                                    disabled={processing}
-                                    onChange={(e) => setForm((p) => ({ ...p, scope: e.target.value }))}
-                                >
-                                    <MenuItem value="GENERAL">GENERAL</MenuItem>
-                                    <MenuItem value="VOUCHER">VOUCHER</MenuItem>
-                                    <MenuItem value="TRIP_COST">TRIP_COST</MenuItem>
-                                </Select>
-                            </FormControl>
-                            <FormControl fullWidth size="small">
-                                <InputLabel id="finance-category-direction">Direction</InputLabel>
+                                <InputLabel id="finance-category-direction">{t('finance.categories.table.direction')}</InputLabel>
                                 <Select
                                     labelId="finance-category-direction"
-                                    label="Direction"
+                                    label={t('finance.categories.table.direction')}
                                     value={form.direction}
                                     disabled={processing}
                                     onChange={(e) => setForm((p) => ({ ...p, direction: e.target.value }))}
@@ -343,7 +298,7 @@ export default function FinanceCategoriesIndex() {
                                 </Select>
                             </FormControl>
                             <TextField
-                                label="Name"
+                                label={t('finance.categories.table.name')}
                                 value={form.name}
                                 onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
                                 fullWidth
@@ -351,10 +306,10 @@ export default function FinanceCategoriesIndex() {
                                 disabled={processing}
                             />
                             <FormControl fullWidth size="small">
-                                <InputLabel id="finance-category-status">Status</InputLabel>
+                                <InputLabel id="finance-category-status">{t('finance.categories.table.status')}</InputLabel>
                                 <Select
                                     labelId="finance-category-status"
-                                    label="Status"
+                                    label={t('finance.categories.table.status')}
                                     value={form.status}
                                     disabled={processing}
                                     onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}
@@ -364,7 +319,7 @@ export default function FinanceCategoriesIndex() {
                                 </Select>
                             </FormControl>
                             <TextField
-                                label="Sort order"
+                                label={t('finance.categories.fields.sort_order')}
                                 value={form.sort_order}
                                 onChange={(e) => setForm((p) => ({ ...p, sort_order: e.target.value }))}
                                 fullWidth
@@ -375,10 +330,10 @@ export default function FinanceCategoriesIndex() {
                     </DialogContent>
                     <DialogActions sx={{ px: 3, pb: 2.5 }}>
                         <Button onClick={closeDialog} disabled={processing}>
-                            Cancel
+                            {t('ui.cancel')}
                         </Button>
                         <Button variant="contained" onClick={submit} disabled={processing}>
-                            Save
+                            {t('ui.save')}
                         </Button>
                     </DialogActions>
                 </Dialog>
@@ -386,4 +341,3 @@ export default function FinanceCategoriesIndex() {
         </AdminLayout>
     );
 }
-
