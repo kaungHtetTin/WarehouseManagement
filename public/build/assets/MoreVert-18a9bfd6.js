@@ -1,1 +1,0 @@
-import{a as o}from"./app-3e2a81fd.js";import{c}from"./useSlot-3ba44420.js";const t=c(o("path",{d:"M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2m0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2"}));export{t as M};
