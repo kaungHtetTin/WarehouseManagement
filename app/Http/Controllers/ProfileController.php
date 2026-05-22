@@ -8,6 +8,8 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Arr;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -29,13 +31,39 @@ class ProfileController extends Controller
      */
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
-        $request->user()->fill($request->validated());
+        $user = $request->user();
+        $validated = $request->validated();
+        $removeProfileImage = (bool) ($validated['remove_profile_image'] ?? false);
 
-        if ($request->user()->isDirty('email')) {
-            $request->user()->email_verified_at = null;
+        $user->fill(Arr::only($validated, ['name', 'email']));
+
+        if ($removeProfileImage && $user->profile_image_path) {
+            Storage::disk('public')->delete($user->profile_image_path);
+            $user->profile_image_path = null;
         }
 
-        $request->user()->save();
+        if ($request->hasFile('profile_image')) {
+            if ($user->profile_image_path) {
+                Storage::disk('public')->delete($user->profile_image_path);
+            }
+
+            $file = $request->file('profile_image');
+            $ext = strtolower($file->getClientOriginalExtension() ?: 'png');
+            if (! in_array($ext, ['png', 'jpg', 'jpeg', 'webp'], true)) {
+                $ext = 'png';
+            }
+
+            $directory = "users/{$user->id}";
+            $filename = "avatar.{$ext}";
+            Storage::disk('public')->putFileAs($directory, $file, $filename);
+            $user->profile_image_path = "{$directory}/{$filename}";
+        }
+
+        if ($user->isDirty('email')) {
+            $user->email_verified_at = null;
+        }
+
+        $user->save();
 
         return Redirect::route('admin.profile.edit');
     }

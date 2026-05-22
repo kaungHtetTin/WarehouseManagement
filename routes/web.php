@@ -73,10 +73,6 @@ Route::prefix('admin')->name('admin.')->group(function () {
             return Inertia::render('Dashboard');
         })->name('home');
 
-        Route::get('/ui-showcase', function () {
-            return Inertia::render('UiShowcase');
-        })->name('ui-showcase');
-
         Route::get('/system/organization-settings', [OrganizationSettingsController::class, 'edit'])
             ->middleware('permission:public_page.manage')
             ->name('organization-settings.edit');

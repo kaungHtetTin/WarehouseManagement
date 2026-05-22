@@ -20,7 +20,6 @@ import {
     AltRouteOutlined as TripIcon,
     CheckCircleOutlineOutlined as ReadyIcon,
     CategoryOutlined as CategoryIcon,
-    Inventory2Outlined as InventoryIcon,
     PendingActionsOutlined as PendingIcon,
     ReceiptLongOutlined as VoucherIcon,
     SettingsOutlined as SettingsIcon,
@@ -114,14 +113,6 @@ export default function Dashboard() {
             : null,
         canViewInventory
             ? {
-                  title: t('dashboard.quick_links.products.title'),
-                  description: t('dashboard.quick_links.products.description'),
-                  href: `${adminAppUrl}/master/products`,
-                  icon: <InventoryIcon />,
-              }
-            : null,
-        canViewInventory
-            ? {
                   title: t('nav.merchants'),
                   description: t('dashboard.quick_links.merchants.description'),
                   href: `${adminAppUrl}/master/merchants`,
@@ -181,7 +172,7 @@ export default function Dashboard() {
             ? { label: t('nav.finance'), description: t('dashboard.workspace.finance'), href: `${adminAppUrl}/finance/ledger`, icon: <LedgerIcon /> }
             : null,
         canViewInventory
-            ? { label: t('dashboard.quick_links.products.title'), description: t('dashboard.workspace.products'), href: `${adminAppUrl}/master/products`, icon: <InventoryIcon /> }
+            ? { label: t('nav.merchants'), description: t('dashboard.quick_links.merchants.description'), href: `${adminAppUrl}/master/merchants`, icon: <MerchantIcon /> }
             : null,
         canViewWarehouses
             ? { label: t('dashboard.quick_links.warehouses.title'), description: t('dashboard.workspace.warehouses'), href: `${adminAppUrl}/master/warehouses`, icon: <WarehouseIcon /> }
@@ -416,31 +407,6 @@ export default function Dashboard() {
                                             </Button>
                                         </Grid>
                                     ))}
-                                </Grid>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-
-                    <Grid item xs={12}>
-                        <Card>
-                            <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
-                                <Grid container spacing={2}>
-                                    <Grid item xs={12} md={6}>
-                                        <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
-                                            {t('dashboard.guidance.title')}
-                                        </Typography>
-                                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                                            {t('dashboard.guidance.description')}
-                                        </Typography>
-                                    </Grid>
-                                    <Grid item xs={12} md={6}>
-                                        <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
-                                            {t('dashboard.guidance.reports_title')}
-                                        </Typography>
-                                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                                            {t('dashboard.guidance.reports_description')}
-                                        </Typography>
-                                    </Grid>
                                 </Grid>
                             </CardContent>
                         </Card>

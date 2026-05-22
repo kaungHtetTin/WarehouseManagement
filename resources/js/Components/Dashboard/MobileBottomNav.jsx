@@ -35,7 +35,7 @@ export default function MobileBottomNav({ adminAppUrl, value = 'dashboard' }) {
                 bottom: 0,
                 left: 0,
                 right: 0,
-                zIndex: (t) => t.zIndex.drawer + 2,
+                zIndex: (t) => t.zIndex.appBar,
                 borderTop: 1,
                 borderColor: 'divider',
                 borderRadius: 0,

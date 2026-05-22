@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -31,6 +32,7 @@ class User extends Authenticatable
         'password',
         'is_platform_admin',
         'status',
+        'profile_image_path',
         'last_login_at',
     ];
 
@@ -54,6 +56,21 @@ class User extends Authenticatable
         'last_login_at' => 'datetime',
         'is_platform_admin' => 'boolean',
     ];
+
+    protected $appends = [
+        'profile_image_url',
+    ];
+
+    public function getProfileImageUrlAttribute(): ?string
+    {
+        $path = trim((string) ($this->profile_image_path ?? ''));
+
+        if ($path === '') {
+            return null;
+        }
+
+        return Storage::disk('public')->url($path);
+    }
 
     public function organization(): BelongsTo
     {

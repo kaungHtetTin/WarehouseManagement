@@ -12,8 +12,6 @@ import {
     Drawer,
     FormControl,
     IconButton,
-    InputAdornment,
-    InputBase,
     List,
     ListItem,
     ListItemButton,
@@ -31,11 +29,9 @@ import {
 } from '@mui/material';
 import {
     KeyboardArrowDown as KeyboardArrowDownIcon,
-    Search as SearchIcon,
+    Check as CheckIcon,
     AdminPanelSettings as AdminPanelSettingsIcon,
     AdminPanelSettingsOutlined as AdminPanelSettingsOutlinedIcon,
-    AutoAwesomeMosaic as UiShowcaseIcon,
-    AutoAwesomeMosaicOutlined as UiShowcaseOutlinedIcon,
     Dashboard as DashboardIcon,
     DashboardOutlined as DashboardOutlinedIcon,
     DarkMode as DarkModeIcon,
@@ -44,8 +40,6 @@ import {
     Menu as MenuIcon,
     Person as PersonIcon,
     PersonOutlined as PersonOutlinedIcon,
-    Inventory2 as ProductIcon,
-    Inventory2Outlined as ProductOutlinedIcon,
     LocalShipping as VehicleIcon,
     LocalShippingOutlined as VehicleOutlinedIcon,
     Storefront as MerchantIcon,
@@ -62,6 +56,7 @@ import {
     Label as LabelIcon,
     LabelOutlined as LabelOutlinedIcon,
     SettingsOutlined as SettingsOutlinedIcon,
+    Translate as TranslateIcon,
 } from '@mui/icons-material';
 import { useT } from '@/i18n';
 
@@ -83,7 +78,6 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
     const [desktopOpen, setDesktopOpen] = useState(true);
     const [mobileOpen, setMobileOpen] = useState(false);
     const [profileAnchor, setProfileAnchor] = useState(null);
-    const [searchQuery, setSearchQuery] = useState('');
     const [dark, setDark] = useState(() => {
         if (typeof window === 'undefined') return false;
         return window.localStorage.getItem('admin-color-mode') === 'dark';
@@ -277,7 +271,6 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                     : []),
                 ...(permissionCodes.includes('inventory.view') || permissionCodes.includes('inventory.manage')
                     ? [
-                          { label: t('nav.products'), href: `${adminAppUrl}/master/products`, icon: <ProductIcon />, iconOutlined: <ProductOutlinedIcon /> },
                           { label: t('nav.merchants'), href: `${adminAppUrl}/master/merchants`, icon: <MerchantIcon />, iconOutlined: <MerchantOutlinedIcon /> },
                           { label: t('nav.vehicles'), href: `${adminAppUrl}/master/vehicles`, icon: <VehicleIcon />, iconOutlined: <VehicleOutlinedIcon /> },
                       ]
@@ -312,7 +305,6 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                     : []),
                 { label: t('nav.users'), href: `${adminAppUrl}/iam/users`, icon: <AdminPanelSettingsIcon />, iconOutlined: <AdminPanelSettingsOutlinedIcon /> },
                 { label: t('nav.roles'), href: `${adminAppUrl}/iam/roles`, icon: <AdminPanelSettingsIcon />, iconOutlined: <AdminPanelSettingsOutlinedIcon /> },
-                { label: t('nav.ui_showcase'), href: `${adminAppUrl}/ui-showcase`, icon: <UiShowcaseIcon />, iconOutlined: <UiShowcaseOutlinedIcon /> },
             ],
         },
         {
@@ -334,12 +326,13 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
     const drawerBrand = useMemo(() => {
         const name = authUser?.name || t('ui.admin');
         const email = authUser?.email || '';
+        const profileImageUrl = authUser?.profile_image_url || null;
         const initial = String(name || '?')
             .trim()
             .slice(0, 1)
             .toUpperCase();
-        return { name, email, initial };
-    }, [authUser?.email, authUser?.name, t]);
+        return { name, email, initial, profileImageUrl };
+    }, [authUser?.email, authUser?.name, authUser?.profile_image_url, t]);
 
     const drawerPaperBaseSx = useMemo(() => {
         const bg = dark
@@ -381,33 +374,6 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                         <Typography variant="subtitle1" sx={{ fontWeight: 800, display: { xs: 'none', sm: 'block' }, mr: 1 }}>
                             {title}
                         </Typography>
-                        <Box
-                            sx={{
-                                flex: 1,
-                                maxWidth: 420,
-                                display: { xs: 'none', md: 'flex' },
-                                alignItems: 'center',
-                                px: 1.5,
-                                py: 0.75,
-                                borderRadius: 3,
-                                bgcolor: dark ? 'rgba(15,23,42,0.5)' : 'rgba(241,245,249,0.9)',
-                                border: 1,
-                                borderColor: 'divider',
-                            }}
-                        >
-                            <InputBase
-                                fullWidth
-                                placeholder={t('ui.search')}
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                startAdornment={
-                                    <InputAdornment position="start">
-                                        <SearchIcon fontSize="small" color="action" />
-                                    </InputAdornment>
-                                }
-                                sx={{ fontSize: 14, fontWeight: 500 }}
-                            />
-                        </Box>
                         <Box sx={{ flexGrow: 1 }} />
                         <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
                             <IconButton onClick={toggleTheme} size="small" sx={{ borderRadius: 2 }}>
@@ -449,7 +415,10 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                                     '&:hover': { bgcolor: 'action.hover' },
                                 }}
                             >
-                                <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: 14, fontWeight: 800 }}>
+                                <Avatar
+                                    src={drawerBrand.profileImageUrl || undefined}
+                                    sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: 14, fontWeight: 800 }}
+                                >
                                     {drawerBrand.initial}
                                 </Avatar>
                                 <Box sx={{ display: { xs: 'none', lg: 'block' }, minWidth: 0 }}>
@@ -482,8 +451,10 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                                     sx: {
                                         mt: 1.25,
                                         minWidth: 280,
+                                        maxHeight: 420,
                                         borderRadius: 4,
-                                        overflow: 'hidden',
+                                        overflowX: 'hidden',
+                                        overflowY: 'auto',
                                         border: 1,
                                         borderColor: 'divider',
                                         boxShadow: dark
@@ -492,6 +463,7 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                                         backgroundImage: dark
                                             ? 'linear-gradient(180deg, rgba(99,102,241,0.16) 0%, rgba(30,41,59,0.96) 42%)'
                                             : 'linear-gradient(180deg, rgba(79,70,229,0.10) 0%, rgba(255,255,255,0.98) 42%)',
+                                        ...drawerScrollbarSx,
                                     },
                                 }}
                                 MenuListProps={{ sx: { p: 0 } }}
@@ -499,6 +471,7 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                                 <Box sx={{ p: 2 }}>
                                     <Stack direction="row" spacing={1.5} alignItems="center">
                                         <Avatar
+                                            src={drawerBrand.profileImageUrl || undefined}
                                             sx={{
                                                 width: 48,
                                                 height: 48,
@@ -557,6 +530,64 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                                     ))}
                                 </Box>
                                 <Divider />
+                                {setLocaleUrl ? (
+                                    <>
+                                        <Box sx={{ px: 1.5, pt: 1.25, pb: 0.5 }}>
+                                            <Stack direction="row" spacing={1} alignItems="center" sx={{ color: 'text.secondary' }}>
+                                                <TranslateIcon sx={{ fontSize: 16 }} />
+                                                <Typography variant="caption" sx={{ fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                                                    {supportedLocales[locale] ?? locale.toUpperCase()}
+                                                </Typography>
+                                            </Stack>
+                                        </Box>
+                                        <Box sx={{ px: 0.75, pb: 0.75 }}>
+                                            {Object.entries(supportedLocales).map(([code, label]) => {
+                                                const active = code === locale;
+                                                return (
+                                                    <MenuItem
+                                                        key={code}
+                                                        onClick={() => {
+                                                            setProfileAnchor(null);
+                                                            if (code === locale) return;
+                                                            router.post(setLocaleUrl, { locale: code }, { preserveScroll: true, preserveState: true });
+                                                        }}
+                                                        sx={{
+                                                            borderRadius: 2.5,
+                                                            px: 1.25,
+                                                            py: 1.1,
+                                                            gap: 1.25,
+                                                            color: active ? 'primary.main' : 'text.primary',
+                                                            bgcolor: active ? 'action.selected' : 'transparent',
+                                                        }}
+                                                    >
+                                                        <Box
+                                                            sx={{
+                                                                width: 34,
+                                                                height: 34,
+                                                                borderRadius: 2,
+                                                                display: 'grid',
+                                                                placeItems: 'center',
+                                                                bgcolor: active ? 'rgba(79,70,229,0.12)' : 'action.hover',
+                                                                color: active ? 'primary.main' : 'text.secondary',
+                                                            }}
+                                                        >
+                                                            {active ? <CheckIcon fontSize="small" /> : <TranslateIcon fontSize="small" />}
+                                                        </Box>
+                                                        <Typography variant="body2" sx={{ fontWeight: 800, flex: 1 }}>
+                                                            {label}
+                                                        </Typography>
+                                                        {active ? (
+                                                            <Typography variant="caption" sx={{ fontWeight: 800, color: 'primary.main' }}>
+                                                                {code.toUpperCase()}
+                                                            </Typography>
+                                                        ) : null}
+                                                    </MenuItem>
+                                                );
+                                            })}
+                                        </Box>
+                                        <Divider />
+                                    </>
+                                ) : null}
                                 <Box sx={{ p: 0.75 }}>
                                     <MenuItem
                                         onClick={() => {
@@ -603,7 +634,12 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                 >
                     <Box sx={{ px: 1.5, pt: 1.25, pb: 1 }}>
                         <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
-                            <Avatar sx={{ width: 36, height: 36, bgcolor: 'primary.main', fontWeight: 900 }}>{drawerBrand.initial}</Avatar>
+                            <Avatar
+                                src={drawerBrand.profileImageUrl || undefined}
+                                sx={{ width: 36, height: 36, bgcolor: 'primary.main', fontWeight: 900 }}
+                            >
+                                {drawerBrand.initial}
+                            </Avatar>
                             <Box sx={{ minWidth: 0 }}>
                                 <Typography variant="subtitle2" sx={{ fontWeight: 800 }} noWrap title={drawerBrand.name}>
                                     {drawerBrand.name}
@@ -671,7 +707,12 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                             spacing={desktopOpen ? 1.25 : 0}
                             sx={{ alignItems: 'center', justifyContent: desktopOpen ? 'flex-start' : 'center' }}
                         >
-                            <Avatar sx={{ width: 36, height: 36, bgcolor: 'primary.main', fontWeight: 900 }}>{drawerBrand.initial}</Avatar>
+                            <Avatar
+                                src={drawerBrand.profileImageUrl || undefined}
+                                sx={{ width: 36, height: 36, bgcolor: 'primary.main', fontWeight: 900 }}
+                            >
+                                {drawerBrand.initial}
+                            </Avatar>
                             {desktopOpen ? (
                                 <Box sx={{ minWidth: 0 }}>
                                     <Typography variant="subtitle2" sx={{ fontWeight: 800 }} noWrap title={drawerBrand.name}>

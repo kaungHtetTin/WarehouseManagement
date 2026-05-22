@@ -204,7 +204,7 @@ class UserManagementController extends Controller
             ->where('organization_id', $organizationId)
             ->with([
                 'roles:id,name,code',
-                'warehouses:id,name,code',
+                'warehouses:id,city,address',
             ])
             ->select(['id', 'organization_id', 'name', 'email', 'status', 'last_login_at', 'created_at'])
             ->latest('id')
