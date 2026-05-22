@@ -1,6 +1,7 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import DashboardDecor from '@/Components/Dashboard/DashboardDecor';
 import KpiStatCard from '@/Components/Dashboard/KpiStatCard';
+import PageHeader from '@/Components/PageHeader';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
 import {
@@ -155,7 +156,7 @@ export default function Dashboard() {
             ? {
                   title: t('nav.settings'),
                   description: t('dashboard.quick_links.settings.description'),
-                  href: `${adminAppUrl}/system/organization-settings?tab=settings`,
+                  href: `${adminAppUrl}/system/organization-settings`,
                   icon: <SettingsIcon />,
               }
             : null,
@@ -194,48 +195,33 @@ export default function Dashboard() {
             <DashboardDecor dark={dark} />
 
             <Box sx={{ position: 'relative', zIndex: 1, pb: { xs: 9, md: 0 } }}>
-                <Card
+                <PageHeader
+                    eyebrow={t('dashboard.hero.badge')}
+                    title={t('dashboard.hero.title')}
+                    subtitle={t('dashboard.subtitle')}
                     sx={{
                         mb: 3,
+                        position: 'relative',
                         overflow: 'hidden',
                         background: tokens.gradientPrimary,
                         color: '#fff',
                         border: 'none',
                         boxShadow: '0 20px 50px rgba(79, 70, 229, 0.30)',
-                        '&:hover': { transform: 'none', boxShadow: '0 20px 50px rgba(79, 70, 229, 0.30)' },
+                        '& .MuiTypography-root': { color: '#fff' },
+                        '& .MuiTypography-body2': { color: 'rgba(255,255,255,0.92)' },
                     }}
-                >
-                    <CardContent sx={{ p: { xs: 2.25, sm: 3 } }}>
-                        <Grid container spacing={2} alignItems="center">
-                            <Grid item xs={12} md={8}>
-                                <Typography variant="overline" sx={{ opacity: 0.9, fontWeight: 800, letterSpacing: '0.12em' }}>
-                                    {t('dashboard.hero.badge')}
-                                </Typography>
-                                <Typography variant="h4" sx={{ fontWeight: 900, mt: 0.5, fontSize: { xs: '1.45rem', sm: '1.95rem' } }}>
-                                    {t('dashboard.hero.title')}
-                                </Typography>
-                                <Typography variant="body1" sx={{ mt: 1, opacity: 0.92, maxWidth: 620 }}>
-                                    {t('dashboard.subtitle')}
-                                </Typography>
-                            </Grid>
-                            <Grid item xs={12} md={4}>
-                                <Stack
-                                    direction={{ xs: 'row', sm: 'row' }}
-                                    spacing={1}
-                                    sx={{ justifyContent: { xs: 'flex-start', md: 'flex-end' }, flexWrap: 'wrap', gap: 1 }}
-                                >
-                                    <Chip
-                                        icon={<ReadyIcon sx={{ color: '#fff !important' }} />}
-                                        label={totalAttention > 0 ? t('dashboard.hero.needs_attention') : t('dashboard.hero.all_clear')}
-                                        sx={{ bgcolor: 'rgba(255,255,255,0.18)', color: '#fff', fontWeight: 800 }}
-                                    />
-                                    {canViewVouchers ? <Chip label={t('nav.vouchers')} sx={{ bgcolor: 'rgba(255,255,255,0.18)', color: '#fff' }} /> : null}
-                                    {canViewTrips ? <Chip label={t('nav.trips')} sx={{ bgcolor: 'rgba(255,255,255,0.18)', color: '#fff' }} /> : null}
-                                </Stack>
-                            </Grid>
-                        </Grid>
-                    </CardContent>
-                </Card>
+                    actions={
+                        <Stack direction="row" spacing={1} sx={{ justifyContent: { xs: 'flex-start', md: 'flex-end' }, flexWrap: 'wrap', gap: 1 }}>
+                            <Chip
+                                icon={<ReadyIcon sx={{ color: '#fff !important' }} />}
+                                label={totalAttention > 0 ? t('dashboard.hero.needs_attention') : t('dashboard.hero.all_clear')}
+                                sx={{ bgcolor: 'rgba(255,255,255,0.18)', color: '#fff', fontWeight: 800 }}
+                            />
+                            {canViewVouchers ? <Chip label={t('nav.vouchers')} sx={{ bgcolor: 'rgba(255,255,255,0.18)', color: '#fff' }} /> : null}
+                            {canViewTrips ? <Chip label={t('nav.trips')} sx={{ bgcolor: 'rgba(255,255,255,0.18)', color: '#fff' }} /> : null}
+                        </Stack>
+                    }
+                />
 
                 {stats.length > 0 ? (
                     <Grid container spacing={2} sx={{ mb: 3 }}>

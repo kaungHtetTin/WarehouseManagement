@@ -1,4 +1,5 @@
 import AdminLayout from '@/Layouts/AdminLayout';
+import PageHeader from '@/Components/PageHeader';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
 import {
@@ -155,29 +156,17 @@ export default function FinanceCategoriesIndex() {
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
 
-                <Stack
-                    direction={{ xs: 'column', md: 'row' }}
-                    spacing={1.5}
-                    sx={{
-                        mb: 0.5,
-                        justifyContent: 'space-between',
-                        alignItems: { xs: 'flex-start', md: 'center' },
-                    }}
-                >
-                    <Box>
-                        <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                            {t('finance.categories.title')}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            {t('finance.categories.subtitle')}
-                        </Typography>
-                    </Box>
-                    {canManage && (
-                        <Fab size="small" color="primary" onClick={openCreate} aria-label={t('finance.categories.actions.add_category')} sx={{ boxShadow: 2 }}>
-                            <AddIcon fontSize="small" />
-                        </Fab>
-                    )}
-                </Stack>
+                <PageHeader
+                    title={t('finance.categories.title')}
+                    subtitle={t('finance.categories.subtitle')}
+                    actions={
+                        canManage ? (
+                            <Fab size="small" color="primary" onClick={openCreate} aria-label={t('finance.categories.actions.add_category')} sx={{ boxShadow: 2 }}>
+                                <AddIcon fontSize="small" />
+                            </Fab>
+                        ) : null
+                    }
+                />
 
                 {isCompactList ? (
                     <Stack spacing={1.25}>

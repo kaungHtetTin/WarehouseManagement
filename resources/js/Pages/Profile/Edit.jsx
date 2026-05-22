@@ -2,8 +2,9 @@ import AdminLayout from '@/Layouts/AdminLayout';
 import DeleteUserForm from './Partials/DeleteUserForm';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm';
 import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm';
+import PageHeader from '@/Components/PageHeader';
 import { Head } from '@inertiajs/react';
-import { Paper, Stack, Typography } from '@mui/material';
+import { Paper, Stack } from '@mui/material';
 import { useT } from '@/i18n';
 
 export default function Edit({ auth, mustVerifyEmail, status }) {
@@ -14,18 +15,9 @@ export default function Edit({ auth, mustVerifyEmail, status }) {
             <Head title={t('nav.profile')} />
 
             <Stack spacing={1.5}>
-                <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 2.5 }}>
-                    <Stack spacing={0.5}>
-                        <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                            {t('profile.title')}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            {t('profile.subtitle')}
-                        </Typography>
-                    </Stack>
-                </Paper>
+                <PageHeader title={t('profile.title')} subtitle={t('profile.subtitle')} />
 
-                <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 2.5 }}>
+                <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 1.5 }}>
                     <UpdateProfileInformationForm
                         mustVerifyEmail={mustVerifyEmail}
                         status={status}
@@ -33,11 +25,11 @@ export default function Edit({ auth, mustVerifyEmail, status }) {
                     />
                 </Paper>
 
-                <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 2.5 }}>
+                <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 1.5 }}>
                     <UpdatePasswordForm className="max-w-none" />
                 </Paper>
 
-                <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 2.5 }}>
+                <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 1.5 }}>
                     <DeleteUserForm className="max-w-none" />
                 </Paper>
             </Stack>

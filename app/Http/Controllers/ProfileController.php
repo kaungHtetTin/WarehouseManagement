@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\Organization;
+use App\Services\Audit\AuditLogger;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,9 +22,20 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): Response
     {
+        $user = $request->user();
+        $organization = null;
+
+        if ($user?->organization_id) {
+            $organization = Organization::query()
+                ->whereKey($user->organization_id)
+                ->first(['id', 'name', 'code']);
+        }
+
         return Inertia::render('Profile/Edit', [
-            'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
+            'mustVerifyEmail' => $user instanceof MustVerifyEmail,
             'status' => session('status'),
+            'organization' => $organization,
+            'canManageOrganization' => $user?->hasPermission('public_page.manage') ?? false,
         ]);
     }
 
@@ -34,6 +47,7 @@ class ProfileController extends Controller
         $user = $request->user();
         $validated = $request->validated();
         $removeProfileImage = (bool) ($validated['remove_profile_image'] ?? false);
+        $canManageOrganization = $user->hasPermission('public_page.manage');
 
         $user->fill(Arr::only($validated, ['name', 'email']));
 
@@ -64,6 +78,21 @@ class ProfileController extends Controller
         }
 
         $user->save();
+
+        if ($canManageOrganization && filled($validated['organization_name'] ?? null) && $user->organization_id) {
+            $organization = Organization::query()
+                ->whereKey($user->organization_id)
+                ->first();
+
+            if ($organization && $organization->name !== $validated['organization_name']) {
+                $organization->name = $validated['organization_name'];
+                $organization->save();
+
+                AuditLogger::record($user, 'organization.profile_update', $organization, [
+                    'name' => $organization->name,
+                ]);
+            }
+        }
 
         return Redirect::route('admin.profile.edit');
     }

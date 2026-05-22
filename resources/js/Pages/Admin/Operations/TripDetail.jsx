@@ -471,7 +471,7 @@ export default function TripDetail() {
     const [voucherRowMenu, setVoucherRowMenu] = useState(null);
     const [voucherExpanded, setVoucherExpanded] = useState(() => ({}));
 
-    const showCargoActionsColumn = canLoadCargo || canRecordDelivery;
+    const showCargoActionsColumn = true;
 
     const voucherCargoRows = useMemo(() => {
         const eps = 0.0001;
@@ -1500,7 +1500,7 @@ export default function TripDetail() {
                         </Typography>
                     ) : isSmUp ? (
                         <Box sx={{ overflowX: 'auto' }}>
-                            <Table size="small" sx={{ minWidth: showCargoActionsColumn || canManageCargo ? 680 : 480 }}>
+                            <Table size="small" sx={{ minWidth: 680 }}>
                                 <TableHead>
                                     <TableRow sx={{ bgcolor: (th) => (th.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>
                                         <TableCell sx={{ width: 520 }}>Voucher</TableCell>
@@ -1746,34 +1746,36 @@ export default function TripDetail() {
                     >
                         {t('trip_detail.cargo.actions.print_voucher')}
                     </MenuItem>
-                    <MenuItem
-                        disabled={!canRecordDelivery || !(voucherRowMenu?.row?.remaining_sum > 0.0001)}
-                        onClick={() => {
-                            const r = voucherRowMenu?.row;
-                            setVoucherRowMenu(null);
-                            if (!r) return;
-                            if (!window.confirm(t('trip_detail.cargo.confirm.confirm_delivery_voucher', { voucher_no: r.voucher_no }))) return;
-                            router.post(
-                                `${adminAppUrl}/operations/trips/${trip.id}/vouchers/${r.voucher_id}/delivery-confirmations`,
-                                { note: null },
-                                { preserveScroll: true },
-                            );
-                        }}
-                    >
-                        {t('trip_detail.cargo.actions.confirm_delivery')}
-                    </MenuItem>
-                    <MenuItem
-                        disabled={!canLoadCargo}
-                        onClick={() => {
-                            const r = voucherRowMenu?.row;
-                            setVoucherRowMenu(null);
-                            if (!r) return;
-                            if (!window.confirm(t('trip_detail.cargo.confirm.remove_voucher', { voucher_no: r.voucher_no }))) return;
-                            router.delete(`${adminAppUrl}/operations/trips/${trip.id}/vouchers/${r.voucher_id}`, { preserveScroll: true });
-                        }}
-                    >
-                        {t('trip_detail.cargo.actions.remove_from_trip')}
-                    </MenuItem>
+                    {canRecordDelivery && voucherRowMenu?.row?.remaining_sum > 0.0001 ? (
+                        <MenuItem
+                            onClick={() => {
+                                const r = voucherRowMenu?.row;
+                                setVoucherRowMenu(null);
+                                if (!r) return;
+                                if (!window.confirm(t('trip_detail.cargo.confirm.confirm_delivery_voucher', { voucher_no: r.voucher_no }))) return;
+                                router.post(
+                                    `${adminAppUrl}/operations/trips/${trip.id}/vouchers/${r.voucher_id}/delivery-confirmations`,
+                                    { note: null },
+                                    { preserveScroll: true },
+                                );
+                            }}
+                        >
+                            {t('trip_detail.cargo.actions.confirm_delivery')}
+                        </MenuItem>
+                    ) : null}
+                    {canLoadCargo ? (
+                        <MenuItem
+                            onClick={() => {
+                                const r = voucherRowMenu?.row;
+                                setVoucherRowMenu(null);
+                                if (!r) return;
+                                if (!window.confirm(t('trip_detail.cargo.confirm.remove_voucher', { voucher_no: r.voucher_no }))) return;
+                                router.delete(`${adminAppUrl}/operations/trips/${trip.id}/vouchers/${r.voucher_id}`, { preserveScroll: true });
+                            }}
+                        >
+                            {t('trip_detail.cargo.actions.remove_from_trip')}
+                        </MenuItem>
+                    ) : null}
                 </Menu>
 
                 <Dialog open={tripCostDialogOpen} onClose={closeTripCostDialog} fullWidth maxWidth="xs">

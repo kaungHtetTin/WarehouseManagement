@@ -1,4 +1,5 @@
 import AdminLayout from '@/Layouts/AdminLayout';
+import PageHeader from '@/Components/PageHeader';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Box, Button, Divider, Grid, Paper, Stack, TextField, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { useT } from '@/i18n';
@@ -168,52 +169,42 @@ export default function FinanceReports() {
             <Head title={t('finance.reports.title')} />
 
             <Stack spacing={2.5}>
-                <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
-                    <Stack spacing={1.5}>
-                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ justifyContent: 'space-between', alignItems: { sm: 'center' } }}>
-                            <Box>
-                                <Typography variant="h5" sx={{ fontWeight: 800 }}>
-                                    {t('finance.reports.title')}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                    {t('finance.reports.subtitle')}
-                                </Typography>
-                            </Box>
-                            <Button component={Link} href={`${adminAppUrl}/finance/ledger`} variant="outlined">
-                                {t('finance.reports.actions.open_ledger')}
-                            </Button>
-                        </Stack>
-
-                        <Divider />
-
-                        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.25} alignItems="stretch">
-                            <TextField
-                                size="small"
-                                type="date"
-                                label={t('filters.from')}
-                                InputLabelProps={{ shrink: true }}
-                                value={from}
-                                onChange={(e) => {
-                                    setFrom(e.target.value);
-                                    applyFilters({ from: e.target.value });
-                                }}
-                                sx={{ width: { xs: '100%', md: 170 } }}
-                            />
-                            <TextField
-                                size="small"
-                                type="date"
-                                label={t('filters.to')}
-                                InputLabelProps={{ shrink: true }}
-                                value={to}
-                                onChange={(e) => {
-                                    setTo(e.target.value);
-                                    applyFilters({ to: e.target.value });
-                                }}
-                                sx={{ width: { xs: '100%', md: 170 } }}
-                            />
-                        </Stack>
+                <PageHeader
+                    title={t('finance.reports.title')}
+                    subtitle={t('finance.reports.subtitle')}
+                    actions={
+                        <Button component={Link} href={`${adminAppUrl}/finance/ledger`} variant="outlined">
+                            {t('finance.reports.actions.open_ledger')}
+                        </Button>
+                    }
+                >
+                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.25} alignItems="stretch">
+                        <TextField
+                            size="small"
+                            type="date"
+                            label={t('filters.from')}
+                            InputLabelProps={{ shrink: true }}
+                            value={from}
+                            onChange={(e) => {
+                                setFrom(e.target.value);
+                                applyFilters({ from: e.target.value });
+                            }}
+                            sx={{ width: { xs: '100%', md: 170 } }}
+                        />
+                        <TextField
+                            size="small"
+                            type="date"
+                            label={t('filters.to')}
+                            InputLabelProps={{ shrink: true }}
+                            value={to}
+                            onChange={(e) => {
+                                setTo(e.target.value);
+                                applyFilters({ to: e.target.value });
+                            }}
+                            sx={{ width: { xs: '100%', md: 170 } }}
+                        />
                     </Stack>
-                </Paper>
+                </PageHeader>
 
                 <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
                     <Grid container spacing={1.5}>

@@ -1,4 +1,5 @@
 import AdminLayout from '@/Layouts/AdminLayout';
+import PageHeader from '@/Components/PageHeader';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
 import {
@@ -126,37 +127,25 @@ export default function WarehousesIndex() {
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
 
-                <Stack
-                    direction={{ xs: 'column', md: 'row' }}
-                    spacing={1.5}
-                    sx={{
-                        mb: 0.5,
-                        justifyContent: 'space-between',
-                        alignItems: { xs: 'flex-start', md: 'center' },
-                    }}
-                >
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                            {t('nav.warehouses')}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            {t('master.warehouses.subtitle')}
-                        </Typography>
-                    </Box>
-                    {canManage && (
-                        <Tooltip title={t('master.warehouses.actions.new')} placement="bottom">
-                            <Fab
-                                color="primary"
-                                size="small"
-                                onClick={openCreate}
-                                aria-label={t('master.warehouses.actions.create')}
-                                sx={{ boxShadow: 2, alignSelf: { xs: 'flex-end', md: 'auto' } }}
-                            >
-                                <AddIcon fontSize="small" />
-                            </Fab>
-                        </Tooltip>
-                    )}
-                </Stack>
+                <PageHeader
+                    title={t('nav.warehouses')}
+                    subtitle={t('master.warehouses.subtitle')}
+                    actions={
+                        canManage ? (
+                            <Tooltip title={t('master.warehouses.actions.new')} placement="bottom">
+                                <Fab
+                                    color="primary"
+                                    size="small"
+                                    onClick={openCreate}
+                                    aria-label={t('master.warehouses.actions.create')}
+                                    sx={{ boxShadow: 2 }}
+                                >
+                                    <AddIcon fontSize="small" />
+                                </Fab>
+                            </Tooltip>
+                        ) : null
+                    }
+                />
 
                 {isCompactList ? (
                     <Stack spacing={1.25}>

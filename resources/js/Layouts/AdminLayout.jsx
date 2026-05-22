@@ -301,7 +301,7 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
             title: t('nav.system'),
             items: [
                 ...(permissionCodes.includes('public_page.manage')
-                    ? [{ label: t('nav.settings'), href: `${adminAppUrl}/system/organization-settings?tab=settings`, icon: <SettingsIcon />, iconOutlined: <SettingsOutlinedIcon /> }]
+                    ? [{ label: t('nav.settings'), href: `${adminAppUrl}/system/organization-settings`, icon: <SettingsIcon />, iconOutlined: <SettingsOutlinedIcon /> }]
                     : []),
                 { label: t('nav.users'), href: `${adminAppUrl}/iam/users`, icon: <AdminPanelSettingsIcon />, iconOutlined: <AdminPanelSettingsOutlinedIcon /> },
                 { label: t('nav.roles'), href: `${adminAppUrl}/iam/roles`, icon: <AdminPanelSettingsIcon />, iconOutlined: <AdminPanelSettingsOutlinedIcon /> },
@@ -500,7 +500,7 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                                         { label: t('nav.dashboard'), href: `${adminAppUrl}/dashboard`, icon: <DashboardIcon fontSize="small" /> },
                                         { label: t('nav.profile'), href: `${adminAppUrl}/profile`, icon: <PersonIcon fontSize="small" /> },
                                         ...(permissionCodes.includes('public_page.manage')
-                                            ? [{ label: t('nav.settings'), href: `${adminAppUrl}/system/organization-settings?tab=settings`, icon: <SettingsIcon fontSize="small" /> }]
+                                            ? [{ label: t('nav.settings'), href: `${adminAppUrl}/system/organization-settings`, icon: <SettingsIcon fontSize="small" /> }]
                                             : []),
                                     ].map((item) => (
                                         <MenuItem

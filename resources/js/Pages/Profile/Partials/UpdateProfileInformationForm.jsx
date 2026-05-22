@@ -6,7 +6,7 @@ import { useT } from '@/i18n';
 import { Alert, Avatar, Box, Button, Stack, TextField, Typography } from '@mui/material';
 
 export default function UpdateProfileInformation({ mustVerifyEmail, status, className }) {
-    const { auth, admin_app_url } = usePage().props;
+    const { auth, admin_app_url, organization, canManageOrganization } = usePage().props;
     const t = useT();
     const user = auth.user;
     const fileInputRef = useRef(null);
@@ -17,6 +17,7 @@ export default function UpdateProfileInformation({ mustVerifyEmail, status, clas
     const { data, setData, post, errors, processing, recentlySuccessful } = useForm({
         name: user.name ?? '',
         email: user.email ?? '',
+        organization_name: organization?.name ?? '',
         profile_image: null,
         remove_profile_image: false,
         _method: 'patch',
@@ -189,6 +190,41 @@ export default function UpdateProfileInformation({ mustVerifyEmail, status, clas
                             helperText={errors.email}
                         />
                     </Stack>
+
+                    {canManageOrganization ? (
+                        <Stack spacing={1.25}>
+                            <Box>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                                    {t('profile.organization.name')}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    {t('profile.organization.description')}
+                                </Typography>
+                            </Box>
+                            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+                                <TextField
+                                    id="organization_name"
+                                    label={t('profile.organization.name')}
+                                    fullWidth
+                                    size="small"
+                                    value={data.organization_name}
+                                    onChange={(e) => setData('organization_name', e.target.value)}
+                                    error={Boolean(errors.organization_name)}
+                                    helperText={errors.organization_name}
+                                />
+
+                                <TextField
+                                    id="organization_code"
+                                    label={t('profile.organization.code')}
+                                    fullWidth
+                                    size="small"
+                                    value={organization?.code ?? ''}
+                                    disabled
+                                    helperText={t('profile.organization.code_hint')}
+                                />
+                            </Stack>
+                        </Stack>
+                    ) : null}
 
                     {mustVerifyEmail && user.email_verified_at === null ? (
                         <Stack spacing={1}>

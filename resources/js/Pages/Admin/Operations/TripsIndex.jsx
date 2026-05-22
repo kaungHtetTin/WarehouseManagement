@@ -1,4 +1,5 @@
 import AdminLayout from '@/Layouts/AdminLayout';
+import PageHeader from '@/Components/PageHeader';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
 import {
@@ -114,71 +115,65 @@ export default function TripsIndex() {
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
 
-                <Stack
-                    direction={{ xs: 'column', sm: 'row' }}
-                    alignItems={{ xs: 'stretch', sm: 'flex-start' }}
-                    justifyContent="space-between"
-                    spacing={2}
-                    sx={{ width: '100%' }}
+                <PageHeader
+                    title={t('nav.trips')}
+                    subtitle={t('trips.subtitle')}
+                    actions={
+                        canManage
+                            ? isSmUp
+                                ? (
+                                    <Fab
+                                        component={Link}
+                                        href={`${adminAppUrl}/operations/trips/create`}
+                                        size="small"
+                                        color="primary"
+                                        aria-label={t('trips.actions.create_trip')}
+                                        sx={{ flexShrink: 0, boxShadow: 2 }}
+                                    >
+                                        <AddIcon fontSize="small" />
+                                    </Fab>
+                                )
+                                : (
+                                    <Button
+                                        component={Link}
+                                        href={`${adminAppUrl}/operations/trips/create`}
+                                        variant="contained"
+                                        startIcon={<AddIcon />}
+                                        fullWidth
+                                        sx={{ flexShrink: 0 }}
+                                    >
+                                        {t('trips.actions.new_trip')}
+                                    </Button>
+                                )
+                            : null
+                    }
                 >
-                    <Box sx={{ flex: '1 1 auto', minWidth: 0, pt: { sm: 0.25 } }}>
-                        <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                            {t('nav.trips')}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                            {t('trips.subtitle')}
-                        </Typography>
-                        {tripFilterWarehouses.length > 0 && (
-                            <FormControl size="small" sx={{ mt: 1.5, width: { xs: '100%', sm: 280 } }}>
-                                <InputLabel id="trip-src-wh-filter">{t('trips.filters.destination_warehouse')}</InputLabel>
-                                <Select
-                                    labelId="trip-src-wh-filter"
-                                    label={t('trips.filters.destination_warehouse')}
-                                    value={tripDestinationFilter}
-                                    onChange={(e) => {
-                                        const v = e.target.value;
-                                        router.get(
-                                            `${adminAppUrl}/operations/trips`,
-                                            { destination_warehouse_id: v },
-                                            { preserveScroll: true },
-                                        );
-                                    }}
-                                >
-                                    <MenuItem value="all">{t('filters.all')}</MenuItem>
-                                    {tripFilterWarehouses.map((w) => (
-                                        <MenuItem key={w.id} value={String(w.id)}>
-                                            {w.display_name || w.city}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
-                        )}
-                    </Box>
-                    {canManage &&
-                        (isSmUp ? (
-                            <Fab
-                                component={Link}
-                                href={`${adminAppUrl}/operations/trips/create`}
-                                size="small"
-                                color="primary"
-                                aria-label={t('trips.actions.create_trip')}
-                                sx={{ flexShrink: 0, boxShadow: 2 }}
+                    {tripFilterWarehouses.length > 0 ? (
+                        <FormControl size="small" sx={{ width: { xs: '100%', sm: 280 } }}>
+                            <InputLabel id="trip-src-wh-filter">{t('trips.filters.destination_warehouse')}</InputLabel>
+                            <Select
+                                labelId="trip-src-wh-filter"
+                                label={t('trips.filters.destination_warehouse')}
+                                value={tripDestinationFilter}
+                                onChange={(e) => {
+                                    const v = e.target.value;
+                                    router.get(
+                                        `${adminAppUrl}/operations/trips`,
+                                        { destination_warehouse_id: v },
+                                        { preserveScroll: true },
+                                    );
+                                }}
                             >
-                                <AddIcon fontSize="small" />
-                            </Fab>
-                        ) : (
-                            <Button
-                                component={Link}
-                                href={`${adminAppUrl}/operations/trips/create`}
-                                variant="contained"
-                                startIcon={<AddIcon />}
-                                fullWidth
-                                sx={{ flexShrink: 0 }}
-                            >
-                                {t('trips.actions.new_trip')}
-                            </Button>
-                        ))}
-                </Stack>
+                                <MenuItem value="all">{t('filters.all')}</MenuItem>
+                                {tripFilterWarehouses.map((w) => (
+                                    <MenuItem key={w.id} value={String(w.id)}>
+                                        {w.display_name || w.city}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    ) : null}
+                </PageHeader>
 
                 {isSmUp ? (
                     <Paper sx={{ overflowX: 'auto', borderRadius: 2 }}>

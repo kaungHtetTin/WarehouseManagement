@@ -1,4 +1,5 @@
 import AdminLayout from '@/Layouts/AdminLayout';
+import PageHeader from '@/Components/PageHeader';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { ExpandLessOutlined as ExpandLessIcon, ExpandMoreOutlined as ExpandMoreIcon } from '@mui/icons-material';
 import {
@@ -265,13 +266,7 @@ export default function WarehouseFulfillmentInbox() {
             <Head title={title} />
             <Stack spacing={2.5}>
                 {flash.success ? <Alert severity="success">{flash.success}</Alert> : null}
-                <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                        {title}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, mb: 1.5 }}>
-                        {subtitle}
-                    </Typography>
+                <PageHeader title={title} subtitle={subtitle}>
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} sx={{ mb: 1.5 }}>
                         <FormControl size="small" sx={{ width: { xs: '100%', sm: 300 } }}>
                             <InputLabel id="fulfillment-wh-filter">Warehouse</InputLabel>
@@ -630,7 +625,7 @@ export default function WarehouseFulfillmentInbox() {
                             </Stack>
                         )
                     )}
-                </Paper>
+                </PageHeader>
                 <Dialog open={Boolean(dialog)} onClose={() => !form.processing && setDialog(null)} fullWidth maxWidth="sm">
                     <DialogTitle>Process fulfillment</DialogTitle>
                     <DialogContent>

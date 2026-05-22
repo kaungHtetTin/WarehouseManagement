@@ -1,4 +1,5 @@
 import AdminLayout from '@/Layouts/AdminLayout';
+import PageHeader from '@/Components/PageHeader';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
 import {
@@ -160,45 +161,25 @@ export default function RolesIndex() {
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
 
-                <Stack
-                    direction={{ xs: 'column', md: 'row' }}
-                    spacing={1.5}
-                    sx={{
-                        mb: 0.5,
-                        justifyContent: 'space-between',
-                        alignItems: { xs: 'flex-start', md: 'center' },
-                    }}
-                >
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                            {t('iam.roles.heading')}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            {t('iam.roles.subtitle')}
-                        </Typography>
-                    </Box>
-                    <Stack
-                        direction="row"
-                        spacing={1}
-                        sx={{
-                            flexShrink: 0,
-                            alignItems: 'center',
-                            alignSelf: { xs: 'flex-end', md: 'auto' },
-                        }}
-                    >
-                        <Tooltip title={t('iam.roles.actions.new_role')} placement="bottom">
-                            <Fab
-                                color="primary"
-                                size="small"
-                                onClick={openCreate}
-                                aria-label={t('iam.roles.actions.create')}
-                                sx={{ boxShadow: 2 }}
-                            >
-                                <AddIcon fontSize="small" />
-                            </Fab>
-                        </Tooltip>
-                    </Stack>
-                </Stack>
+                <PageHeader
+                    title={t('iam.roles.heading')}
+                    subtitle={t('iam.roles.subtitle')}
+                    actions={
+                        <Stack direction="row" spacing={1} sx={{ flexShrink: 0, alignItems: 'center' }}>
+                            <Tooltip title={t('iam.roles.actions.new_role')} placement="bottom">
+                                <Fab
+                                    color="primary"
+                                    size="small"
+                                    onClick={openCreate}
+                                    aria-label={t('iam.roles.actions.create')}
+                                    sx={{ boxShadow: 2 }}
+                                >
+                                    <AddIcon fontSize="small" />
+                                </Fab>
+                            </Tooltip>
+                        </Stack>
+                    }
+                />
 
                 {isCompactList ? (
                     <Stack spacing={1.25}>

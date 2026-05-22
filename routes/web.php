@@ -17,9 +17,7 @@ use App\Http\Controllers\Admin\RoleManagementController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\WarehouseManagementController;
 use App\Http\Controllers\Admin\WarehouseFulfillmentController;
-use App\Http\Controllers\Admin\OrganizationPublicPageController;
 use App\Http\Controllers\Admin\OrganizationSettingsController;
-use App\Http\Controllers\PublicOrganizationPageController;
 use App\Http\Controllers\PublicVoucherTrackingController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
@@ -94,13 +92,6 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/system/organization-settings/gallery', [OrganizationSettingsController::class, 'uploadGallery'])
             ->middleware('permission:public_page.manage')
             ->name('organization-settings.gallery');
-
-        Route::get('/system/public-page', [OrganizationPublicPageController::class, 'edit'])
-            ->middleware('permission:public_page.manage')
-            ->name('public-page.edit');
-        Route::patch('/system/public-page', [OrganizationPublicPageController::class, 'update'])
-            ->middleware('permission:public_page.manage')
-            ->name('public-page.update');
 
         Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 
@@ -397,7 +388,6 @@ Route::prefix('admin')->name('admin.')->group(function () {
     });
 });
 
-Route::get('/p/{slug}', [PublicOrganizationPageController::class, 'show'])->name('public-page.show');
 Route::get('/track/{org}/{voucherNo}', [PublicVoucherTrackingController::class, 'show'])
     ->where(['org' => '[A-Za-z0-9_-]+', 'voucherNo' => '[A-Za-z0-9_-]+' ])
     ->name('public.voucher.track');

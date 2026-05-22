@@ -1,4 +1,5 @@
 import AdminLayout from '@/Layouts/AdminLayout';
+import PageHeader from '@/Components/PageHeader';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
 import {
@@ -132,115 +133,95 @@ export default function VouchersIndex() {
                     </Alert>
                 ) : null}
 
-                <Stack
-                    direction={{ xs: 'column', md: 'row' }}
-                    spacing={1.5}
-                    sx={{
-                        mb: 0.5,
-                        justifyContent: 'space-between',
-                        alignItems: { xs: 'flex-start', md: 'center' },
-                    }}
+                <PageHeader
+                    title={t('nav.vouchers')}
+                    subtitle={`${t('vouchers.subtitle')}${canManage && !canWizard ? ` ${t('vouchers.subtitle_requires_inventory_manage')}` : ''}`}
+                    actions={
+                        canWizard ? (
+                            <Stack direction="row" spacing={1} sx={{ flexShrink: 0, alignItems: 'center' }}>
+                                <Fab
+                                    size="small"
+                                    color="primary"
+                                    onClick={() => router.visit(`${adminAppUrl}/operations/vouchers/create`)}
+                                    aria-label={t('vouchers.actions.create_with_wizard')}
+                                    sx={{ boxShadow: 2 }}
+                                >
+                                    <AddIcon fontSize="small" />
+                                </Fab>
+                            </Stack>
+                        ) : null
+                    }
                 >
-                    <Box>
-                        <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                            {t('nav.vouchers')}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            {t('vouchers.subtitle')}
-                            {canManage && !canWizard ? ` ${t('vouchers.subtitle_requires_inventory_manage')}` : ''}
-                        </Typography>
-                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1.25 }}>
-                            <FormControl size="small" sx={{ width: { xs: '100%', sm: 260 } }}>
-                                <InputLabel id="voucher-wh-filter">{t('vouchers.filters.warehouse')}</InputLabel>
-                                <Select
-                                    labelId="voucher-wh-filter"
-                                    label={t('vouchers.filters.warehouse')}
-                                    value={voucherWarehouseFilter}
-                                    onChange={(e) => {
-                                        const v = e.target.value;
-                                        router.get(
-                                            `${adminAppUrl}/operations/vouchers`,
-                                            { warehouse_id: v, payment_status: voucherPaymentFilter, status: voucherStatusFilter },
-                                            { preserveScroll: true },
-                                        );
-                                    }}
-                                >
-                                    <MenuItem value="all">{t('filters.all')}</MenuItem>
-                                    {warehouses.map((w) => (
-                                        <MenuItem key={w.id} value={String(w.id)}>
-                                            {w.display_name || w.city}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
-                            <FormControl size="small" sx={{ width: { xs: '100%', sm: 220 } }}>
-                                <InputLabel id="voucher-pay-filter">{t('vouchers.filters.payment')}</InputLabel>
-                                <Select
-                                    labelId="voucher-pay-filter"
-                                    label={t('vouchers.filters.payment')}
-                                    value={voucherPaymentFilter}
-                                    onChange={(e) => {
-                                        const v = e.target.value;
-                                        router.get(
-                                            `${adminAppUrl}/operations/vouchers`,
-                                            { warehouse_id: voucherWarehouseFilter, payment_status: v, status: voucherStatusFilter },
-                                            { preserveScroll: true },
-                                        );
-                                    }}
-                                >
-                                    <MenuItem value="all">{t('filters.all')}</MenuItem>
-                                    <MenuItem value="UNPAID">{t('vouchers.payment_status.unpaid')}</MenuItem>
-                                    <MenuItem value="PARTIAL">{t('vouchers.payment_status.partial')}</MenuItem>
-                                    <MenuItem value="PAID">{t('vouchers.payment_status.paid')}</MenuItem>
-                                    <MenuItem value="WAIVED">{t('vouchers.payment_status.waived')}</MenuItem>
-                                </Select>
-                            </FormControl>
-                            <FormControl size="small" sx={{ width: { xs: '100%', sm: 220 } }}>
-                                <InputLabel id="voucher-status-filter">{t('vouchers.filters.status')}</InputLabel>
-                                <Select
-                                    labelId="voucher-status-filter"
-                                    label={t('vouchers.filters.status')}
-                                    value={voucherStatusFilter}
-                                    onChange={(e) => {
-                                        const v = e.target.value;
-                                        router.get(
-                                            `${adminAppUrl}/operations/vouchers`,
-                                            { warehouse_id: voucherWarehouseFilter, payment_status: voucherPaymentFilter, status: v },
-                                            { preserveScroll: true },
-                                        );
-                                    }}
-                                >
-                                    <MenuItem value="all">{t('filters.all')}</MenuItem>
-                                    <MenuItem value="confirmed">{t('vouchers.status.confirmed')}</MenuItem>
-                                    <MenuItem value="loading">{t('vouchers.status.loading')}</MenuItem>
-                                    <MenuItem value="in_transit">{t('vouchers.status.in_transit')}</MenuItem>
-                                    <MenuItem value="delivered">{t('vouchers.status.delivered')}</MenuItem>
-                                </Select>
-                            </FormControl>
-                        </Stack>
-                    </Box>
-                    {canWizard && (
-                        <Stack
-                            direction="row"
-                            spacing={1}
-                            sx={{
-                                flexShrink: 0,
-                                alignItems: 'center',
-                                alignSelf: { xs: 'flex-end', md: 'auto' },
-                            }}
-                        >
-                            <Fab
-                                size="small"
-                                color="primary"
-                                onClick={() => router.visit(`${adminAppUrl}/operations/vouchers/create`)}
-                                aria-label={t('vouchers.actions.create_with_wizard')}
-                                sx={{ boxShadow: 2 }}
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                        <FormControl size="small" sx={{ width: { xs: '100%', sm: 260 } }}>
+                            <InputLabel id="voucher-wh-filter">{t('vouchers.filters.warehouse')}</InputLabel>
+                            <Select
+                                labelId="voucher-wh-filter"
+                                label={t('vouchers.filters.warehouse')}
+                                value={voucherWarehouseFilter}
+                                onChange={(e) => {
+                                    const v = e.target.value;
+                                    router.get(
+                                        `${adminAppUrl}/operations/vouchers`,
+                                        { warehouse_id: v, payment_status: voucherPaymentFilter, status: voucherStatusFilter },
+                                        { preserveScroll: true },
+                                    );
+                                }}
                             >
-                                <AddIcon fontSize="small" />
-                            </Fab>
-                        </Stack>
-                    )}
-                </Stack>
+                                <MenuItem value="all">{t('filters.all')}</MenuItem>
+                                {warehouses.map((w) => (
+                                    <MenuItem key={w.id} value={String(w.id)}>
+                                        {w.display_name || w.city}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <FormControl size="small" sx={{ width: { xs: '100%', sm: 220 } }}>
+                            <InputLabel id="voucher-pay-filter">{t('vouchers.filters.payment')}</InputLabel>
+                            <Select
+                                labelId="voucher-pay-filter"
+                                label={t('vouchers.filters.payment')}
+                                value={voucherPaymentFilter}
+                                onChange={(e) => {
+                                    const v = e.target.value;
+                                    router.get(
+                                        `${adminAppUrl}/operations/vouchers`,
+                                        { warehouse_id: voucherWarehouseFilter, payment_status: v, status: voucherStatusFilter },
+                                        { preserveScroll: true },
+                                    );
+                                }}
+                            >
+                                <MenuItem value="all">{t('filters.all')}</MenuItem>
+                                <MenuItem value="UNPAID">{t('vouchers.payment_status.unpaid')}</MenuItem>
+                                <MenuItem value="PARTIAL">{t('vouchers.payment_status.partial')}</MenuItem>
+                                <MenuItem value="PAID">{t('vouchers.payment_status.paid')}</MenuItem>
+                                <MenuItem value="WAIVED">{t('vouchers.payment_status.waived')}</MenuItem>
+                            </Select>
+                        </FormControl>
+                        <FormControl size="small" sx={{ width: { xs: '100%', sm: 220 } }}>
+                            <InputLabel id="voucher-status-filter">{t('vouchers.filters.status')}</InputLabel>
+                            <Select
+                                labelId="voucher-status-filter"
+                                label={t('vouchers.filters.status')}
+                                value={voucherStatusFilter}
+                                onChange={(e) => {
+                                    const v = e.target.value;
+                                    router.get(
+                                        `${adminAppUrl}/operations/vouchers`,
+                                        { warehouse_id: voucherWarehouseFilter, payment_status: voucherPaymentFilter, status: v },
+                                        { preserveScroll: true },
+                                    );
+                                }}
+                            >
+                                <MenuItem value="all">{t('filters.all')}</MenuItem>
+                                <MenuItem value="confirmed">{t('vouchers.status.confirmed')}</MenuItem>
+                                <MenuItem value="loading">{t('vouchers.status.loading')}</MenuItem>
+                                <MenuItem value="in_transit">{t('vouchers.status.in_transit')}</MenuItem>
+                                <MenuItem value="delivered">{t('vouchers.status.delivered')}</MenuItem>
+                            </Select>
+                        </FormControl>
+                    </Stack>
+                </PageHeader>
 
                 {isCompactList ? (
                     <Stack spacing={1.25}>

@@ -1,4 +1,5 @@
 import AdminLayout from '@/Layouts/AdminLayout';
+import PageHeader from '@/Components/PageHeader';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
 import {
@@ -125,39 +126,19 @@ export default function CategoriesIndex() {
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
 
-                <Stack
-                    direction={{ xs: 'column', md: 'row' }}
-                    spacing={1.5}
-                    sx={{
-                        mb: 0.5,
-                        justifyContent: 'space-between',
-                        alignItems: { xs: 'flex-start', md: 'center' },
-                    }}
-                >
-                    <Box>
-                        <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                            {t('nav.categories')}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            {t('master.categories.subtitle')}
-                        </Typography>
-                    </Box>
-                    {canManage && (
-                        <Stack
-                            direction="row"
-                            spacing={1}
-                            sx={{
-                                flexShrink: 0,
-                                alignItems: 'center',
-                                alignSelf: { xs: 'flex-end', md: 'auto' },
-                            }}
-                        >
-                            <Fab size="small" color="primary" onClick={openCreate} aria-label={t('master.categories.actions.create')} sx={{ boxShadow: 2 }}>
-                                <AddIcon fontSize="small" />
-                            </Fab>
-                        </Stack>
-                    )}
-                </Stack>
+                <PageHeader
+                    title={t('nav.categories')}
+                    subtitle={t('master.categories.subtitle')}
+                    actions={
+                        canManage ? (
+                            <Stack direction="row" spacing={1} sx={{ flexShrink: 0, alignItems: 'center' }}>
+                                <Fab size="small" color="primary" onClick={openCreate} aria-label={t('master.categories.actions.create')} sx={{ boxShadow: 2 }}>
+                                    <AddIcon fontSize="small" />
+                                </Fab>
+                            </Stack>
+                        ) : null
+                    }
+                />
 
                 {isCompactList ? (
                     <Stack spacing={1.25}>

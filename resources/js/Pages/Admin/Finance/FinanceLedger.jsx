@@ -1,4 +1,5 @@
 import AdminLayout from '@/Layouts/AdminLayout';
+import PageHeader from '@/Components/PageHeader';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
 import {
@@ -201,26 +202,18 @@ export default function FinanceLedger() {
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
 
-                <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+                <PageHeader
+                    title={t('finance.ledger.title')}
+                    subtitle={t('finance.ledger.subtitle')}
+                    actions={
+                        canManageFinance ? (
+                            <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
+                                {t('finance.ledger.actions.add_entry')}
+                            </Button>
+                        ) : null
+                    }
+                >
                     <Stack spacing={1.5}>
-                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ justifyContent: 'space-between', alignItems: { sm: 'center' } }}>
-                            <Box>
-                                <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                                    {t('finance.ledger.title')}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                    {t('finance.ledger.subtitle')}
-                                </Typography>
-                            </Box>
-                            {canManageFinance ? (
-                                <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-                                    {t('finance.ledger.actions.add_entry')}
-                                </Button>
-                            ) : null}
-                        </Stack>
-
-                        <Divider />
-
                         <Grid container spacing={1.5}>
                             <Grid item xs={12} sm={6} md={3}>
                                 <Typography variant="caption" color="text.secondary">
@@ -316,7 +309,7 @@ export default function FinanceLedger() {
                             {t('finance.ledger.filters.limit_hint')}
                         </Typography>
                     </Stack>
-                </Paper>
+                </PageHeader>
 
                 {isMdUp ? (
                     <Paper sx={{ overflowX: 'auto' }}>
