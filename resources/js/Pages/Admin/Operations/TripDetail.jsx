@@ -1336,7 +1336,6 @@ export default function TripDetail() {
                                         <Table size="small" sx={{ minWidth: 720 }}>
                                             <TableHead>
                                                 <TableRow>
-                                                    <TableCell sx={{ width: 140 }}>{t('trip_detail.load_vouchers.table.voucher_id')}</TableCell>
                                                     <TableCell>{t('trip_detail.load_vouchers.table.receipt_name')}</TableCell>
                                                     <TableCell align="right" sx={{ width: 140 }}>
                                                         {t('trip_detail.load_vouchers.table.weight')}
@@ -1371,14 +1370,13 @@ export default function TripDetail() {
                                                     const w = row.total_weight;
                                                     return (
                                                         <TableRow key={row.id} hover>
-                                                            <TableCell>{row.id}</TableCell>
                                                             <TableCell sx={{ minWidth: 240 }}>
                                                                 <Stack spacing={0.25} sx={{ minWidth: 0 }}>
                                                                     <Typography variant="body2" sx={{ fontWeight: 800 }} noWrap title={row.recipient_name || undefined}>
                                                                         {row.recipient_name || '—'}
                                                                     </Typography>
                                                                     <Typography variant="caption" color="text.secondary" noWrap title={row.voucher_no || undefined}>
-                                                                        {row.voucher_no || '—'}
+                                                                        <Link href={`${adminAppUrl}/operations/vouchers/${row.id}`}>{row.voucher_no || '—'}</Link>
                                                                     </Typography>
                                                                 </Stack>
                                                             </TableCell>
@@ -1447,7 +1445,9 @@ export default function TripDetail() {
                                                                     {row.recipient_name || '—'}
                                                                 </Typography>
                                                                 <Typography variant="caption" color="text.secondary">
-                                                                    {t('trip_detail.load_vouchers.mobile_row', { voucher_no: row.voucher_no || '—', id: row.id })}
+                                                                    <Link href={`${adminAppUrl}/operations/vouchers/${row.id}`}>
+                                                                        {t('trip_detail.load_vouchers.mobile_row', { voucher_no: row.voucher_no || '—', id: row.id })}
+                                                                    </Link>
                                                                 </Typography>
                                                             </Box>
                                                             <Checkbox
