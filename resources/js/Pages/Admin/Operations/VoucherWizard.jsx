@@ -424,6 +424,19 @@ export default function VoucherWizard() {
         return Math.round(sum * 100) / 100;
     }, [step1.additional_costs]);
 
+    const buildAdditionalCostsPayload = useCallback(() => {
+        return (step1.additional_costs || [])
+            .map((row) => {
+                const category_id = row?.category_id === '' || row?.category_id == null ? null : Number(row.category_id);
+                const amountRaw = row?.amount;
+                const amount = amountRaw === '' || amountRaw == null ? 0 : Number(amountRaw);
+                return { category_id, amount };
+            })
+            .filter((row) => row.category_id != null)
+            .filter((row) => Number.isFinite(row.amount) && row.amount >= 0)
+            .map((row) => ({ ...row, amount: Math.round(row.amount * 100) / 100 }));
+    }, [step1.additional_costs]);
+
     const reviewTotalAmount = useMemo(() => {
         if (!voucher) {
             return null;
@@ -510,15 +523,7 @@ export default function VoucherWizard() {
             const totalWeightRaw = step1.total_weight;
             const totalWeightNum = Number(totalWeightRaw);
             const total_weight = Number.isFinite(totalWeightNum) ? Math.max(0, Math.round(totalWeightNum)) : 0;
-
-            const additional_costs = (step1.additional_costs || [])
-                .map((r) => ({
-                    category_id: r?.category_id === '' || r?.category_id == null ? null : Number(r.category_id),
-                    amount: r?.amount === '' || r?.amount == null ? null : Number(r.amount),
-                }))
-                .filter((r) => r.category_id != null || r.amount != null)
-                .filter((r) => r.category_id != null && r.amount != null && Number.isFinite(r.amount) && r.amount >= 0)
-                .map((r) => ({ ...r, amount: Math.round(r.amount * 100) / 100 }));
+            const additional_costs = buildAdditionalCostsPayload();
 
             const merchantName = step1.merchant.name?.trim() ?? '';
             const merchantPhone = step1.merchant.phone?.trim() ?? '';
@@ -545,7 +550,7 @@ export default function VoucherWizard() {
                 ...overrides,
             };
         },
-        [step1, voucher?.merchant_id],
+        [buildAdditionalCostsPayload, step1, voucher?.merchant_id],
     );
 
     const submitStep1 = () => {
@@ -631,13 +636,7 @@ export default function VoucherWizard() {
         const totalWeightNum = Number(totalWeightRaw);
         const total_weight = Number.isFinite(totalWeightNum) ? Math.max(0, Math.round(totalWeightNum)) : 0;
 
-        const additional_costs = (step1.additional_costs || [])
-            .map((r) => ({
-                category_id: r?.category_id ? Number(r.category_id) : null,
-                amount: r?.amount != null && r?.amount !== '' ? Number(r.amount) : null,
-            }))
-            .filter((r) => r.category_id != null && r.amount != null && Number.isFinite(r.amount) && r.amount >= 0)
-            .map((r) => ({ ...r, amount: Math.round(r.amount * 100) / 100 }));
+        const additional_costs = buildAdditionalCostsPayload();
 
         router.post(
             `${adminAppUrl}/operations/vouchers/${voucher.id}/wizard/finish`,
@@ -1409,13 +1408,13 @@ export default function VoucherWizard() {
                                                     onChange={(e) => {
                                                         const raw = e.target.value;
                                                         if (raw == null || raw === '') {
-                                                            setStep1((p) => ({ ...p, total_weight: '0' }));
+                                                            setStep1((p) => ({ ...p, total_weight: '' }));
                                                             return;
                                                         }
                                                         const n = Number(raw);
                                                         setStep1((p) => ({
                                                             ...p,
-                                                            total_weight: Number.isFinite(n) ? String(Math.max(0, Math.round(n))) : '0',
+                                                            total_weight: Number.isFinite(n) ? String(Math.max(0, Math.round(n))) : '',
                                                         }));
                                                     }}
                                                     helperText={t('voucher_wizard.weight.default_zero')}

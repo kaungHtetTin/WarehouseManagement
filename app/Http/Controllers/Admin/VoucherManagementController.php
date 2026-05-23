@@ -40,7 +40,7 @@ class VoucherManagementController extends Controller
         $warehouses = $this->operationalContext->assignedWarehousesOnly($user);
         $allowedWarehouseIds = $this->operationalContext->assignedWarehouseIds($user);
 
-        $rawWarehouseFilter = (string) $request->query('warehouse_id', 'all');
+        $rawWarehouseFilter = (string) $request->query('destination_warehouse_id', 'all');
         $warehouseFilter = 'all';
         if ($rawWarehouseFilter !== '' && $rawWarehouseFilter !== 'all') {
             $candidate = (int) $rawWarehouseFilter;
@@ -61,11 +61,11 @@ class VoucherManagementController extends Controller
             ->where('organization_id', $organizationId);
 
         if ($warehouseFilter !== 'all') {
-            $query->where('source_warehouse_id', (int) $warehouseFilter);
+            $query->where('default_to_warehouse_id', (int) $warehouseFilter);
         } elseif ($allowedWarehouseIds === []) {
             $query->whereRaw('1 = 0');
         } else {
-            $query->whereIn('source_warehouse_id', $allowedWarehouseIds);
+            $query->whereIn('default_to_warehouse_id', $allowedWarehouseIds);
         }
 
         if ($paymentFilter !== 'all') {
@@ -134,6 +134,7 @@ class VoucherManagementController extends Controller
             ->with([
                 'merchant:id,name',
                 'sourceWarehouse:id,city,address',
+                'defaultToWarehouse:id,city,address',
                 'items' => function ($q) {
                     $q->orderBy('line_no')->with('product:id,name,unit');
                 },

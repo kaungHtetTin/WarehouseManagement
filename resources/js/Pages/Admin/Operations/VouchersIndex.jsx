@@ -154,16 +154,16 @@ export default function VouchersIndex() {
                 >
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                         <FormControl size="small" sx={{ width: { xs: '100%', sm: 260 } }}>
-                            <InputLabel id="voucher-wh-filter">{t('vouchers.filters.warehouse')}</InputLabel>
+                            <InputLabel id="voucher-wh-filter">{t('trips.labels.destination_warehouse')}</InputLabel>
                             <Select
                                 labelId="voucher-wh-filter"
-                                label={t('vouchers.filters.warehouse')}
+                                label={t('trips.labels.destination_warehouse')}
                                 value={voucherWarehouseFilter}
                                 onChange={(e) => {
                                     const v = e.target.value;
                                     router.get(
                                         `${adminAppUrl}/operations/vouchers`,
-                                        { warehouse_id: v, payment_status: voucherPaymentFilter, status: voucherStatusFilter },
+                                        { destination_warehouse_id: v, payment_status: voucherPaymentFilter, status: voucherStatusFilter },
                                         { preserveScroll: true },
                                     );
                                 }}
@@ -186,7 +186,7 @@ export default function VouchersIndex() {
                                     const v = e.target.value;
                                     router.get(
                                         `${adminAppUrl}/operations/vouchers`,
-                                        { warehouse_id: voucherWarehouseFilter, payment_status: v, status: voucherStatusFilter },
+                                        { destination_warehouse_id: voucherWarehouseFilter, payment_status: v, status: voucherStatusFilter },
                                         { preserveScroll: true },
                                     );
                                 }}
@@ -208,7 +208,7 @@ export default function VouchersIndex() {
                                     const v = e.target.value;
                                     router.get(
                                         `${adminAppUrl}/operations/vouchers`,
-                                        { warehouse_id: voucherWarehouseFilter, payment_status: voucherPaymentFilter, status: v },
+                                        { destination_warehouse_id: voucherWarehouseFilter, payment_status: voucherPaymentFilter, status: v },
                                         { preserveScroll: true },
                                     );
                                 }}
@@ -246,7 +246,7 @@ export default function VouchersIndex() {
                                             </Typography>
                                         )}
                                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, fontSize: '0.8125rem' }}>
-                                            {[recipientLabel(row), row.source_warehouse?.display_name].filter(Boolean).join(' · ') || '—'}
+                                            {[recipientLabel(row), row.default_to_warehouse?.display_name].filter(Boolean).join(' · ') || '—'}
                                         </Typography>
                                         <Stack direction="row" spacing={0.75} sx={{ mt: 0.75, flexWrap: 'wrap', gap: 0.5 }}>
                                             <Chip size="small" label={row.status} color={statusColor(row.status)} variant="outlined" />
@@ -291,7 +291,7 @@ export default function VouchersIndex() {
                                     <TableCell>{t('vouchers.table.voucher')}</TableCell>
                                     <TableCell>{t('vouchers.table.date')}</TableCell>
                                     <TableCell>{t('vouchers.table.recipient')}</TableCell>
-                                    <TableCell>{t('vouchers.table.source_warehouse')}</TableCell>
+                                    <TableCell>{t('trips.labels.destination_warehouse')}</TableCell>
                                     <TableCell>{t('vouchers.table.status')}</TableCell>
                                     <TableCell align="right">{t('vouchers.table.lines')}</TableCell>
                                     <TableCell align="right">{t('vouchers.table.actions')}</TableCell>
@@ -305,7 +305,7 @@ export default function VouchersIndex() {
                                         </TableCell>
                                         <TableCell>{typeof row.voucher_date === 'string' ? row.voucher_date.slice(0, 10) : row.voucher_date}</TableCell>
                                         <TableCell>{recipientLabel(row)}</TableCell>
-                                        <TableCell>{row.source_warehouse?.display_name ?? '—'}</TableCell>
+                                        <TableCell>{row.default_to_warehouse?.display_name ?? '—'}</TableCell>
                                         <TableCell>
                                             <Stack direction="row" spacing={0.75} alignItems="center">
                                                 <Chip size="small" label={row.status} color={statusColor(row.status)} variant="outlined" />
