@@ -1,1 +1,0 @@
-import{g as i,a as t}from"./Stack-5077b85d.js";function l(e){return i("MuiDivider",e)}const s=t("MuiDivider",["root","absolute","fullWidth","inset","middle","flexItem","vertical","withChildren","textAlignRight","textAlignLeft","wrapper","wrapperVertical"]),a=s;export{a as d,l as g};
