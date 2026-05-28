@@ -8,6 +8,7 @@ import {
     Chip,
     Fab,
     FormControl,
+    Grid,
     IconButton,
     InputLabel,
     Menu,
@@ -20,12 +21,13 @@ import {
     TableCell,
     TableHead,
     TableRow,
+    TextField,
     Typography,
     useMediaQuery,
     useTheme,
 } from '@mui/material';
 import { Add as AddIcon, MoreVert as MoreVertIcon, NotificationsActiveOutlined as NotificationsIcon } from '@mui/icons-material';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 export default function VouchersIndex() {
     const theme = useTheme();
@@ -35,20 +37,42 @@ export default function VouchersIndex() {
         vouchers = [],
         warehouses = [],
         voucher_warehouse_filter: voucherWarehouseFilter = 'all',
+        voucher_source_warehouse_filter: voucherSourceWarehouseFilter = 'all',
         voucher_payment_filter: voucherPaymentFilter = 'all',
         voucher_status_filter: voucherStatusFilter = 'all',
+        voucher_search_filter: voucherSearchFilter = '',
         admin_app_url: adminAppUrl,
         flash = {},
         auth,
     } = usePage().props;
     const [tableActionAnchorEl, setTableActionAnchorEl] = useState(null);
     const [selectedRow, setSelectedRow] = useState(null);
+    const [searchInput, setSearchInput] = useState(voucherSearchFilter);
     const permissionCodes = auth?.permission_codes ?? [];
     const canManage = permissionCodes.includes('vouchers.manage');
     const canWizard = canManage && permissionCodes.includes('inventory.manage');
     const canViewDetail = permissionCodes.includes('vouchers.view');
     const canRecordVoucherPayments = permissionCodes.includes('payments.manage');
     const openTableActionMenu = Boolean(tableActionAnchorEl);
+
+    useEffect(() => {
+        setSearchInput(voucherSearchFilter);
+    }, [voucherSearchFilter]);
+
+    const applyFilters = (overrides = {}) => {
+        router.get(
+            `${adminAppUrl}/operations/vouchers`,
+            {
+                destination_warehouse_id: voucherWarehouseFilter,
+                source_warehouse_id: voucherSourceWarehouseFilter,
+                payment_status: voucherPaymentFilter,
+                status: voucherStatusFilter,
+                search: searchInput.trim(),
+                ...overrides,
+            },
+            { preserveScroll: true },
+        );
+    };
 
     const handleTableActionOpen = (event, row) => {
         setTableActionAnchorEl(event.currentTarget);
@@ -152,75 +176,105 @@ export default function VouchersIndex() {
                         ) : null
                     }
                 >
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                        <FormControl size="small" sx={{ width: { xs: '100%', sm: 260 } }}>
-                            <InputLabel id="voucher-wh-filter">{t('trips.labels.destination_warehouse')}</InputLabel>
-                            <Select
-                                labelId="voucher-wh-filter"
-                                label={t('trips.labels.destination_warehouse')}
-                                value={voucherWarehouseFilter}
-                                onChange={(e) => {
-                                    const v = e.target.value;
-                                    router.get(
-                                        `${adminAppUrl}/operations/vouchers`,
-                                        { destination_warehouse_id: v, payment_status: voucherPaymentFilter, status: voucherStatusFilter },
-                                        { preserveScroll: true },
-                                    );
+                    <Grid container spacing={1.5}>
+                        <Grid item xs={12} md={6}>
+                            <TextField
+                                fullWidth
+                                size="small"
+                                value={searchInput}
+                                placeholder={t('vouchers.filters.search_placeholder')}
+                                onChange={(e) => setSearchInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        applyFilters({ search: e.currentTarget.value.trim() });
+                                    }
                                 }}
-                            >
-                                <MenuItem value="all">{t('filters.all')}</MenuItem>
-                                {warehouses.map((w) => (
-                                    <MenuItem key={w.id} value={String(w.id)}>
-                                        {w.display_name || w.city}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                        <FormControl size="small" sx={{ width: { xs: '100%', sm: 220 } }}>
-                            <InputLabel id="voucher-pay-filter">{t('vouchers.filters.payment')}</InputLabel>
-                            <Select
-                                labelId="voucher-pay-filter"
-                                label={t('vouchers.filters.payment')}
-                                value={voucherPaymentFilter}
-                                onChange={(e) => {
-                                    const v = e.target.value;
-                                    router.get(
-                                        `${adminAppUrl}/operations/vouchers`,
-                                        { destination_warehouse_id: voucherWarehouseFilter, payment_status: v, status: voucherStatusFilter },
-                                        { preserveScroll: true },
-                                    );
-                                }}
-                            >
-                                <MenuItem value="all">{t('filters.all')}</MenuItem>
-                                <MenuItem value="UNPAID">{t('vouchers.payment_status.unpaid')}</MenuItem>
-                                <MenuItem value="PARTIAL">{t('vouchers.payment_status.partial')}</MenuItem>
-                                <MenuItem value="PAID">{t('vouchers.payment_status.paid')}</MenuItem>
-                                <MenuItem value="WAIVED">{t('vouchers.payment_status.waived')}</MenuItem>
-                            </Select>
-                        </FormControl>
-                        <FormControl size="small" sx={{ width: { xs: '100%', sm: 220 } }}>
-                            <InputLabel id="voucher-status-filter">{t('vouchers.filters.status')}</InputLabel>
-                            <Select
-                                labelId="voucher-status-filter"
-                                label={t('vouchers.filters.status')}
-                                value={voucherStatusFilter}
-                                onChange={(e) => {
-                                    const v = e.target.value;
-                                    router.get(
-                                        `${adminAppUrl}/operations/vouchers`,
-                                        { destination_warehouse_id: voucherWarehouseFilter, payment_status: voucherPaymentFilter, status: v },
-                                        { preserveScroll: true },
-                                    );
-                                }}
-                            >
-                                <MenuItem value="all">{t('filters.all')}</MenuItem>
-                                <MenuItem value="confirmed">{t('vouchers.status.confirmed')}</MenuItem>
-                                <MenuItem value="loading">{t('vouchers.status.loading')}</MenuItem>
-                                <MenuItem value="in_transit">{t('vouchers.status.in_transit')}</MenuItem>
-                                <MenuItem value="delivered">{t('vouchers.status.delivered')}</MenuItem>
-                            </Select>
-                        </FormControl>
-                    </Stack>
+                            />
+                        </Grid>
+                        <Grid item xs={12} sm={6} md={3}>
+                            <FormControl fullWidth size="small" sx={{ minWidth: { sm: 220 } }}>
+                                <InputLabel id="voucher-source-wh-filter">{t('voucher_detail.fields.source_warehouse')}</InputLabel>
+                                <Select
+                                    labelId="voucher-source-wh-filter"
+                                    label={t('voucher_detail.fields.source_warehouse')}
+                                    value={voucherSourceWarehouseFilter}
+                                    onChange={(e) => {
+                                        const v = e.target.value;
+                                        applyFilters({ source_warehouse_id: v });
+                                    }}
+                                >
+                                    <MenuItem value="all">{t('filters.all')}</MenuItem>
+                                    {warehouses.map((w) => (
+                                        <MenuItem key={w.id} value={String(w.id)}>
+                                            {w.display_name || w.city}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                        <Grid item xs={12} sm={6} md={3}>
+                            <FormControl fullWidth size="small" sx={{ minWidth: { sm: 220 } }}>
+                                <InputLabel id="voucher-wh-filter">{t('trips.labels.destination_warehouse')}</InputLabel>
+                                <Select
+                                    labelId="voucher-wh-filter"
+                                    label={t('trips.labels.destination_warehouse')}
+                                    value={voucherWarehouseFilter}
+                                    onChange={(e) => {
+                                        const v = e.target.value;
+                                        applyFilters({ destination_warehouse_id: v });
+                                    }}
+                                >
+                                    <MenuItem value="all">{t('filters.all')}</MenuItem>
+                                    {warehouses.map((w) => (
+                                        <MenuItem key={w.id} value={String(w.id)}>
+                                            {w.display_name || w.city}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                        <Grid item xs={12} sm={6} md={3}>
+                            <FormControl fullWidth size="small" sx={{ minWidth: { sm: 220 } }}>
+                                <InputLabel id="voucher-pay-filter">{t('vouchers.filters.payment')}</InputLabel>
+                                <Select
+                                    labelId="voucher-pay-filter"
+                                    label={t('vouchers.filters.payment')}
+                                    value={voucherPaymentFilter}
+                                    onChange={(e) => {
+                                        const v = e.target.value;
+                                        applyFilters({ payment_status: v });
+                                    }}
+                                >
+                                    <MenuItem value="all">{t('filters.all')}</MenuItem>
+                                    <MenuItem value="UNPAID">{t('vouchers.payment_status.unpaid')}</MenuItem>
+                                    <MenuItem value="PARTIAL">{t('vouchers.payment_status.partial')}</MenuItem>
+                                    <MenuItem value="PAID">{t('vouchers.payment_status.paid')}</MenuItem>
+                                    <MenuItem value="WAIVED">{t('vouchers.payment_status.waived')}</MenuItem>
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                        <Grid item xs={12} sm={6} md={3}>
+                            <FormControl fullWidth size="small" sx={{ minWidth: { sm: 220 } }}>
+                                <InputLabel id="voucher-status-filter">{t('vouchers.filters.status')}</InputLabel>
+                                <Select
+                                    labelId="voucher-status-filter"
+                                    label={t('vouchers.filters.status')}
+                                    value={voucherStatusFilter}
+                                    onChange={(e) => {
+                                        const v = e.target.value;
+                                        applyFilters({ status: v });
+                                    }}
+                                >
+                                    <MenuItem value="all">{t('filters.all')}</MenuItem>
+                                    <MenuItem value="confirmed">{t('vouchers.status.confirmed')}</MenuItem>
+                                    <MenuItem value="loading">{t('vouchers.status.loading')}</MenuItem>
+                                    <MenuItem value="in_transit">{t('vouchers.status.in_transit')}</MenuItem>
+                                    <MenuItem value="delivered">{t('vouchers.status.delivered')}</MenuItem>
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                    </Grid>
                 </PageHeader>
 
                 {isCompactList ? (

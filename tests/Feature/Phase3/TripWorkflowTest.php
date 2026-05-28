@@ -22,6 +22,55 @@ class TripWorkflowTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_vehicle_search_returns_capacity_and_latest_driver_details(): void
+    {
+        $organization = Organization::factory()->create();
+        $user = User::factory()->create([
+            'organization_id' => $organization->id,
+            'status' => 'ACTIVE',
+        ]);
+        $this->grantPermissions($user, ['trips.manage', 'trips.view']);
+
+        $vehicle = Vehicle::query()->create([
+            'organization_id' => $organization->id,
+            'vehicle_no' => 'YGN-9900',
+            'vehicle_type' => 'GENERAL',
+            'capacity_weight' => 12,
+            'capacity_volume' => null,
+            'status' => 'ACTIVE',
+        ]);
+
+        Trip::query()->create([
+            'organization_id' => $organization->id,
+            'trip_no' => 'T-OLD-'.mt_rand(1000, 9999),
+            'vehicle_id' => $vehicle->id,
+            'driver_name' => 'Old Driver',
+            'driver_phone' => '091111111',
+            'source_warehouse_id' => Warehouse::factory()->create(['organization_id' => $organization->id])->id,
+            'status' => 'PLANNED',
+            'created_by' => $user->id,
+        ]);
+
+        Trip::query()->create([
+            'organization_id' => $organization->id,
+            'trip_no' => 'T-NEW-'.mt_rand(1000, 9999),
+            'vehicle_id' => $vehicle->id,
+            'driver_name' => 'New Driver',
+            'driver_phone' => '099999999',
+            'source_warehouse_id' => Warehouse::factory()->create(['organization_id' => $organization->id])->id,
+            'status' => 'PLANNED',
+            'created_by' => $user->id,
+        ]);
+
+        $this->actingAs($user)
+            ->getJson(route('admin.trips.wizard.vehicle-search', ['q' => 'YGN-9900']))
+            ->assertOk()
+            ->assertJsonPath('results.0.vehicle_no', 'YGN-9900')
+            ->assertJsonPath('results.0.capacity_weight', '12.000')
+            ->assertJsonPath('results.0.driver_name', 'New Driver')
+            ->assertJsonPath('results.0.driver_phone', '099999999');
+    }
+
     public function test_trip_create_requires_destination_warehouse_and_creates_single_stop(): void
     {
         $organization = Organization::factory()->create();

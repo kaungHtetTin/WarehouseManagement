@@ -1,7 +1,33 @@
 import { Head, usePage } from '@inertiajs/react';
-import { Box, Button, Divider, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
-import { useEffect, useMemo, useState } from 'react';
+import {
+    Alert,
+    Box,
+    Button,
+    Chip,
+    CircularProgress,
+    Divider,
+    FormControl,
+    MenuItem,
+    Paper,
+    Select,
+    Snackbar,
+    Stack,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableRow,
+    Typography,
+} from '@mui/material';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import BluetoothConnectedIcon from '@mui/icons-material/BluetoothConnected';
+import BluetoothDisabledIcon from '@mui/icons-material/BluetoothDisabled';
+import BluetoothSearchingIcon from '@mui/icons-material/BluetoothSearching';
+import PrintIcon from '@mui/icons-material/Print';
+import SyncIcon from '@mui/icons-material/Sync';
 import QRCode from 'qrcode';
+import { buildVoucherEscPosReceipt } from '@/utils/printing/buildVoucherEscPosReceipt';
+import { getBluetoothSupportState, mapBluetoothError, WebBluetoothEscPosPrinter } from '@/utils/printing/webBluetoothEscPosPrinter';
 
 function n2(value) {
     const n = Number(value);
@@ -24,11 +50,56 @@ function safeStr(value) {
     return typeof value === 'string' ? value.trim() : '';
 }
 
+const THERMAL_PAPER_STORAGE_KEY = 'warehouse.bluetoothPrinterPaperWidth.v1';
+
+function loadThermalPaperWidth() {
+    try {
+        const saved = window.localStorage.getItem(THERMAL_PAPER_STORAGE_KEY);
+        return saved === '58' ? 58 : 80;
+    } catch {
+        return 80;
+    }
+}
+
+function saveThermalPaperWidth(width) {
+    try {
+        window.localStorage.setItem(THERMAL_PAPER_STORAGE_KEY, String(width));
+    } catch {
+        return;
+    }
+}
+
+function printerStatusMeta(status) {
+    switch (status) {
+        case 'connected':
+            return { color: 'success', icon: <BluetoothConnectedIcon />, label: 'Connected' };
+        case 'connecting':
+            return { color: 'info', icon: <BluetoothSearchingIcon />, label: 'Connecting' };
+        case 'reconnecting':
+            return { color: 'info', icon: <SyncIcon />, label: 'Reconnecting' };
+        case 'printing':
+            return { color: 'warning', icon: <PrintIcon />, label: 'Printing' };
+        case 'unsupported':
+            return { color: 'default', icon: <BluetoothDisabledIcon />, label: 'Unsupported' };
+        case 'error':
+            return { color: 'error', icon: <BluetoothDisabledIcon />, label: 'Error' };
+        default:
+            return { color: 'default', icon: <BluetoothDisabledIcon />, label: 'Disconnected' };
+    }
+}
+
 export default function VoucherPrint() {
     const { voucher, template = {}, tracking_url: trackingUrl } = usePage().props;
     const initialPaper = String(template?.paper_size || 'A4').toUpperCase() === 'RECEIPT_80' ? 'RECEIPT_80' : 'A4';
     const [paperSize, setPaperSize] = useState(initialPaper);
     const [qrDataUrl, setQrDataUrl] = useState(null);
+    const printerRef = useRef(null);
+    const [thermalPaperWidth, setThermalPaperWidth] = useState(loadThermalPaperWidth);
+    const [printerStatus, setPrinterStatus] = useState(getBluetoothSupportState().supported ? 'disconnected' : 'unsupported');
+    const [printerName, setPrinterName] = useState('');
+    const [printerError, setPrinterError] = useState('');
+    const [printerBusy, setPrinterBusy] = useState(false);
+    const [toast, setToast] = useState({ open: false, severity: 'success', message: '' });
 
     const paymentsTotal = useMemo(() => {
         const rows = Array.isArray(voucher?.payments) ? voucher.payments : [];
@@ -68,6 +139,69 @@ export default function VoucherPrint() {
     const footerNote = safeStr(template?.footer_note);
     const showPaymentStatus = Boolean(template?.show_payment_status);
     const isReceipt = paperSize === 'RECEIPT_80';
+    const bluetoothSupport = useMemo(() => getBluetoothSupportState(), []);
+    const currentPrinterStatus = printerStatusMeta(printerStatus);
+
+    useEffect(() => {
+        saveThermalPaperWidth(thermalPaperWidth);
+    }, [thermalPaperWidth]);
+
+    useEffect(() => {
+        const printer = new WebBluetoothEscPosPrinter();
+        printerRef.current = printer;
+
+        if (!printer.support.supported) {
+            setPrinterStatus('unsupported');
+            setPrinterError(printer.support.reason || '');
+            return () => {
+                printer.disconnect({ silent: true }).catch(() => {});
+            };
+        }
+
+        let cancelled = false;
+
+        const syncInfo = () => {
+            const info = printer.connectionInfo;
+            setPrinterName(info.deviceName || '');
+            setPrinterStatus(info.connected ? 'connected' : 'disconnected');
+        };
+
+        syncInfo();
+
+        const reconnectPreferred = async () => {
+            if (!printer.savedPreference?.deviceId) {
+                return;
+            }
+
+            setPrinterStatus('reconnecting');
+            try {
+                await printer.reconnectSavedPrinter();
+                if (cancelled) return;
+                setPrinterError('');
+                setToast({
+                    open: true,
+                    severity: 'success',
+                    message: `Reconnected ${printer.connectionInfo.deviceName || 'printer'}.`,
+                });
+            } catch (error) {
+                if (cancelled) return;
+                const message = mapBluetoothError(error);
+                setPrinterError(message);
+                setPrinterStatus('disconnected');
+            } finally {
+                if (!cancelled) {
+                    syncInfo();
+                }
+            }
+        };
+
+        reconnectPreferred();
+
+        return () => {
+            cancelled = true;
+            printer.disconnect({ silent: true }).catch(() => {});
+        };
+    }, []);
 
     useEffect(() => {
         let cancelled = false;
@@ -105,6 +239,122 @@ export default function VoucherPrint() {
         }
     }, [paperSize]);
 
+    const updatePrinterInfo = () => {
+        const info = printerRef.current?.connectionInfo;
+        setPrinterName(info?.deviceName || '');
+        setPrinterStatus(info?.connected ? 'connected' : 'disconnected');
+    };
+
+    const showToast = (severity, message) => {
+        setToast({ open: true, severity, message });
+    };
+
+    const handleConnectPrinter = async () => {
+        const printer = printerRef.current;
+        if (!printer) return;
+
+        setPrinterBusy(true);
+        setPrinterStatus('connecting');
+        setPrinterError('');
+
+        try {
+            await printer.requestAndConnect();
+            updatePrinterInfo();
+            showToast('success', `Connected ${printer.connectionInfo.deviceName || 'printer'}.`);
+        } catch (error) {
+            const message = mapBluetoothError(error);
+            setPrinterError(message);
+            setPrinterStatus(printer.connectionInfo.connected ? 'connected' : 'error');
+            showToast('error', message);
+        } finally {
+            setPrinterBusy(false);
+            updatePrinterInfo();
+        }
+    };
+
+    const handleReconnectPrinter = async () => {
+        const printer = printerRef.current;
+        if (!printer) return;
+
+        setPrinterBusy(true);
+        setPrinterStatus('reconnecting');
+        setPrinterError('');
+
+        try {
+            const info = await printer.reconnectSavedPrinter();
+            if (!info) {
+                throw new Error('No saved printer found. Use Connect Printer first.');
+            }
+
+            updatePrinterInfo();
+            showToast('success', `Reconnected ${printer.connectionInfo.deviceName || 'printer'}.`);
+        } catch (error) {
+            const message = mapBluetoothError(error);
+            setPrinterError(message);
+            setPrinterStatus('error');
+            showToast('error', message);
+        } finally {
+            setPrinterBusy(false);
+            updatePrinterInfo();
+        }
+    };
+
+    const handleDisconnectPrinter = async () => {
+        const printer = printerRef.current;
+        if (!printer) return;
+
+        setPrinterBusy(true);
+        try {
+            await printer.disconnect();
+            setPrinterError('');
+            setPrinterStatus('disconnected');
+            setPrinterName('');
+            showToast('success', 'Printer disconnected.');
+        } catch (error) {
+            const message = mapBluetoothError(error);
+            setPrinterError(message);
+            setPrinterStatus('error');
+            showToast('error', message);
+        } finally {
+            setPrinterBusy(false);
+            updatePrinterInfo();
+        }
+    };
+
+    const handleBluetoothPrint = async () => {
+        const printer = printerRef.current;
+        if (!printer) return;
+
+        setPrinterBusy(true);
+        setPrinterStatus('printing');
+        setPrinterError('');
+
+        try {
+            if (!printer.connectionInfo.connected) {
+                await printer.requestAndConnect();
+            }
+
+            const bytes = buildVoucherEscPosReceipt({
+                voucher,
+                template,
+                trackingUrl,
+                paperWidth: thermalPaperWidth,
+            });
+
+            await printer.print(bytes);
+            updatePrinterInfo();
+            showToast('success', `Receipt sent to ${printer.connectionInfo.deviceName || 'printer'}.`);
+        } catch (error) {
+            const message = mapBluetoothError(error);
+            setPrinterError(message);
+            setPrinterStatus('error');
+            showToast('error', message);
+        } finally {
+            setPrinterBusy(false);
+            updatePrinterInfo();
+        }
+    };
+
     return (
         <Box sx={{ minHeight: '100vh', bgcolor: 'grey.100', py: 2 }}>
             <Head title={`Print ${voucher?.voucher_no || 'Voucher'}`} />
@@ -121,20 +371,72 @@ export default function VoucherPrint() {
                 .kv .v { font-size: ${isReceipt ? '11px' : '12px'}; font-weight: 600; }
             `}</style>
 
-            <Stack className="no-print" direction="row" spacing={1} sx={{ px: 2, pb: 2, justifyContent: 'center' }}>
-                <Button variant={paperSize === 'A4' ? 'contained' : 'outlined'} onClick={() => setPaperSize('A4')}>
-                    A4
-                </Button>
-                <Button variant={paperSize === 'RECEIPT_80' ? 'contained' : 'outlined'} onClick={() => setPaperSize('RECEIPT_80')}>
-                    Receipt 80mm
-                </Button>
-                <Button variant="contained" onClick={() => window.print()}>
-                    Print
-                </Button>
-                <Button variant="outlined" onClick={() => window.close()}>
-                    Close
-                </Button>
-            </Stack>
+            <Paper className="no-print" variant="outlined" sx={{ mx: 2, mb: 2, borderRadius: 2, p: 2 }}>
+                <Stack spacing={2}>
+                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ alignItems: { xs: 'stretch', md: 'center' }, justifyContent: 'space-between' }}>
+                        <Box>
+                            <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                                Bluetooth Thermal Printing
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                Direct BLE ESC/POS receipt printing for Android Chrome. No RawBT, no Android print dialog.
+                            </Typography>
+                        </Box>
+                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                            <Chip
+                                color={currentPrinterStatus.color}
+                                icon={currentPrinterStatus.icon}
+                                label={printerName ? `${currentPrinterStatus.label}: ${printerName}` : currentPrinterStatus.label}
+                                variant={printerStatus === 'connected' ? 'filled' : 'outlined'}
+                            />
+                            {printerBusy ? <CircularProgress size={22} /> : null}
+                        </Stack>
+                    </Stack>
+
+                    {!bluetoothSupport.supported ? (
+                        <Alert severity="warning">{bluetoothSupport.reason}</Alert>
+                    ) : (
+                        <Alert severity="info">
+                            Works with BLE ESC/POS printers exposed through Web Bluetooth. Classic Bluetooth SPP-only printers will not print directly from the browser.
+                        </Alert>
+                    )}
+
+                    {printerError ? <Alert severity="error">{printerError}</Alert> : null}
+
+                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ alignItems: { xs: 'stretch', md: 'center' }, flexWrap: 'wrap' }}>
+                        <FormControl size="small" sx={{ minWidth: 160 }}>
+                            <Select value={paperSize} onChange={(event) => setPaperSize(event.target.value)}>
+                                <MenuItem value="A4">Browser preview: A4</MenuItem>
+                                <MenuItem value="RECEIPT_80">Browser preview: Receipt 80mm</MenuItem>
+                            </Select>
+                        </FormControl>
+                        <FormControl size="small" sx={{ minWidth: 160 }}>
+                            <Select value={thermalPaperWidth} onChange={(event) => setThermalPaperWidth(Number(event.target.value))}>
+                                <MenuItem value={58}>Thermal paper: 58mm</MenuItem>
+                                <MenuItem value={80}>Thermal paper: 80mm</MenuItem>
+                            </Select>
+                        </FormControl>
+                        <Button variant="contained" onClick={() => window.print()}>
+                            Browser Print
+                        </Button>
+                        <Button variant="contained" color="success" startIcon={<PrintIcon />} onClick={handleBluetoothPrint} disabled={printerBusy || !bluetoothSupport.supported}>
+                            Print via Bluetooth
+                        </Button>
+                        <Button variant="outlined" startIcon={<BluetoothSearchingIcon />} onClick={handleConnectPrinter} disabled={printerBusy || !bluetoothSupport.supported}>
+                            Connect Printer
+                        </Button>
+                        <Button variant="outlined" startIcon={<SyncIcon />} onClick={handleReconnectPrinter} disabled={printerBusy || !bluetoothSupport.supported}>
+                            Reconnect
+                        </Button>
+                        <Button variant="outlined" color="inherit" startIcon={<BluetoothDisabledIcon />} onClick={handleDisconnectPrinter} disabled={printerBusy || !bluetoothSupport.supported}>
+                            Disconnect
+                        </Button>
+                        <Button variant="outlined" onClick={() => window.close()}>
+                            Close
+                        </Button>
+                    </Stack>
+                </Stack>
+            </Paper>
 
             <Paper className="print-sheet" variant="outlined" sx={{ mx: 'auto', p: isReceipt ? 1.25 : 2.5, borderRadius: 1.5, bgcolor: '#fff' }}>
                 <Stack spacing={isReceipt ? 1 : 1.5}>
@@ -331,6 +633,12 @@ export default function VoucherPrint() {
                     ) : null}
                 </Stack>
             </Paper>
+
+            <Snackbar open={toast.open} autoHideDuration={3500} onClose={() => setToast((current) => ({ ...current, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+                <Alert severity={toast.severity} variant="filled" onClose={() => setToast((current) => ({ ...current, open: false }))} sx={{ width: '100%' }}>
+                    {toast.message}
+                </Alert>
+            </Snackbar>
         </Box>
     );
 }

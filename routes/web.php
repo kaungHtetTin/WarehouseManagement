@@ -270,6 +270,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/operations/trips/{trip}/manifest', [TripManagementController::class, 'manifest'])
             ->middleware('permission:trips.view')
             ->name('trips.manifest');
+        Route::get('/operations/trips/{trip}/vouchers/print', [TripManagementController::class, 'printVouchers'])
+            ->middleware('permission:trips.view')
+            ->name('trips.vouchers.print');
         Route::post('/operations/trips/{trip}/manifest-printed', [TripManagementController::class, 'markManifestPrinted'])
             ->middleware('permission:trips.manage')
             ->name('trips.manifest-printed');
@@ -373,6 +376,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/operations/vouchers/{voucher}/payment-waive', [VoucherManagementController::class, 'setWaived'])
             ->middleware('permission:payments.manage')
             ->name('vouchers.payment-waive');
+        Route::patch('/operations/vouchers/{voucher}/additional-costs', [VoucherManagementController::class, 'updateAdditionalCosts'])
+            ->middleware('permission:vouchers.manage')
+            ->name('vouchers.additional-costs.update');
         Route::patch('/operations/vouchers/{voucher}/items/{voucherItem}', [VoucherManagementController::class, 'updateItem'])
             ->middleware('permission:vouchers.manage')
             ->name('vouchers.items.update');

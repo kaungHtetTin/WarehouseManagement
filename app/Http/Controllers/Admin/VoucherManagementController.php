@@ -8,6 +8,7 @@ use App\Models\OrganizationPublicPage;
 use App\Models\Product;
 use App\Models\TripItem;
 use App\Models\User;
+use App\Models\VoucherAdditionalCostCategory;
 use App\Models\Voucher;
 use App\Models\VoucherItem;
 use App\Models\VoucherPayment;
@@ -49,6 +50,15 @@ class VoucherManagementController extends Controller
             }
         }
 
+        $rawSourceWarehouseFilter = (string) $request->query('source_warehouse_id', 'all');
+        $sourceWarehouseFilter = 'all';
+        if ($rawSourceWarehouseFilter !== '' && $rawSourceWarehouseFilter !== 'all') {
+            $candidate = (int) $rawSourceWarehouseFilter;
+            if (in_array($candidate, $allowedWarehouseIds, true)) {
+                $sourceWarehouseFilter = (string) $candidate;
+            }
+        }
+
         $rawPaymentFilter = (string) $request->query('payment_status', 'all');
         $paymentFilter = in_array($rawPaymentFilter, ['UNPAID', 'PARTIAL', 'PAID', 'WAIVED', 'all'], true) ? $rawPaymentFilter : 'all';
 
@@ -56,6 +66,7 @@ class VoucherManagementController extends Controller
         $statusFilter = in_array($rawStatusFilter, ['all', 'confirmed', 'loading', 'in_transit', 'delivered'], true)
             ? $rawStatusFilter
             : 'all';
+        $searchFilter = trim((string) $request->query('search', ''));
 
         $query = Voucher::query()
             ->where('organization_id', $organizationId);
@@ -70,6 +81,19 @@ class VoucherManagementController extends Controller
 
         if ($paymentFilter !== 'all') {
             $query->where('payment_status', $paymentFilter);
+        }
+
+        if ($sourceWarehouseFilter !== 'all') {
+            $query->where('source_warehouse_id', (int) $sourceWarehouseFilter);
+        }
+
+        if ($searchFilter !== '') {
+            $query->where(function ($q) use ($searchFilter) {
+                $like = '%'.$searchFilter.'%';
+                $q->where('voucher_no', 'like', $like)
+                    ->orWhere('default_recipient_name', 'like', $like)
+                    ->orWhere('default_recipient_phone', 'like', $like);
+            });
         }
 
         if ($statusFilter === 'delivered') {
@@ -147,8 +171,10 @@ class VoucherManagementController extends Controller
             'vouchers' => $vouchers,
             'warehouses' => $warehouses,
             'voucher_warehouse_filter' => $warehouseFilter,
+            'voucher_source_warehouse_filter' => $sourceWarehouseFilter,
             'voucher_payment_filter' => $paymentFilter,
             'voucher_status_filter' => $statusFilter,
+            'voucher_search_filter' => $searchFilter,
         ]);
     }
 
@@ -182,6 +208,13 @@ class VoucherManagementController extends Controller
             'can_record_voucher_payments' => $user->hasPermission('payments.manage'),
             'can_manage_voucher_lines' => $user->hasPermission('vouchers.manage'),
             'warehouses' => $this->operationalContext->accessibleWarehousesForUi($user)->values(),
+            'additional_cost_categories' => VoucherAdditionalCostCategory::query()
+                ->where('organization_id', $organizationId)
+                ->where('status', 'ACTIVE')
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(['id', 'name', 'status', 'sort_order'])
+                ->values(),
         ]);
     }
 
@@ -642,20 +675,12 @@ class VoucherManagementController extends Controller
 
                 if ($lockedByOperations) {
                     $validated = $request->validate([
-                        'freight_rate' => ['nullable', 'numeric', 'min:0'],
-                        'freight_amount' => ['nullable', 'numeric', 'min:0'],
+                        'freight_amount' => ['nullable', 'integer', 'min:0'],
                     ]);
 
-                    $qty = (float) $item->qty;
-                    $freightAmount = VoucherLineFreight::resolveAmount(
-                        $qty,
-                        $validated['freight_rate'] ?? $item->freight_rate,
-                        $validated['freight_amount'] ?? $item->freight_amount,
-                    );
-
                     $item->fill([
-                        'freight_rate' => array_key_exists('freight_rate', $validated) ? ($validated['freight_rate'] ?? null) : $item->freight_rate,
-                        'freight_amount' => $freightAmount,
+                        'freight_rate' => null,
+                        'freight_amount' => $validated['freight_amount'] ?? null,
                     ]);
                     $item->save();
                 } else {
@@ -667,25 +692,17 @@ class VoucherManagementController extends Controller
                         'qty' => ['required', 'numeric', 'min:0.001'],
                         'unit' => ['required', 'string', 'max:32'],
                         'description' => ['nullable', 'string', 'max:500'],
-                        'freight_rate' => ['nullable', 'numeric', 'min:0'],
-                        'freight_amount' => ['nullable', 'numeric', 'min:0'],
+                        'freight_amount' => ['nullable', 'integer', 'min:0'],
                         'is_fragile' => ['sometimes', 'boolean'],
                     ]);
-
-                    $qty = (float) $validated['qty'];
-                    $freightAmount = VoucherLineFreight::resolveAmount(
-                        $qty,
-                        $validated['freight_rate'] ?? null,
-                        $validated['freight_amount'] ?? null,
-                    );
 
                     $item->fill([
                         'from_warehouse_id' => (int) $validated['from_warehouse_id'],
                         'qty' => $validated['qty'],
                         'unit' => $validated['unit'],
                         'description' => $validated['description'] ?? null,
-                        'freight_rate' => $validated['freight_rate'] ?? null,
-                        'freight_amount' => $freightAmount,
+                        'freight_rate' => null,
+                        'freight_amount' => $validated['freight_amount'] ?? null,
                         'is_fragile' => (bool) ($validated['is_fragile'] ?? false),
                     ]);
                     $item->save();
@@ -704,6 +721,47 @@ class VoucherManagementController extends Controller
         ]);
 
         return Redirect::back()->with('success', 'Line updated.');
+    }
+
+    public function updateAdditionalCosts(Request $request, string $voucher): RedirectResponse
+    {
+        $actor = $request->user();
+        abort_if(! $actor->hasPermission('vouchers.manage'), 403);
+
+        $organizationId = $actor->organization_id;
+        abort_if($organizationId === null, 404);
+
+        $validated = $this->validateVoucherAdditionalCostsPayload($request, $organizationId);
+
+        $voucherModel = Voucher::query()
+            ->whereKey($voucher)
+            ->where('organization_id', $organizationId)
+            ->firstOrFail();
+
+        abort_if($voucherModel->status === 'DRAFT', 404);
+
+        $before = $voucherModel->additional_costs;
+
+        DB::transaction(function () use ($organizationId, $voucherModel, $validated) {
+            $lockedVoucher = Voucher::query()
+                ->whereKey($voucherModel->id)
+                ->where('organization_id', $organizationId)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            abort_if($lockedVoucher->status === 'DRAFT', 404);
+
+            $lockedVoucher->additional_costs = $this->normalizeVoucherAdditionalCosts($validated, $organizationId);
+            $lockedVoucher->save();
+        });
+
+        AuditLogger::record($actor, 'voucher.additional_costs.update', $voucherModel->fresh(), [
+            'voucher_no' => $voucherModel->voucher_no,
+            'before' => $before,
+            'after' => $voucherModel->fresh()->additional_costs,
+        ]);
+
+        return Redirect::back()->with('success', 'Additional costs updated.');
     }
 
     public function setWaived(Request $request, string $voucher): RedirectResponse
@@ -878,6 +936,72 @@ class VoucherManagementController extends Controller
         $computedTotal = round((float) $freightSum, 2);
         $voucher->total_amount = $computedTotal > 0.0001 ? $computedTotal : null;
         $voucher->save();
+    }
+
+    private function validateVoucherAdditionalCostsPayload(Request $request, int $organizationId): array
+    {
+        return $request->validate([
+            'additional_costs' => ['nullable', 'array', 'max:50'],
+            'additional_costs.*.category_id' => [
+                'required_with:additional_costs.*.amount',
+                'integer',
+                Rule::exists('voucher_additional_cost_categories', 'id')->where(fn ($q) => $q
+                    ->where('organization_id', $organizationId)
+                    ->whereNull('deleted_at')
+                    ->where('status', 'ACTIVE')),
+            ],
+            'additional_costs.*.amount' => ['required_with:additional_costs.*.category_id', 'numeric', 'min:0'],
+        ]);
+    }
+
+    private function normalizeVoucherAdditionalCosts(array $validated, int $organizationId): ?array
+    {
+        $raw = $validated['additional_costs'] ?? null;
+        if (! is_array($raw)) {
+            return null;
+        }
+
+        $ids = collect($raw)
+            ->pluck('category_id')
+            ->filter(fn ($id) => $id !== null && $id !== '')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $categoryNameById = VoucherAdditionalCostCategory::query()
+            ->where('organization_id', $organizationId)
+            ->whereIn('id', $ids)
+            ->pluck('name', 'id');
+
+        $normalized = [];
+        foreach ($raw as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $categoryId = isset($row['category_id']) && $row['category_id'] !== ''
+                ? (int) $row['category_id']
+                : null;
+            $amount = $row['amount'] ?? null;
+
+            if ($categoryId === null || $amount === null || $amount === '') {
+                continue;
+            }
+
+            $categoryName = $categoryNameById->get($categoryId);
+            if ($categoryName === null) {
+                continue;
+            }
+
+            $normalized[] = [
+                'category_id' => $categoryId,
+                'category_name' => $categoryName,
+                'amount' => round((float) $amount, 2),
+            ];
+        }
+
+        return $normalized === [] ? null : $normalized;
     }
 
     private function base36(int $value): string

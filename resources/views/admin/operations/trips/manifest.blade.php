@@ -148,21 +148,21 @@
                     <table class="cargo-table">
                         <colgroup>
                             <col style="width: 8mm;">
+                            <col style="width: 46mm;">
+                            <col style="width: 60mm;">
+                            <col style="width: 14mm;">
                             <col style="width: 18mm;">
                             <col style="width: 14mm;">
-                            <col style="width: 14mm;">
-                            <col style="width: 60mm;">
-                            <col style="width: 46mm;">
                             <col style="width: 30mm;">
                         </colgroup>
                         <thead>
                             <tr>
                                 <th class="text-center">No.</th>
+                                <th class="text-center">DEST.</th>
+                                <th class="text-center">Items</th>
+                                <th class="num text-center">ITEMS</th>
                                 <th class="num text-center">AMT</th>
                                 <th class="text-center">Paid</th>
-                                <th class="num text-center">ITEMS</th>
-                                <th class="text-center">Items</th>
-                                <th class="text-center">DEST.</th>
                                 <th class="text-center">Remark</th>
                             </tr>
                         </thead>
@@ -175,11 +175,11 @@
                                 @if (count($items) === 0)
                                     <tr>
                                         <td class="num text-center">{{ $i + 1 }}</td>
+                                        <td style="white-space: pre-wrap;">{{ $row['destination'] ?? '—' }}</td>
+                                        <td class="items-cell">—</td>
+                                        <td class="num text-center">{{ (int) ($row['total_items_qty'] ?? 0) }}</td>
                                         <td class="num text-center">{{ isset($row['total_amount']) ? number_format((float) $row['total_amount'], 0, '.', ',') : '—' }}</td>
                                         <td class="num text-center">{{ number_format((float) ($row['paid_amount'] ?? 0), 0, '.', ',') }}</td>
-                                        <td class="num text-center">{{ (int) ($row['total_items_qty'] ?? 0) }}</td>
-                                        <td class="items-cell">—</td>
-                                        <td style="white-space: pre-wrap;">{{ $row['destination'] ?? '—' }}</td>
                                         <td style="white-space: pre-wrap;">{{ ($row['destination_remark'] ?? null) ?: '—' }}</td>
                                     </tr>
                                 @else
@@ -187,17 +187,15 @@
                                         <tr>
                                             @if ($j === 0)
                                                 <td style="text-align: center" class="num" rowspan="{{ $rowspan }}">{{ $i + 1 }}</td>
-                                                <td class="num text-center" rowspan="{{ $rowspan }}">{{ isset($row['total_amount']) ? number_format((float) $row['total_amount'], 0, '.', ',') : '—' }}</td>
-                                                <td class="num text-center" rowspan="{{ $rowspan }}">{{ number_format((float) ($row['paid_amount'] ?? 0), 0, '.', ',') }}</td>
-                                                <td class="num text-center" rowspan="{{ $rowspan }}">{{ (int) ($row['total_items_qty'] ?? 0) }}</td>
+                                                <td rowspan="{{ $rowspan }}" style="white-space: pre-wrap;">{{ $row['destination'] ?? '—' }}</td>
                                             @endif
-
                                             <td class="items-cell">
                                                 <div style="font-weight: 700;">{{ $it['product_name'] ?? '—' }} . <span class="muted">{{ $it['qty'] ?? '—' }}</span></div>
                                             </td>
-
                                             @if ($j === 0)
-                                                <td rowspan="{{ $rowspan }}" style="white-space: pre-wrap;">{{ $row['destination'] ?? '—' }}</td>
+                                                <td class="num text-center" rowspan="{{ $rowspan }}">{{ (int) ($row['total_items_qty'] ?? 0) }}</td>
+                                                <td class="num text-center" rowspan="{{ $rowspan }}">{{ isset($row['total_amount']) ? number_format((float) $row['total_amount'], 0, '.', ',') : '—' }}</td>
+                                                <td class="num text-center" rowspan="{{ $rowspan }}">{{ number_format((float) ($row['paid_amount'] ?? 0), 0, '.', ',') }}</td>
                                                 <td rowspan="{{ $rowspan }}" style="white-space: pre-wrap;">{{ ($row['destination_remark'] ?? null) ?: '—' }}</td>
                                             @endif
                                         </tr>

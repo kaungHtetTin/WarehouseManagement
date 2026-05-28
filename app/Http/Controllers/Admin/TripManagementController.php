@@ -7,6 +7,8 @@ use App\Models\DeliveryConfirmation;
 use App\Models\FinanceCategory;
 use App\Models\FinanceEntry;
 use App\Models\Merchant;
+use App\Models\Organization;
+use App\Models\OrganizationPublicPage;
 use App\Models\Trip;
 use App\Models\TripItem;
 use App\Models\TripStop;
@@ -139,6 +141,24 @@ class TripManagementController extends Controller
                 'capacity_volume',
                 'status',
             ]);
+
+        $latestTripByVehicleId = Trip::query()
+            ->where('organization_id', $organizationId)
+            ->whereIn('vehicle_id', $results->pluck('id')->all())
+            ->whereNotNull('vehicle_id')
+            ->orderByDesc('id')
+            ->get(['vehicle_id', 'driver_name', 'driver_phone'])
+            ->unique('vehicle_id')
+            ->keyBy('vehicle_id');
+
+        $results = $results->map(function (Vehicle $vehicle) use ($latestTripByVehicleId) {
+            $latestTrip = $latestTripByVehicleId->get($vehicle->id);
+
+            return array_merge($vehicle->toArray(), [
+                'driver_name' => $latestTrip?->driver_name,
+                'driver_phone' => $latestTrip?->driver_phone,
+            ]);
+        })->values();
 
         return response()->json(['results' => $results]);
     }
@@ -2648,6 +2668,118 @@ class TripManagementController extends Controller
             'cargoRows' => $cargoRows,
             'canMarkPrinted' => $canMarkPrinted,
             'adminAppUrl' => rtrim((string) config('app.admin_app_url'), '/'),
+        ]);
+    }
+
+    public function printVouchers(Request $request, string $trip): Response
+    {
+        $user = $request->user();
+        $organizationId = $user->organization_id;
+        abort_if($organizationId === null, 404);
+
+        $tripModel = Trip::query()
+            ->whereKey($trip)
+            ->where('organization_id', $organizationId)
+            ->with(['vehicle:id,vehicle_no'])
+            ->firstOrFail();
+
+        $voucherIds = TripItem::query()
+            ->where('trip_items.organization_id', $organizationId)
+            ->where('trip_items.trip_id', $tripModel->id)
+            ->join('voucher_items', function ($join) use ($organizationId) {
+                $join->on('voucher_items.id', '=', 'trip_items.voucher_item_id')
+                    ->where('voucher_items.organization_id', '=', $organizationId);
+            })
+            ->selectRaw('DISTINCT voucher_items.voucher_id as voucher_id')
+            ->pluck('voucher_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->values()
+            ->all();
+
+        $vouchers = $voucherIds === []
+            ? collect()
+            : Voucher::query()
+                ->where('organization_id', $organizationId)
+                ->whereIn('id', $voucherIds)
+                ->with([
+                    'merchant:id,name,phone,nrc_or_id,address',
+                    'sourceWarehouse:id,city,address',
+                    'defaultToWarehouse:id,city,address',
+                    'creator:id,name',
+                    'payments' => fn ($q) => $q
+                        ->orderByDesc('paid_at')
+                        ->select(['id', 'organization_id', 'voucher_id', 'amount', 'currency', 'paid_at']),
+                    'items' => fn ($q) => $q->orderBy('line_no')->with([
+                        'product:id,name,unit,sku',
+                        'fromWarehouse:id,city,address',
+                    ]),
+                ])
+                ->orderByDesc('voucher_no')
+                ->get();
+
+        $organization = Organization::query()
+            ->whereKey($organizationId)
+            ->firstOrFail();
+
+        $page = OrganizationPublicPage::query()->firstOrCreate(
+            ['organization_id' => $organizationId],
+            [
+                'slug' => $organization->code,
+                'is_published' => false,
+                'business_name' => $organization->name,
+            ],
+        );
+
+        $templateDefaults = [
+            'paper_size' => 'A4',
+            'header_title' => $organization->name,
+            'header_subtitle' => 'Voucher',
+            'show_logo' => true,
+            'logo_url' => $page->logo_url,
+            'show_contact' => true,
+            'contact_phone' => $page->phone,
+            'contact_email' => $page->email,
+            'contact_address' => $page->address,
+            'footer_note' => null,
+            'show_payment_status' => true,
+            'show_signature_boxes' => true,
+        ];
+
+        $raw = is_array($organization->voucher_print_template) ? $organization->voucher_print_template : [];
+        $template = array_merge($templateDefaults, $raw);
+
+        $paperParam = strtoupper(trim((string) $request->query('paper', '')));
+        if (in_array($paperParam, ['A4', 'RECEIPT_80'], true)) {
+            $template['paper_size'] = $paperParam;
+        } elseif (in_array($paperParam, ['80', '80MM', 'RECEIPT', 'RECEIPT80'], true)) {
+            $template['paper_size'] = 'RECEIPT_80';
+        }
+
+        if (empty($template['logo_url'])) {
+            $template['logo_url'] = null;
+        }
+        if (empty($template['footer_note'])) {
+            $template['footer_note'] = null;
+        }
+
+        $trackingUrls = [];
+        foreach ($vouchers as $voucherModel) {
+            $trackingUrls[$voucherModel->id] = route('public.voucher.track', [
+                'org' => $organization->code,
+                'voucherNo' => $voucherModel->voucher_no,
+            ]);
+        }
+
+        return Inertia::render('Admin/Operations/TripVouchersPrint', [
+            'trip' => [
+                'id' => $tripModel->id,
+                'trip_no' => $tripModel->trip_no,
+                'vehicle' => $tripModel->vehicle,
+            ],
+            'vouchers' => $vouchers,
+            'template' => $template,
+            'tracking_urls' => $trackingUrls,
         ]);
     }
 

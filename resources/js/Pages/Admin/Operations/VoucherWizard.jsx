@@ -84,6 +84,13 @@ function formatQty(value) {
     return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(rounded);
 }
 
+function warehouseSelectorLabel(warehouse) {
+    const city = String(warehouse?.city ?? '').trim();
+    const address = String(warehouse?.address ?? '').trim();
+
+    return city || address || '—';
+}
+
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 function WizardSection({ title, children }) {
@@ -763,7 +770,7 @@ export default function VoucherWizard() {
                                                 </MenuItem>
                                                 {warehouses.map((w) => (
                                                     <MenuItem key={w.id} value={String(w.id)}>
-                                                        {w.display_name || w.city}
+                                                        {warehouseSelectorLabel(w)}
                                                     </MenuItem>
                                                 ))}
                                             </Select>
@@ -795,7 +802,7 @@ export default function VoucherWizard() {
                                                 </MenuItem>
                                                 {destinationWarehouseOptions.map((w) => (
                                                     <MenuItem key={w.id} value={String(w.id)}>
-                                                        {w.display_name || w.city}
+                                                        {warehouseSelectorLabel(w)}
                                                     </MenuItem>
                                                 ))}
                                             </Select>

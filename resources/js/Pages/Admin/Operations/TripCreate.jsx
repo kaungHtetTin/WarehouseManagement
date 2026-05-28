@@ -44,15 +44,43 @@ export default function TripCreate() {
     const [driverPhone, setDriverPhone] = useState('');
 
     const vehicleDebounceRef = useRef(null);
+    const lastVehicleAutofillRef = useRef(null);
 
-    const clearVehicleSelection = useCallback(() => {
+    const clearVehicleSelection = useCallback((resetAutofill = false) => {
         setVehicleId(null);
-    }, []);
+        if (!resetAutofill) {
+            return;
+        }
+
+        const last = lastVehicleAutofillRef.current;
+        if (!last) {
+            return;
+        }
+
+        if (capacityWeight === last.capacity_weight) {
+            setCapacityWeight('');
+        }
+        if (driverName === last.driver_name) {
+            setDriverName('');
+        }
+        if (driverPhone === last.driver_phone) {
+            setDriverPhone('');
+        }
+        lastVehicleAutofillRef.current = null;
+    }, [capacityWeight, driverName, driverPhone]);
 
     const pickVehicle = useCallback((row) => {
         setVehicleId(row.id);
         setVehicleNo(row.vehicle_no ?? '');
         setCapacityWeight(row.capacity_weight != null && row.capacity_weight !== '' ? String(row.capacity_weight) : '');
+        setDriverName(row.driver_name ?? '');
+        setDriverPhone(row.driver_phone ?? '');
+        lastVehicleAutofillRef.current = {
+            vehicle_id: row.id ?? null,
+            capacity_weight: row.capacity_weight != null && row.capacity_weight !== '' ? String(row.capacity_weight) : '',
+            driver_name: row.driver_name ?? '',
+            driver_phone: row.driver_phone ?? '',
+        };
     }, []);
 
     const vehicleAutocompleteValue = useMemo(() => {
@@ -100,10 +128,10 @@ export default function TripCreate() {
                     pickVehicle(results[0]);
                 }
                 if (results.length === 0) {
-                    clearVehicleSelection();
+                    clearVehicleSelection(true);
                 }
                 if (results.length > 1) {
-                    clearVehicleSelection();
+                    clearVehicleSelection(true);
                 }
             } catch {
                 setVehicleOptions([]);
@@ -191,20 +219,23 @@ export default function TripCreate() {
                                 }
                                 if (reason === 'clear') {
                                     setVehicleNo('');
-                                    clearVehicleSelection();
+                                    clearVehicleSelection(true);
                                     return;
+                                }
+                                if (vehicleId != null) {
+                                    clearVehicleSelection(true);
                                 }
                                 setVehicleNo(value);
                             }}
                             onChange={(_, v) => {
                                 if (v == null || v === '') {
-                                    clearVehicleSelection();
+                                    clearVehicleSelection(true);
                                     setVehicleNo('');
                                     return;
                                 }
                                 if (typeof v === 'string') {
                                     setVehicleNo(v);
-                                    clearVehicleSelection();
+                                    clearVehicleSelection(true);
                                     return;
                                 }
                                 pickVehicle(v);

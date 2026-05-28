@@ -13,6 +13,7 @@ import {
     FlightTakeoff as FlightTakeoffIcon,
     LocalShippingOutlined as LocalShippingIcon,
     MoreVert as MoreVertIcon,
+    PrintOutlined as PrintIcon,
     Undo as UndoIcon,
     ExpandLessOutlined as ExpandLessIcon,
     ExpandMoreOutlined as ExpandMoreIcon,
@@ -1253,18 +1254,32 @@ export default function TripDetail() {
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, flex: '1 1 auto', minWidth: 0 }}>
                             {t('trip_detail.cargo.title')}
                         </Typography>
-                        {canRecordDelivery && hasPendingDelivery ? (
-                            <Button
-                                size="small"
-                                variant="contained"
-                                startIcon={<LocalShippingIcon />}
-                                onClick={openTripDeliveryDialog}
-                                sx={{ flexShrink: 0, whiteSpace: { xs: 'normal', sm: 'nowrap' }, alignSelf: { xs: 'stretch', sm: 'auto' } }}
-                                fullWidth={!isSmUp}
-                            >
-                                {t('trip_detail.cargo.actions.confirm_trip_delivery')}
-                            </Button>
-                        ) : null}
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                            {voucherFinanceSummary.voucherCount > 0 ? (
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={<PrintIcon />}
+                                    onClick={() => window.open(`${adminAppUrl}/operations/trips/${trip.id}/vouchers/print`, '_blank', 'noopener,noreferrer')}
+                                    sx={{ flexShrink: 0, whiteSpace: { xs: 'normal', sm: 'nowrap' }, alignSelf: { xs: 'stretch', sm: 'auto' } }}
+                                    fullWidth={!isSmUp}
+                                >
+                                    {t('trip_detail.cargo.actions.print_vouchers')}
+                                </Button>
+                            ) : null}
+                            {canRecordDelivery && hasPendingDelivery ? (
+                                <Button
+                                    size="small"
+                                    variant="contained"
+                                    startIcon={<LocalShippingIcon />}
+                                    onClick={openTripDeliveryDialog}
+                                    sx={{ flexShrink: 0, whiteSpace: { xs: 'normal', sm: 'nowrap' }, alignSelf: { xs: 'stretch', sm: 'auto' } }}
+                                    fullWidth={!isSmUp}
+                                >
+                                    {t('trip_detail.cargo.actions.confirm_trip_delivery')}
+                                </Button>
+                            ) : null}
+                        </Stack>
                     </Stack>
 
                     {canLoadCargo ? (

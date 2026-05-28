@@ -29,7 +29,13 @@ import {
     TextField,
     Typography,
 } from '@mui/material';
-import { ArrowBack as ArrowBackIcon, EditOutlined as EditIcon, ExpandLess as ExpandLessIcon, ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
+import {
+    ArrowBack as ArrowBackIcon,
+    DeleteOutlined as DeleteOutlinedIcon,
+    EditOutlined as EditIcon,
+    ExpandLess as ExpandLessIcon,
+    ExpandMore as ExpandMoreIcon,
+} from '@mui/icons-material';
 import { Fragment, useMemo, useState } from 'react';
 
 const PAYMENT_LABELS = {
@@ -57,6 +63,19 @@ const PAYMENT_METHOD_LABELS = {
     CASH: 'Cash',
     TRANSFER: 'Transfer',
     OTHER: 'Other',
+};
+
+const ADDITIONAL_COST_ICON_BUTTON_SX = {
+    width: 32,
+    height: 32,
+    borderRadius: '50%',
+    '&:hover': {
+        borderRadius: '50%',
+    },
+    '&.Mui-focusVisible': {
+        borderRadius: '50%',
+        backgroundColor: 'action.hover',
+    },
 };
 
 function toDatetimeLocalValue(date) {
@@ -231,6 +250,7 @@ export default function VoucherDetail() {
     const canRecordVoucherPayments = pageProps.can_record_voucher_payments ?? false;
     const canManageVoucherLines = pageProps.can_manage_voucher_lines ?? false;
     const warehouses = pageProps.warehouses ?? [];
+    const additionalCostCategories = pageProps.additional_cost_categories ?? [];
     const flash = pageProps.flash ?? {};
 
     const [paymentOpen, setPaymentOpen] = useState(false);
@@ -238,6 +258,7 @@ export default function VoucherDetail() {
     const [expandedPaymentId, setExpandedPaymentId] = useState(null);
     const [lineEditOpen, setLineEditOpen] = useState(false);
     const [lineEditItem, setLineEditItem] = useState(null);
+    const [additionalCostsEditOpen, setAdditionalCostsEditOpen] = useState(false);
 
     const paymentForm = useForm({
         amount: '',
@@ -253,9 +274,11 @@ export default function VoucherDetail() {
         qty: '',
         unit: '',
         description: '',
-        freight_rate: '',
         freight_amount: '',
         is_fragile: false,
+    });
+    const additionalCostsForm = useForm({
+        additional_costs: [],
     });
 
     const openPaymentDialog = () => {
@@ -281,8 +304,7 @@ export default function VoucherDetail() {
             qty,
             unit: item.unit ?? '',
             description: item.description ?? '',
-            freight_rate: item.freight_rate != null && item.freight_rate !== '' ? String(item.freight_rate) : '',
-            freight_amount: item.freight_amount != null && item.freight_amount !== '' ? String(item.freight_amount) : '',
+            freight_amount: item.freight_amount != null && item.freight_amount !== '' ? String(Math.round(Number(item.freight_amount) || 0)) : '',
             is_fragile: Boolean(item.is_fragile),
         });
         lineForm.clearErrors();
@@ -296,12 +318,67 @@ export default function VoucherDetail() {
         setLineEditItem(null);
     };
 
+    const openAdditionalCostsEdit = () => {
+        if (!canManageVoucherLines || !voucher?.id) return;
+        additionalCostsForm.setData({
+            additional_costs: Array.isArray(voucher.additional_costs)
+                ? voucher.additional_costs.map((c) => ({
+                      category_id: c?.category_id != null ? String(c.category_id) : '',
+                      category_name:
+                          c?.category_name ??
+                          additionalCostCategories.find((row) => Number(row.id) === Number(c?.category_id))?.name ??
+                          '',
+                      amount: c?.amount != null && c?.amount !== '' ? String(c.amount) : '',
+                  }))
+                : [],
+        });
+        additionalCostsForm.clearErrors();
+        setAdditionalCostsEditOpen(true);
+    };
+
+    const closeAdditionalCostsEdit = () => {
+        if (additionalCostsForm.processing) return;
+        setAdditionalCostsEditOpen(false);
+    };
+
+    const addAdditionalCostRow = () => {
+        additionalCostsForm.setData('additional_costs', [
+            ...(additionalCostsForm.data.additional_costs || []),
+            { category_id: '', category_name: '', amount: '' },
+        ]);
+    };
+
+    const removeAdditionalCostRow = (idx) => {
+        additionalCostsForm.setData(
+            'additional_costs',
+            (additionalCostsForm.data.additional_costs || []).filter((_, i) => i !== idx),
+        );
+    };
+
+    const updateAdditionalCostRow = (idx, patch) => {
+        additionalCostsForm.setData(
+            'additional_costs',
+            (additionalCostsForm.data.additional_costs || []).map((row, i) => (i === idx ? { ...row, ...patch } : row)),
+        );
+    };
+
+    const additionalCostError = (idx, field) => additionalCostsForm.errors[`additional_costs.${idx}.${field}`];
+
     const submitLineEdit = (e) => {
         e.preventDefault();
         if (!voucher?.id || !lineEditItem?.id) return;
         lineForm.patch(`${adminAppUrl}/operations/vouchers/${voucher.id}/items/${lineEditItem.id}`, {
             preserveScroll: true,
             onSuccess: () => closeLineEdit(),
+        });
+    };
+
+    const submitAdditionalCostsEdit = (e) => {
+        e.preventDefault();
+        if (!voucher?.id) return;
+        additionalCostsForm.patch(`${adminAppUrl}/operations/vouchers/${voucher.id}/additional-costs`, {
+            preserveScroll: true,
+            onSuccess: () => closeAdditionalCostsEdit(),
         });
     };
 
@@ -503,6 +580,7 @@ export default function VoucherDetail() {
                                             <Stack direction="row" alignItems="center" spacing={0.5}>
                                                 <IconButton
                                                     size="small"
+                                                    sx={ADDITIONAL_COST_ICON_BUTTON_SX}
                                                     onClick={() => setCostsOpen((p) => !p)}
                                                     aria-label={costsOpen ? t('voucher_detail.payments.breakdown.collapse_additional_costs') : t('voucher_detail.payments.breakdown.expand_additional_costs')}
                                                 >
@@ -511,6 +589,16 @@ export default function VoucherDetail() {
                                                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                                                     {t('voucher_detail.payments.breakdown.additional_internal')}
                                                 </Typography>
+                                            {canManageVoucherLines ? (
+                                                <IconButton
+                                                    size="small"
+                                                    sx={ADDITIONAL_COST_ICON_BUTTON_SX}
+                                                    onClick={openAdditionalCostsEdit}
+                                                    aria-label={t('voucher_detail.payments.actions.edit_additional_costs')}
+                                                >
+                                                    <EditIcon fontSize="small" />
+                                                </IconButton>
+                                            ) : null}
                                             </Stack>
                                             <Typography variant="caption" color="text.secondary">
                                                 {t('voucher_detail.payments.breakdown.additional_hint')}
@@ -813,21 +901,11 @@ export default function VoucherDetail() {
                                     size="small"
                                 />
                                 <TextField
-                                    label={t('voucher_detail.lines.edit_dialog.freight_rate')}
-                                    type="number"
-                                    inputProps={{ step: '1', min: '0' }}
-                                    value={lineForm.data.freight_rate}
-                                    onChange={(e) => lineForm.setData('freight_rate', e.target.value)}
-                                    error={Boolean(lineForm.errors.freight_rate)}
-                                    helperText={lineForm.errors.freight_rate}
-                                    size="small"
-                                />
-                                <TextField
                                     label={t('voucher_detail.lines.edit_dialog.freight_amount')}
-                                    type="number"
-                                    inputProps={{ step: '1', min: '0' }}
+                                    type="text"
+                                    inputProps={{ inputMode: 'numeric', pattern: '[0-9]*' }}
                                     value={lineForm.data.freight_amount}
-                                    onChange={(e) => lineForm.setData('freight_amount', e.target.value)}
+                                    onChange={(e) => lineForm.setData('freight_amount', e.target.value.replace(/\D/g, ''))}
                                     error={Boolean(lineForm.errors.freight_amount)}
                                     helperText={lineForm.errors.freight_amount}
                                     size="small"
@@ -848,6 +926,90 @@ export default function VoucherDetail() {
                                 {t('ui.cancel')}
                             </Button>
                             <Button type="submit" variant="contained" disabled={lineForm.processing}>
+                                {t('ui.save')}
+                            </Button>
+                        </DialogActions>
+                    </Box>
+                </Dialog>
+
+                <Dialog open={additionalCostsEditOpen} onClose={closeAdditionalCostsEdit} fullWidth maxWidth="sm">
+                    <Box component="form" onSubmit={submitAdditionalCostsEdit} noValidate>
+                        <DialogTitle>{t('voucher_detail.payments.actions.edit_additional_costs')}</DialogTitle>
+                        <DialogContent>
+                            <Stack spacing={2} sx={{ mt: 1 }}>
+                                {additionalCostsForm.errors.additional_costs ? <Alert severity="error">{additionalCostsForm.errors.additional_costs}</Alert> : null}
+                                {(additionalCostsForm.data.additional_costs || []).map((row, idx) => (
+                                    <Box
+                                        key={idx}
+                                        sx={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 1,
+                                            flexWrap: 'nowrap',
+                                            overflowX: 'auto',
+                                            py: 0.25,
+                                        }}
+                                    >
+                                        <FormControl size="small" sx={{ flex: 1, minWidth: 200 }} error={Boolean(additionalCostError(idx, 'category_id'))}>
+                                            <InputLabel id={`voucher-cost-cat-${idx}`}>{t('voucher_wizard.costs.category')}</InputLabel>
+                                            <Select
+                                                labelId={`voucher-cost-cat-${idx}`}
+                                                label={t('voucher_wizard.costs.category')}
+                                                value={row.category_id ?? ''}
+                                                onChange={(e) => {
+                                                    const id = e.target.value;
+                                                    const name = additionalCostCategories.find((c) => String(c.id) === String(id))?.name ?? '';
+                                                    updateAdditionalCostRow(idx, { category_id: id, category_name: name });
+                                                }}
+                                            >
+                                                <MenuItem value="">
+                                                    <em>{t('ui.select')}</em>
+                                                </MenuItem>
+                                                {additionalCostCategories.map((c) => (
+                                                    <MenuItem key={c.id} value={String(c.id)}>
+                                                        {c.name}
+                                                    </MenuItem>
+                                                ))}
+                                            </Select>
+                                        </FormControl>
+                                        <TextField
+                                            size="small"
+                                            label={t('voucher_wizard.costs.amount')}
+                                            type="number"
+                                            inputProps={{ step: '1', min: '0' }}
+                                            sx={{ width: 140, flexShrink: 0 }}
+                                            value={row.amount ?? ''}
+                                            onChange={(e) => updateAdditionalCostRow(idx, { amount: e.target.value })}
+                                            error={Boolean(additionalCostError(idx, 'amount'))}
+                                            helperText={additionalCostError(idx, 'amount')}
+                                        />
+                                        <IconButton
+                                            size="small"
+                                            color="error"
+                                            aria-label={t('voucher_wizard.costs.remove_cost')}
+                                            onClick={() => removeAdditionalCostRow(idx)}
+                                        >
+                                            <DeleteOutlinedIcon fontSize="small" />
+                                        </IconButton>
+                                    </Box>
+                                ))}
+                                {(additionalCostsForm.data.additional_costs || []).length === 0 ? (
+                                    <Typography variant="body2" color="text.secondary">
+                                        {t('voucher_wizard.costs.none')}
+                                    </Typography>
+                                ) : null}
+                                <Box>
+                                    <Button variant="outlined" size="small" onClick={addAdditionalCostRow}>
+                                        {t('voucher_wizard.costs.add_cost')}
+                                    </Button>
+                                </Box>
+                            </Stack>
+                        </DialogContent>
+                        <DialogActions>
+                            <Button onClick={closeAdditionalCostsEdit} disabled={additionalCostsForm.processing}>
+                                {t('ui.cancel')}
+                            </Button>
+                            <Button type="submit" variant="contained" disabled={additionalCostsForm.processing}>
                                 {t('ui.save')}
                             </Button>
                         </DialogActions>
