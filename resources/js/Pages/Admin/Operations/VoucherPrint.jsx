@@ -8,6 +8,7 @@ import {
     Divider,
     FormControl,
     MenuItem,
+    NativeSelect,
     Paper,
     Select,
     Snackbar,
@@ -18,6 +19,7 @@ import {
     TableHead,
     TableRow,
     Typography,
+    useMediaQuery,
 } from '@mui/material';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import BluetoothConnectedIcon from '@mui/icons-material/BluetoothConnected';
@@ -141,6 +143,7 @@ export default function VoucherPrint() {
     const isReceipt = paperSize === 'RECEIPT_80';
     const bluetoothSupport = useMemo(() => getBluetoothSupportState(), []);
     const currentPrinterStatus = printerStatusMeta(printerStatus);
+    const isSmallScreen = useMediaQuery('(max-width:600px)');
 
     useEffect(() => {
         saveThermalPaperWidth(thermalPaperWidth);
@@ -404,17 +407,35 @@ export default function VoucherPrint() {
                     {printerError ? <Alert severity="error">{printerError}</Alert> : null}
 
                     <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ alignItems: { xs: 'stretch', md: 'center' }, flexWrap: 'wrap' }}>
-                        <FormControl size="small" sx={{ minWidth: 160 }}>
-                            <Select value={paperSize} onChange={(event) => setPaperSize(event.target.value)}>
-                                <MenuItem value="A4">Browser preview: A4</MenuItem>
-                                <MenuItem value="RECEIPT_80">Browser preview: Receipt 80mm</MenuItem>
-                            </Select>
+                        <FormControl size="small" fullWidth={isSmallScreen} sx={{ minWidth: { md: 180 } }}>
+                            {isSmallScreen ? (
+                                <NativeSelect value={paperSize} onChange={(event) => setPaperSize(event.target.value)} inputProps={{ 'aria-label': 'Browser preview paper size' }}>
+                                    <option value="A4">Browser preview: A4</option>
+                                    <option value="RECEIPT_80">Browser preview: Receipt 80mm</option>
+                                </NativeSelect>
+                            ) : (
+                                <Select value={paperSize} onChange={(event) => setPaperSize(event.target.value)}>
+                                    <MenuItem value="A4">Browser preview: A4</MenuItem>
+                                    <MenuItem value="RECEIPT_80">Browser preview: Receipt 80mm</MenuItem>
+                                </Select>
+                            )}
                         </FormControl>
-                        <FormControl size="small" sx={{ minWidth: 160 }}>
-                            <Select value={thermalPaperWidth} onChange={(event) => setThermalPaperWidth(Number(event.target.value))}>
-                                <MenuItem value={58}>Thermal paper: 58mm</MenuItem>
-                                <MenuItem value={80}>Thermal paper: 80mm</MenuItem>
-                            </Select>
+                        <FormControl size="small" fullWidth={isSmallScreen} sx={{ minWidth: { md: 180 } }}>
+                            {isSmallScreen ? (
+                                <NativeSelect
+                                    value={thermalPaperWidth}
+                                    onChange={(event) => setThermalPaperWidth(Number(event.target.value))}
+                                    inputProps={{ 'aria-label': 'Thermal paper width' }}
+                                >
+                                    <option value={58}>Thermal paper: 58mm</option>
+                                    <option value={80}>Thermal paper: 80mm</option>
+                                </NativeSelect>
+                            ) : (
+                                <Select value={thermalPaperWidth} onChange={(event) => setThermalPaperWidth(Number(event.target.value))}>
+                                    <MenuItem value={58}>Thermal paper: 58mm</MenuItem>
+                                    <MenuItem value={80}>Thermal paper: 80mm</MenuItem>
+                                </Select>
+                            )}
                         </FormControl>
                         <Button variant="contained" onClick={() => window.print()}>
                             Browser Print
