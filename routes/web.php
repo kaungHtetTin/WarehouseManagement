@@ -273,6 +273,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/operations/trips/{trip}/vouchers/print', [TripManagementController::class, 'printVouchers'])
             ->middleware('permission:trips.view')
             ->name('trips.vouchers.print');
+        Route::get('/operations/trips/{trip}/overview-slip/print', [TripManagementController::class, 'printOverviewSlipWithVouchers'])
+            ->middleware('permission:trips.view')
+            ->name('trips.overview-slip.print');
         Route::post('/operations/trips/{trip}/manifest-printed', [TripManagementController::class, 'markManifestPrinted'])
             ->middleware('permission:trips.manage')
             ->name('trips.manifest-printed');

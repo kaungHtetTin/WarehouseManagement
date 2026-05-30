@@ -1,5 +1,5 @@
 import { Head, usePage } from '@inertiajs/react';
-import { Box, Button, Divider, FormControl, MenuItem, NativeSelect, Paper, Select, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography, useMediaQuery } from '@mui/material';
+import { Box, Button, Checkbox, Divider, FormControl, FormControlLabel, MenuItem, NativeSelect, Paper, Select, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography, useMediaQuery } from '@mui/material';
 import { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
 import { getInitialPrintPaper, getPrintLayout, PRINT_PAPER_PRESETS } from '@/utils/printing/printPaperPresets';
@@ -25,7 +25,181 @@ function safeStr(value) {
     return typeof value === 'string' ? value.trim() : '';
 }
 
-function VoucherSheet({ voucher, template, voucherPolicy, layout, qrDataUrl }) {
+function TripOverviewSheet({ trip, overviewSlip, layout }) {
+    if (!overviewSlip) {
+        return null;
+    }
+
+    return (
+        <Paper className="print-sheet voucher-sheet" variant="outlined" sx={{ mx: 'auto', p: layout.contentPadding, borderRadius: 1.5, bgcolor: '#fff' }}>
+            <Stack spacing={layout.isRoll ? 1 : 1.5}>
+                <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                    <Box sx={{ minWidth: 0 }}>
+                        <Typography variant={layout.isRoll ? 'body1' : 'h6'} sx={{ fontWeight: 900, lineHeight: 1.1 }}>
+                            {overviewSlip.title || 'Trip Overview Slip'}
+                        </Typography>
+                        <Typography variant={layout.isRoll ? 'caption' : 'body2'} color="text.secondary" sx={{ fontWeight: 700 }}>
+                            Loaded vouchers summary for trip {overviewSlip.trip_no || trip?.trip_no || '—'}
+                        </Typography>
+                    </Box>
+                    <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 900 }}>
+                            {overviewSlip.trip_no || trip?.trip_no || '—'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                            {overviewSlip.generated_at || '—'}
+                        </Typography>
+                    </Box>
+                </Stack>
+
+                <Divider />
+
+                <Box className="kv">
+                    <div className="k">Trip status</div>
+                    <div className="v">{overviewSlip.status || trip?.status || '—'}</div>
+
+                    <div className="k">Vehicle</div>
+                    <div className="v">{overviewSlip.vehicle_label || '—'}</div>
+
+                    <div className="k">Driver</div>
+                    <div className="v">{overviewSlip.driver_label || '—'}</div>
+
+                    <div className="k">Destination</div>
+                    <div className="v">{overviewSlip.destination_label || '—'}</div>
+
+                    <div className="k">Loaded vouchers</div>
+                    <div className="v">{overviewSlip.voucher_count ?? 0}</div>
+
+                    <div className="k">Loaded qty</div>
+                    <div className="v">{formatQty(overviewSlip.total_loaded_qty)}</div>
+
+                    <div className="k">Trip freight</div>
+                    <div className="v">{formatMoneyAmount(overviewSlip.total_amount)}</div>
+
+                    <div className="k">Collected</div>
+                    <div className="v">{formatMoneyAmount(overviewSlip.paid_amount)}</div>
+                </Box>
+
+                {overviewSlip.manifest_printed_at ? (
+                    <Typography variant="caption" color="text.secondary">
+                        Manifest printed: {overviewSlip.manifest_printed_at}
+                    </Typography>
+                ) : null}
+
+                <Divider />
+
+                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
+                    Loaded vouchers
+                </Typography>
+
+                <Table
+                    size="small"
+                    sx={{
+                        tableLayout: 'fixed',
+                        '& th, & td': { borderColor: 'rgba(0,0,0,0.15)' },
+                        '& th, & td': layout.isRoll
+                            ? { px: 0.5, py: 0.5, fontSize: layout.valueFontSize, verticalAlign: 'top' }
+                            : undefined,
+                    }}
+                >
+                    {layout.isRoll ? (
+                        <>
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell width="12%" sx={{ fontWeight: 900 }}>
+                                        No
+                                    </TableCell>
+                                    <TableCell width="58%" sx={{ fontWeight: 900 }}>
+                                        Voucher
+                                    </TableCell>
+                                    <TableCell width="30%" sx={{ fontWeight: 900 }} align="right">
+                                        Qty
+                                    </TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {(overviewSlip.rows || []).map((row, idx) => (
+                                    <TableRow key={row.voucher_id || idx}>
+                                        <TableCell>{idx + 1}</TableCell>
+                                        <TableCell sx={{ fontWeight: 700, wordBreak: 'break-word' }}>
+                                            {row.voucher_no || '—'}
+                                            {row.recipient_label ? (
+                                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: layout.policyFontSize }}>
+                                                    {row.recipient_label}
+                                                </Typography>
+                                            ) : null}
+                                            {row.destination_warehouse_label ? (
+                                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: layout.policyFontSize }}>
+                                                    {row.destination_warehouse_label}
+                                                </Typography>
+                                            ) : null}
+                                        </TableCell>
+                                        <TableCell align="right">
+                                            {formatQty(row.total_items_qty)}
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                                {(overviewSlip.rows || []).length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={3}>
+                                            <Typography variant="body2" color="text.secondary">
+                                                No loaded vouchers.
+                                            </Typography>
+                                        </TableCell>
+                                    </TableRow>
+                                ) : null}
+                            </TableBody>
+                        </>
+                    ) : (
+                        <>
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell width={52} sx={{ fontWeight: 900 }}>
+                                        No
+                                    </TableCell>
+                                    <TableCell width={120} sx={{ fontWeight: 900 }}>
+                                        Voucher
+                                    </TableCell>
+                                    <TableCell sx={{ fontWeight: 900 }}>Recipient</TableCell>
+                                    <TableCell sx={{ fontWeight: 900 }}>Destination</TableCell>
+                                    <TableCell width={90} sx={{ fontWeight: 900 }} align="right">
+                                        Qty
+                                    </TableCell>
+                                    <TableCell width={110} sx={{ fontWeight: 900 }} align="right">
+                                        Amount
+                                    </TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {(overviewSlip.rows || []).map((row, idx) => (
+                                    <TableRow key={row.voucher_id || idx}>
+                                        <TableCell>{idx + 1}</TableCell>
+                                        <TableCell sx={{ fontWeight: 700 }}>{row.voucher_no || '—'}</TableCell>
+                                        <TableCell>{row.recipient_label || '—'}</TableCell>
+                                        <TableCell>{row.destination_warehouse_label || '—'}</TableCell>
+                                        <TableCell align="right">{formatQty(row.total_items_qty)}</TableCell>
+                                        <TableCell align="right">{formatMoneyAmount(row.total_amount)}</TableCell>
+                                    </TableRow>
+                                ))}
+                                {(overviewSlip.rows || []).length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={6}>
+                                            <Typography variant="body2" color="text.secondary">
+                                                No loaded vouchers.
+                                            </Typography>
+                                        </TableCell>
+                                    </TableRow>
+                                ) : null}
+                            </TableBody>
+                        </>
+                    )}
+                </Table>
+            </Stack>
+        </Paper>
+    );
+}
+
+function VoucherSheet({ voucher, template, voucherPolicy, layout, qrDataUrl, includeQr, includeVoucherPolicy }) {
     const paymentsTotal = useMemo(() => {
         const rows = Array.isArray(voucher?.payments) ? voucher.payments : [];
         let sum = 0;
@@ -48,8 +222,8 @@ function VoucherSheet({ voucher, template, voucherPolicy, layout, qrDataUrl }) {
         return Math.round(sum * 100) / 100;
     }, [voucher?.items]);
 
-    const fromWarehouseName = voucher?.source_warehouse?.display_name || voucher?.source_warehouse?.city || voucher?.sourceWarehouse?.city || '—';
-    const toWarehouseName = voucher?.default_to_warehouse?.display_name || voucher?.defaultToWarehouse?.city || '—';
+    const fromWarehouseName = voucher?.source_warehouse?.city || voucher?.sourceWarehouse?.city || '—';
+    const toWarehouseName = voucher?.default_to_warehouse?.city || voucher?.defaultToWarehouse?.city || '—';
     const toAddress = safeStr(voucher?.default_to_address_line1) || safeStr(voucher?.default_to_address) || '';
 
     const headerTitle = safeStr(template?.header_title) || 'Voucher';
@@ -63,6 +237,8 @@ function VoucherSheet({ voucher, template, voucherPolicy, layout, qrDataUrl }) {
     const footerNote = safeStr(template?.footer_note);
     const printableVoucherPolicy = safeStr(voucherPolicy);
     const showPaymentStatus = Boolean(template?.show_payment_status);
+    const visibleQrDataUrl = includeQr ? qrDataUrl : null;
+    const visibleVoucherPolicy = includeVoucherPolicy ? printableVoucherPolicy : '';
 
     return (
         <Paper className="print-sheet voucher-sheet" variant="outlined" sx={{ mx: 'auto', p: layout.contentPadding, borderRadius: 1.5, bgcolor: '#fff' }}>
@@ -109,10 +285,10 @@ function VoucherSheet({ voucher, template, voucherPolicy, layout, qrDataUrl }) {
                 <Divider />
 
                 <Box className="kv">
-                    <div className="k">From warehouse</div>
+                    <div className="k">From</div>
                     <div className="v">{fromWarehouseName}</div>
 
-                    <div className="k">Destination warehouse</div>
+                    <div className="k">Designation</div>
                     <div className="v">{toWarehouseName}</div>
 
                     <div className="k">Recipient</div>
@@ -275,13 +451,13 @@ function VoucherSheet({ voucher, template, voucherPolicy, layout, qrDataUrl }) {
                     </Box>
                 </Stack>
 
-                {qrDataUrl || footerNote || printableVoucherPolicy ? <Divider /> : null}
+                {visibleQrDataUrl || footerNote || visibleVoucherPolicy ? <Divider /> : null}
 
-                {qrDataUrl ? (
+                {visibleQrDataUrl ? (
                     <Stack spacing={0.75} sx={{ alignItems: 'center', pt: 1 }}>
                         <Box
                             component="img"
-                            src={qrDataUrl}
+                            src={visibleQrDataUrl}
                             alt="QR"
                             sx={{ width: layout.qrImageSize, height: layout.qrImageSize }}
                         />
@@ -297,7 +473,7 @@ function VoucherSheet({ voucher, template, voucherPolicy, layout, qrDataUrl }) {
                     </Typography>
                 ) : null}
 
-                {printableVoucherPolicy ? (
+                {visibleVoucherPolicy ? (
                     <Typography
                         variant="caption"
                         color="text.secondary"
@@ -309,7 +485,7 @@ function VoucherSheet({ voucher, template, voucherPolicy, layout, qrDataUrl }) {
                             lineHeight: 1.35,
                         }}
                     >
-                        {printableVoucherPolicy}
+                        {visibleVoucherPolicy}
                     </Typography>
                 ) : null}
             </Stack>
@@ -318,11 +494,15 @@ function VoucherSheet({ voucher, template, voucherPolicy, layout, qrDataUrl }) {
 }
 
 export default function TripVouchersPrint() {
-    const { trip, vouchers = [], template = {}, voucher_policy: voucherPolicy = '', tracking_urls: trackingUrls = {} } = usePage().props;
+    const { trip, vouchers = [], template = {}, voucher_policy: voucherPolicy = '', tracking_urls: trackingUrls = {}, overview_slip: overviewSlip = null } = usePage().props;
     const [paperSize, setPaperSize] = useState(() => getInitialPrintPaper(template?.paper_size || 'A4'));
     const [qrDataUrls, setQrDataUrls] = useState({});
+    const [includeQr, setIncludeQr] = useState(true);
+    const [includeVoucherPolicy, setIncludeVoucherPolicy] = useState(true);
     const layout = useMemo(() => getPrintLayout(paperSize), [paperSize]);
     const isSmallScreen = useMediaQuery('(max-width:600px)');
+    const hasQr = Object.values(qrDataUrls).some(Boolean);
+    const hasVoucherPolicy = safeStr(voucherPolicy) !== '';
 
     useEffect(() => {
         let cancelled = false;
@@ -361,7 +541,7 @@ export default function TripVouchersPrint() {
 
     return (
         <Box sx={{ minHeight: '100vh', bgcolor: 'grey.100', py: 2 }}>
-            <Head title={`Print vouchers ${trip?.trip_no || ''}`.trim()} />
+            <Head title={`${overviewSlip ? 'Print trip slip and vouchers' : 'Print vouchers'} ${trip?.trip_no || ''}`.trim()} />
             <style>{`
                 @page { size: ${layout.pageSize}; margin: ${layout.pageMargin}; }
                 @media print {
@@ -397,6 +577,22 @@ export default function TripVouchersPrint() {
                         </Select>
                     )}
                 </FormControl>
+                <FormControlLabel
+                    control={<Checkbox checked={includeQr} onChange={(event) => setIncludeQr(event.target.checked)} disabled={!hasQr} />}
+                    label="Include QR"
+                    sx={{ mr: 0 }}
+                />
+                <FormControlLabel
+                    control={
+                        <Checkbox
+                            checked={includeVoucherPolicy}
+                            onChange={(event) => setIncludeVoucherPolicy(event.target.checked)}
+                            disabled={!hasVoucherPolicy}
+                        />
+                    }
+                    label="Include policy"
+                    sx={{ mr: 0 }}
+                />
                 <Button variant="contained" onClick={() => window.print()}>
                     Print
                 </Button>
@@ -404,6 +600,8 @@ export default function TripVouchersPrint() {
                     Close
                 </Button>
             </Stack>
+
+            {overviewSlip ? <TripOverviewSheet trip={trip} overviewSlip={overviewSlip} layout={layout} /> : null}
 
             {vouchers.length === 0 ? (
                 <Paper className="print-sheet" variant="outlined" sx={{ mx: 'auto', p: 2.5, borderRadius: 1.5, bgcolor: '#fff' }}>
@@ -423,6 +621,8 @@ export default function TripVouchersPrint() {
                         voucherPolicy={voucherPolicy}
                         layout={layout}
                         qrDataUrl={qrDataUrls[voucher.id] ?? null}
+                        includeQr={includeQr}
+                        includeVoucherPolicy={includeVoucherPolicy}
                     />
                 ))
             )}

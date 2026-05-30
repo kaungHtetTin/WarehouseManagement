@@ -2,8 +2,10 @@ import { Head, usePage } from '@inertiajs/react';
 import {
     Box,
     Button,
+    Checkbox,
     Divider,
     FormControl,
+    FormControlLabel,
     MenuItem,
     NativeSelect,
     Paper,
@@ -46,6 +48,8 @@ export default function VoucherPrint() {
     const { voucher, template = {}, voucher_policy: voucherPolicy = '', tracking_url: trackingUrl } = usePage().props;
     const [paperSize, setPaperSize] = useState(() => getInitialPrintPaper(template?.paper_size || 'A4'));
     const [qrDataUrl, setQrDataUrl] = useState(null);
+    const [includeQr, setIncludeQr] = useState(true);
+    const [includeVoucherPolicy, setIncludeVoucherPolicy] = useState(true);
 
     const paymentsTotal = useMemo(() => {
         const rows = Array.isArray(voucher?.payments) ? voucher.payments : [];
@@ -69,8 +73,8 @@ export default function VoucherPrint() {
         return Math.round(sum * 100) / 100;
     }, [voucher?.items]);
 
-    const fromWarehouseName = voucher?.source_warehouse?.display_name || voucher?.source_warehouse?.city || voucher?.sourceWarehouse?.city || '—';
-    const toWarehouseName = voucher?.default_to_warehouse?.display_name || voucher?.defaultToWarehouse?.city || '—';
+    const fromWarehouseName = voucher?.source_warehouse?.city || voucher?.sourceWarehouse?.city || '—';
+    const toWarehouseName = voucher?.default_to_warehouse?.city || voucher?.defaultToWarehouse?.city || '—';
 
     const toAddress = safeStr(voucher?.default_to_address_line1) || safeStr(voucher?.default_to_address) || '';
 
@@ -87,6 +91,8 @@ export default function VoucherPrint() {
     const showPaymentStatus = Boolean(template?.show_payment_status);
     const layout = useMemo(() => getPrintLayout(paperSize), [paperSize]);
     const isSmallScreen = useMediaQuery('(max-width:600px)');
+    const visibleQrDataUrl = includeQr ? qrDataUrl : null;
+    const visibleVoucherPolicy = includeVoucherPolicy ? printableVoucherPolicy : '';
 
     useEffect(() => {
         let cancelled = false;
@@ -173,6 +179,22 @@ export default function VoucherPrint() {
                                 </Select>
                             )}
                         </FormControl>
+                        <FormControlLabel
+                            control={<Checkbox checked={includeQr} onChange={(event) => setIncludeQr(event.target.checked)} disabled={!qrDataUrl} />}
+                            label="Include QR"
+                            sx={{ mr: 0 }}
+                        />
+                        <FormControlLabel
+                            control={
+                                <Checkbox
+                                    checked={includeVoucherPolicy}
+                                    onChange={(event) => setIncludeVoucherPolicy(event.target.checked)}
+                                    disabled={!printableVoucherPolicy}
+                                />
+                            }
+                            label="Include policy"
+                            sx={{ mr: 0 }}
+                        />
                         <Button variant="contained" onClick={() => window.print()}>
                             Print
                         </Button>
@@ -227,10 +249,10 @@ export default function VoucherPrint() {
                     <Divider />
 
                     <Box className="kv">
-                        <div className="k">From warehouse</div>
+                        <div className="k">From</div>
                         <div className="v">{fromWarehouseName}</div>
 
-                        <div className="k">Destination warehouse</div>
+                        <div className="k">Designation</div>
                         <div className="v">{toWarehouseName}</div>
 
                         <div className="k">Recipient</div>
@@ -393,13 +415,13 @@ export default function VoucherPrint() {
                         </Box>
                     </Stack>
 
-                    {qrDataUrl || footerNote || printableVoucherPolicy ? <Divider /> : null}
+                    {visibleQrDataUrl || footerNote || visibleVoucherPolicy ? <Divider /> : null}
 
-                    {qrDataUrl ? (
+                    {visibleQrDataUrl ? (
                         <Stack spacing={0.75} sx={{ alignItems: 'center', pt: 1 }}>
                             <Box
                                 component="img"
-                                src={qrDataUrl}
+                                src={visibleQrDataUrl}
                                 alt="QR"
                                 sx={{ width: layout.qrImageSize, height: layout.qrImageSize }}
                             />
@@ -415,7 +437,7 @@ export default function VoucherPrint() {
                         </Typography>
                     ) : null}
 
-                    {printableVoucherPolicy ? (
+                    {visibleVoucherPolicy ? (
                         <Typography
                             variant="caption"
                             color="text.secondary"
@@ -427,7 +449,7 @@ export default function VoucherPrint() {
                                 lineHeight: 1.35,
                             }}
                         >
-                            {printableVoucherPolicy}
+                            {visibleVoucherPolicy}
                         </Typography>
                     ) : null}
                 </Stack>

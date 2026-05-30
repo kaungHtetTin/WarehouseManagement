@@ -81,6 +81,12 @@ export default function TripsIndex() {
         window.open(`${adminAppUrl}/operations/trips/${row.id}/manifest`, '_blank', 'noopener,noreferrer');
     };
 
+    const openOverviewSlipWithVouchers = (row) => {
+        handleTableActionClose();
+        if (!row?.id) return;
+        window.open(`${adminAppUrl}/operations/trips/${row.id}/overview-slip/print`, '_blank', 'noopener,noreferrer');
+    };
+
     const markDeparted = (row) => {
         handleTableActionClose();
         if (!canManage) return;
@@ -292,6 +298,7 @@ export default function TripsIndex() {
                 >
                     <MenuItem onClick={() => viewTrip(selectedRow)}>{t('ui.view')}</MenuItem>
                     <MenuItem onClick={() => openManifest(selectedRow)}>{t('trips.actions.driver_manifest')}</MenuItem>
+                    <MenuItem onClick={() => openOverviewSlipWithVouchers(selectedRow)}>{t('trips.actions.print_trip_slip_with_vouchers')}</MenuItem>
                     <MenuItem
                         onClick={() => markDeparted(selectedRow)}
                         disabled={!canManage || !(selectedRow?.status === 'PLANNED' || selectedRow?.status === 'LOADING')}

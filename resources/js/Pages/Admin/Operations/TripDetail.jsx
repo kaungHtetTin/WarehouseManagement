@@ -1267,6 +1267,18 @@ export default function TripDetail() {
                                     {t('trip_detail.cargo.actions.print_vouchers')}
                                 </Button>
                             ) : null}
+                            {voucherFinanceSummary.voucherCount > 0 ? (
+                                <Button
+                                    size="small"
+                                    variant="contained"
+                                    startIcon={<ArticleOutlinedIcon />}
+                                    onClick={() => window.open(`${adminAppUrl}/operations/trips/${trip.id}/overview-slip/print`, '_blank', 'noopener,noreferrer')}
+                                    sx={{ flexShrink: 0, whiteSpace: { xs: 'normal', sm: 'nowrap' }, alignSelf: { xs: 'stretch', sm: 'auto' } }}
+                                    fullWidth={!isSmUp}
+                                >
+                                    {t('trip_detail.cargo.actions.print_trip_slip_with_vouchers')}
+                                </Button>
+                            ) : null}
                             {canRecordDelivery && hasPendingDelivery ? (
                                 <Button
                                     size="small"

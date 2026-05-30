@@ -2673,6 +2673,16 @@ class TripManagementController extends Controller
 
     public function printVouchers(Request $request, string $trip): Response
     {
+        return $this->renderTripVoucherPrintPage($request, $trip, false);
+    }
+
+    public function printOverviewSlipWithVouchers(Request $request, string $trip): Response
+    {
+        return $this->renderTripVoucherPrintPage($request, $trip, true);
+    }
+
+    private function renderTripVoucherPrintPage(Request $request, string $trip, bool $includeOverviewSlip): Response
+    {
         $user = $request->user();
         $organizationId = $user->organization_id;
         abort_if($organizationId === null, 404);
@@ -2680,17 +2690,23 @@ class TripManagementController extends Controller
         $tripModel = Trip::query()
             ->whereKey($trip)
             ->where('organization_id', $organizationId)
-            ->with(['vehicle:id,vehicle_no'])
+            ->with([
+                'vehicle:id,vehicle_no,vehicle_type',
+                'sourceWarehouse:id,city,address',
+                'stops' => fn ($q) => $q->orderBy('stop_order')->with('warehouse:id,city,address'),
+                'items' => fn ($q) => $q->orderBy('id')->with([
+                    'tripStop:id,stop_order',
+                    'voucherItem' => fn ($q2) => $q2->with([
+                        'product:id,name,unit',
+                        'voucher:id,voucher_no,total_amount,payment_status,default_to_warehouse_id,default_to_city,default_to_address_line1,default_to_address_line2,default_to_township,default_to_region,default_to_postal_code,default_recipient_name,default_recipient_phone,default_destination_remark',
+                        'voucher.defaultToWarehouse:id,city,address',
+                    ]),
+                ]),
+            ])
             ->firstOrFail();
 
-        $voucherIds = TripItem::query()
-            ->where('trip_items.organization_id', $organizationId)
-            ->where('trip_items.trip_id', $tripModel->id)
-            ->join('voucher_items', function ($join) use ($organizationId) {
-                $join->on('voucher_items.id', '=', 'trip_items.voucher_item_id')
-                    ->where('voucher_items.organization_id', '=', $organizationId);
-            })
-            ->selectRaw('DISTINCT voucher_items.voucher_id as voucher_id')
+        $cargoRows = $this->buildTripCargoRows($tripModel, $organizationId);
+        $voucherIds = collect($cargoRows)
             ->pluck('voucher_id')
             ->map(fn ($id) => (int) $id)
             ->filter(fn ($id) => $id > 0)
@@ -2775,12 +2791,16 @@ class TripManagementController extends Controller
             'trip' => [
                 'id' => $tripModel->id,
                 'trip_no' => $tripModel->trip_no,
+                'status' => $tripModel->status,
+                'driver_name' => $tripModel->driver_name,
+                'driver_phone' => $tripModel->driver_phone,
                 'vehicle' => $tripModel->vehicle,
             ],
             'vouchers' => $vouchers,
             'template' => $template,
             'voucher_policy' => trim((string) env('VOUCHER_POLICY', '')),
             'tracking_urls' => $trackingUrls,
+            'overview_slip' => $includeOverviewSlip ? $this->buildTripOverviewSlipData($tripModel, $cargoRows) : null,
         ]);
     }
 
@@ -2836,6 +2856,153 @@ class TripManagementController extends Controller
         }
 
         return $bits === [] ? '—' : implode(' · ', $bits);
+    }
+
+    private function buildTripCargoRows(Trip $tripModel, int $organizationId): array
+    {
+        $byVoucher = [];
+        foreach ($tripModel->items as $item) {
+            $vi = $item->voucherItem;
+            if ($vi === null || $vi->voucher === null) {
+                continue;
+            }
+
+            $voucher = $vi->voucher;
+            $voucherId = (int) $voucher->id;
+
+            if (! isset($byVoucher[$voucherId])) {
+                $recipientBits = array_filter([
+                    trim((string) ($voucher->default_recipient_name ?? '')),
+                    trim((string) ($voucher->default_recipient_phone ?? '')),
+                ]);
+                $destinationWarehouseLabel = trim((string) ($voucher->defaultToWarehouse?->display_name ?? $voucher->defaultToWarehouse?->city ?? ''));
+
+                $byVoucher[$voucherId] = [
+                    'voucher_id' => $voucherId,
+                    'voucher_no' => (string) ($voucher->voucher_no ?? '—'),
+                    'payment_status' => (string) ($voucher->payment_status ?? 'UNPAID'),
+                    'total_amount' => $voucher->total_amount !== null ? (float) $voucher->total_amount : null,
+                    'destination' => $this->formatVoucherItemDestinationForManifest($vi),
+                    'recipient_label' => $recipientBits === [] ? '—' : implode(' · ', $recipientBits),
+                    'destination_warehouse_label' => $destinationWarehouseLabel !== '' ? $destinationWarehouseLabel : '—',
+                    'destination_remark' => $voucher->default_destination_remark !== null
+                        ? trim((string) $voucher->default_destination_remark)
+                        : null,
+                    'items' => [],
+                    'items_qty' => 0,
+                ];
+            }
+
+            $qty = (float) $item->loaded_qty;
+            $qtyInt = (int) round($qty, 0);
+            $unit = $vi->product->unit ?? $vi->unit ?? '';
+            $qtyLabel = number_format($qtyInt, 0, '.', '').($unit !== '' ? ' '.$unit : '');
+
+            $amount = null;
+            if ($vi->freight_amount !== null && $vi->freight_amount !== '') {
+                $amount = (float) $vi->freight_amount;
+            }
+
+            $byVoucher[$voucherId]['items'][] = [
+                'product_name' => $vi->product->name ?? '—',
+                'qty' => $qtyLabel,
+                'amount' => $amount,
+            ];
+            $byVoucher[$voucherId]['items_qty'] = (int) $byVoucher[$voucherId]['items_qty'] + $qtyInt;
+        }
+
+        $voucherIds = array_keys($byVoucher);
+        if ($voucherIds !== []) {
+            $paidByVoucherId = VoucherPayment::query()
+                ->where('organization_id', $organizationId)
+                ->whereIn('voucher_id', $voucherIds)
+                ->selectRaw('voucher_id, COALESCE(SUM(amount), 0) as paid_amount')
+                ->groupBy('voucher_id')
+                ->get()
+                ->keyBy(fn ($r) => (int) $r->voucher_id)
+                ->map(fn ($r) => round((float) $r->paid_amount, 2));
+
+            foreach ($voucherIds as $vid) {
+                $byVoucher[$vid]['paid_amount'] = (float) ($paidByVoucherId[$vid] ?? 0.0);
+            }
+        }
+
+        $cargoRows = array_values($byVoucher);
+        usort($cargoRows, fn ($a, $b) => strcmp((string) $b['voucher_no'], (string) $a['voucher_no']));
+
+        foreach ($cargoRows as &$row) {
+            $row['total_items_qty'] = (int) ($row['items_qty'] ?? 0);
+            if ($row['total_amount'] === null) {
+                $sum = 0.0;
+                foreach ($row['items'] as $it) {
+                    if ($it['amount'] !== null) {
+                        $sum += (float) $it['amount'];
+                    }
+                }
+                $row['total_amount'] = round($sum, 2);
+            }
+        }
+        unset($row);
+
+        return $cargoRows;
+    }
+
+    private function buildTripOverviewSlipData(Trip $tripModel, array $cargoRows): array
+    {
+        $voucherCount = count($cargoRows);
+        $totalLoadedQty = 0;
+        $totalAmount = 0.0;
+        $paidAmount = 0.0;
+
+        foreach ($cargoRows as $row) {
+            $totalLoadedQty += (int) ($row['total_items_qty'] ?? 0);
+            $totalAmount += (float) ($row['total_amount'] ?? 0);
+            $paidAmount += (float) ($row['paid_amount'] ?? 0);
+        }
+
+        $destinationWarehouse = optional(optional($tripModel->stops->last())->warehouse)->display_name
+            ?? optional(optional($tripModel->stops->last())->warehouse)->city
+            ?? $tripModel->sourceWarehouse->display_name
+            ?? $tripModel->sourceWarehouse->city
+            ?? '—';
+
+        return [
+            'title' => 'Trip Overview Slip',
+            'trip_no' => $tripModel->trip_no,
+            'status' => $tripModel->status,
+            'vehicle_label' => $tripModel->vehicle
+                ? trim(implode(' · ', array_filter([
+                    $tripModel->vehicle->vehicle_no,
+                    $tripModel->vehicle->vehicle_type,
+                ])))
+                : '—',
+            'driver_label' => trim(implode(' · ', array_filter([
+                $tripModel->driver_name,
+                $tripModel->driver_phone,
+            ]))) ?: '—',
+            'destination_label' => $destinationWarehouse,
+            'manifest_printed_at' => $tripModel->manifest_printed_at?->timezone(config('app.timezone'))?->format('Y-m-d H:i'),
+            'generated_at' => now()->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+            'voucher_count' => $voucherCount,
+            'total_loaded_qty' => $totalLoadedQty,
+            'total_amount' => round($totalAmount, 2),
+            'paid_amount' => round($paidAmount, 2),
+            'rows' => array_map(function (array $row) {
+                $totalAmount = round((float) ($row['total_amount'] ?? 0), 2);
+                $paidAmount = round((float) ($row['paid_amount'] ?? 0), 2);
+
+                return [
+                    'voucher_id' => (int) ($row['voucher_id'] ?? 0),
+                    'voucher_no' => (string) ($row['voucher_no'] ?? '—'),
+                    'recipient_label' => (string) ($row['recipient_label'] ?? '—'),
+                    'destination_warehouse_label' => (string) ($row['destination_warehouse_label'] ?? '—'),
+                    'total_items_qty' => (int) ($row['total_items_qty'] ?? 0),
+                    'total_amount' => $totalAmount,
+                    'paid_amount' => $paidAmount,
+                    'outstanding_amount' => max(0, round($totalAmount - $paidAmount, 2)),
+                ];
+            }, $cargoRows),
+        ];
     }
 
     private function refreshVoucherItemLoadedQty(VoucherItem $voucherItem): void
