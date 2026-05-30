@@ -1,4 +1,5 @@
 import AdminLayout from '@/Layouts/AdminLayout';
+import PageHeader from '@/Components/PageHeader';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
@@ -70,6 +71,12 @@ const TRIP_ITEM_STATUS_COLOR = {
     PARTIALLY_DELIVERED: 'warning',
     DELIVERED: 'success',
     RETURNED: 'error',
+};
+
+const SECTION_CARD_SX = {
+    p: { xs: 2, sm: 2.5 },
+    borderRadius: 1.5,
+    boxShadow: 'none',
 };
 
 function tripProgressActiveStep(status) {
@@ -791,6 +798,32 @@ export default function TripDetail() {
     }
 
     const layoutTitle = trip.trip_no ?? 'Trip';
+    const tripSummaryCards = [
+        {
+            label: 'Trip status',
+            value: trip.status ?? '—',
+            helper: trip.departed_at ? formatTripDateTime(trip.departed_at) : t('trip_detail.departure.steps.planned_loading'),
+            tone: trip.status === 'COMPLETED' ? 'success.main' : trip.status === 'CANCELLED' ? 'error.main' : 'primary.main',
+        },
+        {
+            label: 'Cargo loaded',
+            value: `${formatInt(loadedCargoSummary.linesWithCargo)} lines`,
+            helper: `${formatInt(loadedCargoSummary.totalLoaded)} units loaded`,
+            tone: 'text.primary',
+        },
+        {
+            label: 'Collected',
+            value: formatFixed(voucherFinanceSummary.collectedTotal, 0),
+            helper: `Outstanding ${formatFixed(voucherFinanceSummary.outstandingTotal, 0)}`,
+            tone: voucherFinanceSummary.outstandingTotal > 0 ? 'warning.main' : 'success.main',
+        },
+        {
+            label: 'Destination',
+            value: destinationWarehouseName,
+            helper: trip.vehicle ? `${trip.vehicle.vehicle_no} (${trip.vehicle.vehicle_type})` : 'No vehicle assigned',
+            tone: 'text.primary',
+        },
+    ];
     const deleteTrip = () => {
         if (!canDeleteTrip) return;
         if (!trip?.id) return;
@@ -808,30 +841,16 @@ export default function TripDetail() {
                         {Array.isArray(errors.target_status) ? errors.target_status[0] : errors.target_status}
                     </Alert>
                 ) : null}
-                <Button
-                    component={Link}
-                    href={`${adminAppUrl}/operations/trips`}
-                    startIcon={<ArrowBackIcon />}
-                    variant="text"
-                    sx={{ alignSelf: 'flex-start' }}
-                >
-                    {t('trip_detail.back_to_trips')}
-                </Button>
-
-                <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
-                    <Stack spacing={2}>
-                        <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
-                            <Stack spacing={0.5} sx={{ flex: '1 1 auto', minWidth: 0 }}>
-                                <Typography variant="h6" sx={{ fontWeight: 700, flex: '1 1 auto', minWidth: 0, fontSize: { xs: '1.05rem', sm: undefined } }}>
-                                    {trip.trip_no}
-                                </Typography>
-                            </Stack>
-                            <Chip
-                                size="small"
-                                label={trip.status}
-                                color={TRIP_STATUS_COLOR[trip.status] ?? 'default'}
-                                variant="outlined"
-                            />
+                <PageHeader
+                    eyebrow="Trip Control"
+                    title={trip.trip_no}
+                    subtitle={t('trip_detail.summary')}
+                    actions={
+                        <Stack direction="row" spacing={1} sx={{ justifyContent: { xs: 'flex-start', md: 'flex-end' }, flexWrap: 'wrap', gap: 1 }}>
+                            <Chip size="small" label={trip.status} color={TRIP_STATUS_COLOR[trip.status] ?? 'default'} variant="outlined" />
+                            <Button component={Link} href={`${adminAppUrl}/operations/trips`} startIcon={<ArrowBackIcon />} variant="text" size="small">
+                                {t('trip_detail.back_to_trips')}
+                            </Button>
                             <Button
                                 component="a"
                                 href={`${adminAppUrl}/operations/trips/${trip.id}/manifest`}
@@ -840,41 +859,46 @@ export default function TripDetail() {
                                 variant="outlined"
                                 size="small"
                                 startIcon={<ArticleOutlinedIcon />}
-                                sx={{
-                                    flexShrink: 0,
-                                    minWidth: { xs: 40, sm: 'auto' },
-                                    px: { xs: 1, sm: 1.5 },
-                                    '& .MuiButton-startIcon': { mr: { xs: 0, sm: 1 } },
-                                }}
                             >
-                                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
-                                    {t('trip_detail.actions.driver_manifest')}
-                                </Box>
+                                {t('trip_detail.actions.driver_manifest')}
                             </Button>
                             {canDeleteTrip ? (
-                                <Button
-                                    variant="outlined"
-                                    color="error"
-                                    size="small"
-                                    startIcon={<DeleteOutlineIcon />}
-                                    onClick={deleteTrip}
-                                    sx={{
-                                        flexShrink: 0,
-                                        minWidth: { xs: 40, sm: 'auto' },
-                                        px: { xs: 1, sm: 1.5 },
-                                        '& .MuiButton-startIcon': { mr: { xs: 0, sm: 1 } },
-                                    }}
-                                >
-                                    <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
-                                        {t('trip_detail.actions.delete_trip')}
-                                    </Box>
+                                <Button variant="outlined" color="error" size="small" startIcon={<DeleteOutlineIcon />} onClick={deleteTrip}>
+                                    {t('trip_detail.actions.delete_trip')}
                                 </Button>
                             ) : null}
                         </Stack>
-                        <Typography variant="body2" color="text.secondary">
-                            {t('trip_detail.summary')}
-                        </Typography>
-                        <Divider />
+                    }
+                >
+                    <Grid container spacing={1.5}>
+                        {tripSummaryCards.map((item) => (
+                            <Grid key={item.label} item xs={12} sm={6} lg={3}>
+                                <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, boxShadow: 'none', height: '100%' }}>
+                                    <Typography variant="caption" color="text.secondary">
+                                        {item.label}
+                                    </Typography>
+                                    <Typography variant="subtitle1" sx={{ mt: 0.5, fontWeight: 800, color: item.tone }}>
+                                        {item.value}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, lineHeight: 1.5 }}>
+                                        {item.helper}
+                                    </Typography>
+                                </Paper>
+                            </Grid>
+                        ))}
+                    </Grid>
+                </PageHeader>
+
+                <Paper variant="outlined" sx={SECTION_CARD_SX}>
+                    <Stack spacing={2}>
+                        <Box>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                                Operational summary
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                Core trip, finance, and assignment details for dispatch review.
+                            </Typography>
+                        </Box>
                         <Grid container spacing={2.5}>
                             <Grid item xs={12} sm={6} md={4}>
                                 <Typography variant="caption" color="text.secondary">
@@ -1043,7 +1067,7 @@ export default function TripDetail() {
                     </Stack>
                 </Paper>
 
-                <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+                <Paper variant="outlined" sx={SECTION_CARD_SX}>
                     <Stack spacing={1.5}>
                         <Stack
                             direction={{ xs: 'column', sm: 'row' }}
@@ -1169,7 +1193,7 @@ export default function TripDetail() {
                     </DialogActions>
                 </Dialog>
 
-                <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+                <Paper variant="outlined" sx={SECTION_CARD_SX}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
                         {t('trip_detail.departure.title')}
                     </Typography>
@@ -1249,7 +1273,7 @@ export default function TripDetail() {
                     )}
                 </Paper>
 
-                <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+                <Paper variant="outlined" sx={SECTION_CARD_SX}>
                     <Stack direction="row" alignItems="flex-start" justifyContent="space-between" flexWrap="wrap" gap={1} sx={{ mb: 1.5 }}>
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, flex: '1 1 auto', minWidth: 0 }}>
                             {t('trip_detail.cargo.title')}
@@ -1359,7 +1383,7 @@ export default function TripDetail() {
                                 </Typography>
                             ) : (
                                 isSmUp ? (
-                                    <Paper variant="outlined" sx={{ overflowX: 'auto', borderRadius: 2 }}>
+                                    <Paper variant="outlined" sx={{ overflowX: 'auto', borderRadius: 1.5 }}>
                                         <Table size="small" sx={{ minWidth: 720 }}>
                                             <TableHead>
                                                 <TableRow>
@@ -1436,7 +1460,7 @@ export default function TripDetail() {
                                     </Paper>
                                 ) : (
                                     <Stack spacing={1}>
-                                        <Paper variant="outlined" sx={{ px: 1.5, py: 1, borderRadius: 2 }}>
+                                        <Paper variant="outlined" sx={{ px: 1.5, py: 1, borderRadius: 1.5 }}>
                                             <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
                                                 <Typography variant="body2" sx={{ fontWeight: 800 }}>
                                                     {t('trip_detail.load_vouchers.select_all')}
@@ -1464,7 +1488,7 @@ export default function TripDetail() {
                                             const checked = Boolean(selectedVoucherMap[String(row.id)]);
                                             const w = row.total_weight;
                                             return (
-                                                <Paper key={row.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                                                <Paper key={row.id} variant="outlined" sx={{ p: 1.5, borderRadius: 1.5 }}>
                                                     <Stack spacing={1}>
                                                         <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
                                                             <Box sx={{ minWidth: 0 }}>
@@ -1677,7 +1701,7 @@ export default function TripDetail() {
                                 const dest = row.destination ?? '—';
                                 const isOpen = Boolean(voucherExpanded[row.voucher_id]);
                                 return (
-                                    <Paper key={row.voucher_id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                                    <Paper key={row.voucher_id} variant="outlined" sx={{ p: 1.5, borderRadius: 1.5 }}>
                                         <Stack spacing={1.25}>
                                             <Stack direction="row" alignItems="flex-start" justifyContent="space-between" gap={1}>
                                                 <Typography variant="subtitle2" sx={{ fontWeight: 700, wordBreak: 'break-word', flex: '1 1 auto', minWidth: 0 }}>

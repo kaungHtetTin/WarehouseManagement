@@ -48,9 +48,8 @@ class RegisteredUserController extends Controller
         ]);
 
         $user = DB::transaction(function () use ($request) {
-            if (! Permission::query()->exists()) {
-                app(PermissionSeeder::class)->run();
-            }
+            // Keep the permission catalog current before building tenant roles.
+            app(PermissionSeeder::class)->run();
 
             $organizationCode = Str::slug($request->organization_name).'-'.Str::lower(Str::random(6));
 

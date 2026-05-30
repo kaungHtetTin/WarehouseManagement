@@ -10,6 +10,7 @@ import {
     Divider,
     Fab,
     FormControl,
+    Grid,
     IconButton,
     InputLabel,
     Menu,
@@ -38,6 +39,15 @@ const TRIP_STATUS_COLOR = {
     CANCELLED: 'error',
 };
 
+const SECTION_CARD_SX = {
+    borderRadius: 1.5,
+    boxShadow: 'none',
+};
+
+function warehouseLabel(warehouse) {
+    return warehouse?.display_name ?? warehouse?.city ?? warehouse?.address ?? '—';
+}
+
 export default function TripsIndex() {
     const theme = useTheme();
     const isSmUp = useMediaQuery(theme.breakpoints.up('sm'));
@@ -55,9 +65,35 @@ export default function TripsIndex() {
     const canManage = permissionCodes.includes('trips.manage');
     const [tableActionAnchorEl, setTableActionAnchorEl] = useState(null);
     const [selectedRow, setSelectedRow] = useState(null);
+    const [statusFilter, setStatusFilter] = useState('all');
     const openTableActionMenu = Boolean(tableActionAnchorEl);
 
     const rows = useMemo(() => trips ?? [], [trips]);
+    const visibleRows = useMemo(() => {
+        if (statusFilter === 'all') return rows;
+        return rows.filter((row) => row?.status === statusFilter);
+    }, [rows, statusFilter]);
+    const summaryCounts = useMemo(() => {
+        const active = rows.filter((row) => ['PLANNED', 'LOADING', 'DEPARTED', 'AT_STOP'].includes(row?.status)).length;
+        const completed = rows.filter((row) => row?.status === 'COMPLETED').length;
+        const cancelled = rows.filter((row) => row?.status === 'CANCELLED').length;
+        const loading = rows.filter((row) => row?.status === 'LOADING').length;
+        return { active, completed, cancelled, loading };
+    }, [rows]);
+    const summaryCards = [
+        { label: 'Visible trips', value: visibleRows.length, helper: `${rows.length} in current warehouse view`, tone: 'primary.main' },
+        { label: 'Active', value: summaryCounts.active, helper: 'Planned, loading, or in transit', tone: summaryCounts.active > 0 ? 'warning.main' : 'text.primary' },
+        { label: 'Loading', value: summaryCounts.loading, helper: 'Need cargo or departure action', tone: summaryCounts.loading > 0 ? 'info.main' : 'text.primary' },
+        { label: 'Completed', value: summaryCounts.completed, helper: `${summaryCounts.cancelled} cancelled`, tone: 'success.main' },
+    ];
+    const statusPresets = [
+        { key: 'all', label: 'All' },
+        { key: 'PLANNED', label: 'Planned' },
+        { key: 'LOADING', label: 'Loading' },
+        { key: 'DEPARTED', label: 'Departed' },
+        { key: 'COMPLETED', label: 'Completed' },
+    ];
+    const hasActiveFilters = tripDestinationFilter !== 'all' || statusFilter !== 'all';
 
     const handleTableActionOpen = (event, row) => {
         setTableActionAnchorEl(event.currentTarget);
@@ -125,8 +161,23 @@ export default function TripsIndex() {
                     title={t('nav.trips')}
                     subtitle={t('trips.subtitle')}
                     actions={
-                        canManage
-                            ? isSmUp
+                        <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                            {hasActiveFilters ? (
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    onClick={() => {
+                                        setStatusFilter('all');
+                                        if (tripDestinationFilter !== 'all') {
+                                            router.get(`${adminAppUrl}/operations/trips`, { destination_warehouse_id: 'all' }, { preserveScroll: true });
+                                        }
+                                    }}
+                                >
+                                    Clear filters
+                                </Button>
+                            ) : null}
+                            {canManage
+                                ? isSmUp
                                 ? (
                                     <Fab
                                         component={Link}
@@ -151,38 +202,83 @@ export default function TripsIndex() {
                                         {t('trips.actions.new_trip')}
                                     </Button>
                                 )
-                            : null
+                            : null}
+                        </Stack>
                     }
                 >
-                    {tripFilterWarehouses.length > 0 ? (
-                        <FormControl size="small" sx={{ width: { xs: '100%', sm: 280 } }}>
-                            <InputLabel id="trip-src-wh-filter">{t('trips.filters.destination_warehouse')}</InputLabel>
-                            <Select
-                                labelId="trip-src-wh-filter"
-                                label={t('trips.filters.destination_warehouse')}
-                                value={tripDestinationFilter}
-                                onChange={(e) => {
-                                    const v = e.target.value;
-                                    router.get(
-                                        `${adminAppUrl}/operations/trips`,
-                                        { destination_warehouse_id: v },
-                                        { preserveScroll: true },
-                                    );
-                                }}
-                            >
-                                <MenuItem value="all">{t('filters.all')}</MenuItem>
-                                {tripFilterWarehouses.map((w) => (
-                                    <MenuItem key={w.id} value={String(w.id)}>
-                                        {w.display_name || w.city}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                    ) : null}
+                    <Stack spacing={2}>
+                        <Grid container spacing={1.5}>
+                            {summaryCards.map((item) => (
+                                <Grid key={item.label} item xs={6} md={3}>
+                                    <Paper variant="outlined" sx={{ ...SECTION_CARD_SX, p: 1.5, height: '100%' }}>
+                                        <Typography variant="caption" color="text.secondary">
+                                            {item.label}
+                                        </Typography>
+                                        <Typography variant="h5" sx={{ mt: 0.5, fontWeight: 900, color: item.tone }}>
+                                            {item.value}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, lineHeight: 1.5 }}>
+                                            {item.helper}
+                                        </Typography>
+                                    </Paper>
+                                </Grid>
+                            ))}
+                        </Grid>
+
+                        <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                            {statusPresets.map((preset) => (
+                                <Chip
+                                    key={preset.key}
+                                    label={preset.label}
+                                    color={statusFilter === preset.key ? 'primary' : 'default'}
+                                    variant={statusFilter === preset.key ? 'filled' : 'outlined'}
+                                    onClick={() => setStatusFilter(preset.key)}
+                                />
+                            ))}
+                        </Stack>
+
+                        {tripFilterWarehouses.length > 0 ? (
+                            <FormControl size="small" sx={{ width: { xs: '100%', sm: 280 } }}>
+                                <InputLabel id="trip-src-wh-filter">{t('trips.filters.destination_warehouse')}</InputLabel>
+                                <Select
+                                    labelId="trip-src-wh-filter"
+                                    label={t('trips.filters.destination_warehouse')}
+                                    value={tripDestinationFilter}
+                                    onChange={(e) => {
+                                        const v = e.target.value;
+                                        router.get(
+                                            `${adminAppUrl}/operations/trips`,
+                                            { destination_warehouse_id: v },
+                                            { preserveScroll: true },
+                                        );
+                                    }}
+                                >
+                                    <MenuItem value="all">{t('filters.all')}</MenuItem>
+                                    {tripFilterWarehouses.map((w) => (
+                                        <MenuItem key={w.id} value={String(w.id)}>
+                                            {warehouseLabel(w)}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        ) : null}
+
+                        {hasActiveFilters ? (
+                            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                                {tripDestinationFilter !== 'all' ? (
+                                    <Chip
+                                        label={`Warehouse: ${warehouseLabel(tripFilterWarehouses.find((w) => String(w.id) === String(tripDestinationFilter)))}`}
+                                        onDelete={() => router.get(`${adminAppUrl}/operations/trips`, { destination_warehouse_id: 'all' }, { preserveScroll: true })}
+                                    />
+                                ) : null}
+                                {statusFilter !== 'all' ? <Chip label={`Status: ${statusFilter}`} onDelete={() => setStatusFilter('all')} /> : null}
+                            </Stack>
+                        ) : null}
+                    </Stack>
                 </PageHeader>
 
                 {isSmUp ? (
-                    <Paper sx={{ overflowX: 'auto', borderRadius: 2 }}>
+                    <Paper variant="outlined" sx={{ overflowX: 'auto', ...SECTION_CARD_SX }}>
                         <Table size="small" sx={{ minWidth: 520 }}>
                             <TableHead>
                                 <TableRow sx={{ bgcolor: (t) => (t.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>
@@ -196,15 +292,29 @@ export default function TripsIndex() {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {rows.map((row) => (
-                                    <TableRow key={row.id} hover sx={{ '&:last-child td': { border: 0 } }}>
+                                {visibleRows.map((row) => (
+                                    <TableRow
+                                        key={row.id}
+                                        hover
+                                        sx={{
+                                            '&:last-child td': { border: 0 },
+                                            bgcolor: ['PLANNED', 'LOADING', 'DEPARTED', 'AT_STOP'].includes(row?.status) ? 'warning.50' : 'inherit',
+                                        }}
+                                    >
                                         <TableCell sx={{ fontWeight: 600 }}>
-                                            <Link
-                                                href={`${adminAppUrl}/operations/trips/${row.id}`}
-                                                style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: 2 }}
-                                            >
-                                                {row.trip_no}
-                                            </Link>
+                                            <Stack spacing={0.35}>
+                                                <Box>
+                                                    <Link
+                                                        href={`${adminAppUrl}/operations/trips/${row.id}`}
+                                                        style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: 2 }}
+                                                    >
+                                                        {row.trip_no}
+                                                    </Link>
+                                                </Box>
+                                                <Typography variant="caption" color="text.secondary">
+                                                    {warehouseLabel(row.source_warehouse)}
+                                                </Typography>
+                                            </Stack>
                                         </TableCell>
                                         <TableCell>
                                             <Chip
@@ -215,7 +325,7 @@ export default function TripsIndex() {
                                             />
                                         </TableCell>
                                         <TableCell>{row.vehicle?.vehicle_no ?? '—'}</TableCell>
-                                        <TableCell>{row.source_warehouse?.display_name ?? '—'}</TableCell>
+                                        <TableCell>{warehouseLabel(row.source_warehouse)}</TableCell>
                                         <TableCell align="right">
                                             <IconButton size="small" onClick={(e) => handleTableActionOpen(e, row)} aria-label="Trip actions">
                                                 <MoreVertIcon fontSize="small" />
@@ -223,12 +333,38 @@ export default function TripsIndex() {
                                         </TableCell>
                                     </TableRow>
                                 ))}
-                                {rows.length === 0 && (
+                                {visibleRows.length === 0 && (
                                     <TableRow>
                                         <TableCell colSpan={5}>
-                                            <Typography variant="body2" color="text.secondary">
-                                                {canManage ? t('trips.empty.manage') : t('trips.empty.view')}
-                                            </Typography>
+                                            <Stack spacing={1.5} alignItems="center" sx={{ py: 3 }}>
+                                                <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                                                    No trips match the current view
+                                                </Typography>
+                                                <Typography variant="body2" color="text.secondary">
+                                                    {canManage ? t('trips.empty.manage') : t('trips.empty.view')}
+                                                </Typography>
+                                                <Stack direction="row" spacing={1}>
+                                                    {hasActiveFilters ? (
+                                                        <Button
+                                                            size="small"
+                                                            variant="outlined"
+                                                            onClick={() => {
+                                                                setStatusFilter('all');
+                                                                if (tripDestinationFilter !== 'all') {
+                                                                    router.get(`${adminAppUrl}/operations/trips`, { destination_warehouse_id: 'all' }, { preserveScroll: true });
+                                                                }
+                                                            }}
+                                                        >
+                                                            Clear filters
+                                                        </Button>
+                                                    ) : null}
+                                                    {canManage ? (
+                                                        <Button component={Link} href={`${adminAppUrl}/operations/trips/create`} size="small" variant="contained">
+                                                            {t('trips.actions.new_trip')}
+                                                        </Button>
+                                                    ) : null}
+                                                </Stack>
+                                            </Stack>
                                         </TableCell>
                                     </TableRow>
                                 )}
@@ -237,8 +373,16 @@ export default function TripsIndex() {
                     </Paper>
                 ) : (
                     <Stack spacing={1.5}>
-                        {rows.map((row) => (
-                            <Paper key={row.id} variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+                        {visibleRows.map((row) => (
+                            <Paper
+                                key={row.id}
+                                variant="outlined"
+                                sx={{
+                                    ...SECTION_CARD_SX,
+                                    p: 2,
+                                    bgcolor: ['PLANNED', 'LOADING', 'DEPARTED', 'AT_STOP'].includes(row?.status) ? 'warning.50' : 'background.paper',
+                                }}
+                            >
                                 <Stack spacing={1.25}>
                                     <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} flexWrap="wrap">
                                         <Link
@@ -272,18 +416,44 @@ export default function TripsIndex() {
                                                 {t('trips.labels.destination_warehouse')}
                                             </Typography>
                                             <Typography variant="body2" sx={{ mt: 0.25, wordBreak: 'break-word' }}>
-                                                {row.source_warehouse?.display_name ?? '—'}
+                                                {warehouseLabel(row.source_warehouse)}
                                             </Typography>
                                         </Box>
                                     </Stack>
                                 </Stack>
                             </Paper>
                         ))}
-                        {rows.length === 0 && (
-                            <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
-                                <Typography variant="body2" color="text.secondary">
-                                    {canManage ? t('trips.empty.manage_mobile') : t('trips.empty.view')}
-                                </Typography>
+                        {visibleRows.length === 0 && (
+                            <Paper variant="outlined" sx={{ ...SECTION_CARD_SX, p: 3, textAlign: 'center' }}>
+                                <Stack spacing={1.5} alignItems="center">
+                                    <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                                        No trips match the current view
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        {canManage ? t('trips.empty.manage_mobile') : t('trips.empty.view')}
+                                    </Typography>
+                                    <Stack direction="row" spacing={1}>
+                                        {hasActiveFilters ? (
+                                            <Button
+                                                size="small"
+                                                variant="outlined"
+                                                onClick={() => {
+                                                    setStatusFilter('all');
+                                                    if (tripDestinationFilter !== 'all') {
+                                                        router.get(`${adminAppUrl}/operations/trips`, { destination_warehouse_id: 'all' }, { preserveScroll: true });
+                                                    }
+                                                }}
+                                            >
+                                                Clear filters
+                                            </Button>
+                                        ) : null}
+                                        {canManage ? (
+                                            <Button component={Link} href={`${adminAppUrl}/operations/trips/create`} size="small" variant="contained">
+                                                {t('trips.actions.new_trip')}
+                                            </Button>
+                                        ) : null}
+                                    </Stack>
+                                </Stack>
                             </Paper>
                         )}
                     </Stack>

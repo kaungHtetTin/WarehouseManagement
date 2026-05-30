@@ -1,8 +1,6 @@
-import GuestLayout from '@/Layouts/GuestLayout';
-import InputError from '@/Components/InputError';
-import PrimaryButton from '@/Components/PrimaryButton';
-import TextInput from '@/Components/TextInput';
-import { Head, useForm, usePage } from '@inertiajs/react';
+import AuthShell from '@/Components/AuthShell';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Alert, Button, CircularProgress, Stack, TextField, Typography } from '@mui/material';
 import { useT } from '@/i18n';
 
 export default function ForgotPassword({ status }) {
@@ -23,34 +21,41 @@ export default function ForgotPassword({ status }) {
     };
 
     return (
-        <GuestLayout>
+        <AuthShell
+            title={t('auth.forgot_password_title')}
+            subtitle={t('forgot_password.description')}
+            eyebrow="Account Recovery"
+            sideTitle="Recover access without losing momentum."
+            sideDescription="Send a reset link to the account email and return to the admin workspace securely."
+        >
             <Head title={t('auth.forgot_password_title')} />
+            <Stack component="form" onSubmit={submit} spacing={2}>
+                {status ? <Alert severity="success">{status}</Alert> : null}
+                {errors.email ? <Alert severity="error">{errors.email}</Alert> : null}
 
-            <div className="mb-4 text-sm text-gray-600">
-                {t('forgot_password.description')}
-            </div>
-
-            {status && <div className="mb-4 font-medium text-sm text-green-600">{status}</div>}
-
-            <form onSubmit={submit}>
-                <TextInput
+                <TextField
                     id="email"
-                    type="email"
                     name="email"
+                    type="email"
+                    label={t('auth.email_address')}
                     value={data.email}
-                    className="mt-1 block w-full"
-                    isFocused={true}
                     onChange={onHandleChange}
+                    required
+                    autoFocus
+                    error={Boolean(errors.email)}
                 />
 
-                <InputError message={errors.email} className="mt-2" />
+                <Button type="submit" variant="contained" disabled={processing} sx={{ py: 1.2, fontWeight: 700 }}>
+                    {processing ? <CircularProgress size={20} color="inherit" /> : t('forgot_password.email_reset_link')}
+                </Button>
 
-                <div className="flex items-center justify-end mt-4">
-                    <PrimaryButton className="ml-4" disabled={processing}>
-                        {t('forgot_password.email_reset_link')}
-                    </PrimaryButton>
-                </div>
-            </form>
-        </GuestLayout>
+                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+                    Remembered your password?{' '}
+                    <Link href={`${admin_app_url}/login`} style={{ fontWeight: 700 }}>
+                        {t('auth.sign_in')}
+                    </Link>
+                </Typography>
+            </Stack>
+        </AuthShell>
     );
 }

@@ -1,15 +1,25 @@
-import { useEffect } from 'react';
-import GuestLayout from '@/Layouts/GuestLayout';
-import InputError from '@/Components/InputError';
-import InputLabel from '@/Components/InputLabel';
-import PrimaryButton from '@/Components/PrimaryButton';
-import TextInput from '@/Components/TextInput';
+import { useEffect, useState } from 'react';
+import AuthShell from '@/Components/AuthShell';
 import { Head, useForm, usePage } from '@inertiajs/react';
+import {
+    Alert,
+    Button,
+    CircularProgress,
+    IconButton,
+    InputAdornment,
+    Stack,
+    TextField,
+} from '@mui/material';
+import {
+    Visibility as VisibilityIcon,
+    VisibilityOff as VisibilityOffIcon,
+} from '@mui/icons-material';
 import { useT } from '@/i18n';
 
 export default function ConfirmPassword() {
     const { admin_app_url } = usePage().props;
     const t = useT();
+    const [showPassword, setShowPassword] = useState(false);
     const { data, setData, post, processing, errors, reset } = useForm({
         password: '',
     });
@@ -31,36 +41,42 @@ export default function ConfirmPassword() {
     };
 
     return (
-        <GuestLayout>
+        <AuthShell
+            title={t('auth.confirm_password_title')}
+            subtitle={t('confirm_password.description')}
+            eyebrow="Secure Confirmation"
+            sideTitle="Confirm your identity before continuing."
+            sideDescription="Sensitive actions require one more password check to protect your organization and operational records."
+        >
             <Head title={t('auth.confirm_password_title')} />
+            <Stack component="form" onSubmit={submit} spacing={2}>
+                {errors.password ? <Alert severity="error">{errors.password}</Alert> : null}
 
-            <div className="mb-4 text-sm text-gray-600">
-                {t('confirm_password.description')}
-            </div>
+                <TextField
+                    id="password"
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    label={t('auth.password')}
+                    value={data.password}
+                    onChange={handleOnChange}
+                    required
+                    autoFocus
+                    error={Boolean(errors.password)}
+                    InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <IconButton edge="end" onClick={() => setShowPassword((value) => !value)}>
+                                    {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                                </IconButton>
+                            </InputAdornment>
+                        ),
+                    }}
+                />
 
-            <form onSubmit={submit}>
-                <div className="mt-4">
-                    <InputLabel htmlFor="password" value={t('auth.password')} />
-
-                    <TextInput
-                        id="password"
-                        type="password"
-                        name="password"
-                        value={data.password}
-                        className="mt-1 block w-full"
-                        isFocused={true}
-                        onChange={handleOnChange}
-                    />
-
-                    <InputError message={errors.password} className="mt-2" />
-                </div>
-
-                <div className="flex items-center justify-end mt-4">
-                    <PrimaryButton className="ml-4" disabled={processing}>
-                        {t('auth.confirm')}
-                    </PrimaryButton>
-                </div>
-            </form>
-        </GuestLayout>
+                <Button type="submit" variant="contained" disabled={processing} sx={{ py: 1.2, fontWeight: 700 }}>
+                    {processing ? <CircularProgress size={20} color="inherit" /> : t('auth.confirm')}
+                </Button>
+            </Stack>
+        </AuthShell>
     );
 }

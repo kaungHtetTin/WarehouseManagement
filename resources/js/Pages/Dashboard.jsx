@@ -189,6 +189,45 @@ export default function Dashboard() {
             : null,
     ].filter(Boolean);
 
+    const todayFocus = [
+        canManageVouchers
+            ? {
+                  title: vouchersPending > 0 ? 'Review pending vouchers' : 'Create a new voucher',
+                  detail:
+                      vouchersPending > 0
+                          ? `${vouchersPending} voucher${vouchersPending === 1 ? '' : 's'} currently need attention.`
+                          : 'Start a new shipment flow and keep today moving.',
+                  href: vouchersPending > 0 ? `${adminAppUrl}/operations/vouchers` : `${adminAppUrl}/operations/vouchers/create`,
+                  tone: vouchersPending > 0 ? 'warning.main' : 'primary.main',
+              }
+            : null,
+        canManageTrips
+            ? {
+                  title: tripsPending > 0 ? 'Check active trips' : 'Plan the next trip',
+                  detail:
+                      tripsPending > 0
+                          ? `${tripsPending} trip${tripsPending === 1 ? '' : 's'} are still active or waiting for updates.`
+                          : 'Prepare dispatch capacity before the next loading cycle.',
+                  href: tripsPending > 0 ? `${adminAppUrl}/operations/trips` : `${adminAppUrl}/operations/trips/create`,
+                  tone: 'primary.main',
+              }
+            : null,
+        canViewFinance
+            ? {
+                  title: 'Review finance movement',
+                  detail: "Open the ledger and validate today's operational financial entries.",
+                  href: `${adminAppUrl}/finance/ledger`,
+                  tone: 'success.main',
+              }
+            : null,
+    ].filter(Boolean);
+
+    const workspaceSummary = [
+        { label: 'Attention items', value: totalAttention, tone: totalAttention > 0 ? 'warning.main' : 'success.main' },
+        { label: 'Quick actions', value: quickActions.length, tone: 'primary.main' },
+        { label: 'Workspaces', value: workspaceLinks.length, tone: 'secondary.main' },
+    ];
+
     return (
         <AdminLayout title={t('dashboard.title')}>
             <Head title={t('dashboard.title')} />
@@ -239,6 +278,93 @@ export default function Dashboard() {
                         ))}
                     </Grid>
                 ) : null}
+
+                <Grid container spacing={2} sx={{ mb: 3 }}>
+                    <Grid item xs={12} lg={8}>
+                        <Card sx={{ height: '100%' }}>
+                            <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
+                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" sx={{ mb: 2 }}>
+                                    <Box>
+                                        <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                                            Today's Focus
+                                        </Typography>
+                                        <Typography variant="body2" color="text.secondary">
+                                            Prioritized shortcuts based on operational attention and available permissions.
+                                        </Typography>
+                                    </Box>
+                                    <Chip
+                                        label={totalAttention > 0 ? `${totalAttention} needs attention` : 'All clear'}
+                                        color={totalAttention > 0 ? 'warning' : 'success'}
+                                        variant={totalAttention > 0 ? 'filled' : 'outlined'}
+                                    />
+                                </Stack>
+                                <Grid container spacing={1.5}>
+                                    {todayFocus.map((item) => (
+                                        <Grid key={item.title} item xs={12} md={4}>
+                                            <Button
+                                                component={Link}
+                                                href={item.href}
+                                                variant="outlined"
+                                                fullWidth
+                                                sx={{
+                                                    justifyContent: 'flex-start',
+                                                    alignItems: 'flex-start',
+                                                    textAlign: 'left',
+                                                    p: 1.5,
+                                                    height: '100%',
+                                                    borderRadius: 3,
+                                                }}
+                                            >
+                                                <Stack spacing={1} sx={{ alignItems: 'flex-start' }}>
+                                                    <Typography variant="body2" sx={{ fontWeight: 800, color: item.tone }}>
+                                                        {item.title}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        {item.detail}
+                                                    </Typography>
+                                                </Stack>
+                                            </Button>
+                                        </Grid>
+                                    ))}
+                                </Grid>
+                            </CardContent>
+                        </Card>
+                    </Grid>
+
+                    <Grid item xs={12} lg={4}>
+                        <Card sx={{ height: '100%' }}>
+                            <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                                    Workspace Snapshot
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                    A quick view of how much action is available from this dashboard.
+                                </Typography>
+                                <Stack spacing={1.25}>
+                                    {workspaceSummary.map((item) => (
+                                        <Box
+                                            key={item.label}
+                                            sx={{
+                                                p: 1.5,
+                                                borderRadius: 3,
+                                                bgcolor: 'action.hover',
+                                                border: 1,
+                                                borderColor: 'divider',
+                                            }}
+                                        >
+                                            <Typography variant="caption" color="text.secondary">
+                                                {item.label}
+                                            </Typography>
+                                            <Typography variant="h5" sx={{ fontWeight: 900, color: item.tone }}>
+                                                {item.value}
+                                            </Typography>
+                                        </Box>
+                                    ))}
+                                </Stack>
+                            </CardContent>
+                        </Card>
+                    </Grid>
+                </Grid>
 
                 <Grid container spacing={2}>
                     <Grid item xs={12} lg={7}>

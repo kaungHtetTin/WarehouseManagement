@@ -34,6 +34,11 @@ import {
 } from '@mui/material';
 import { Fragment, useMemo, useState } from 'react';
 
+const SECTION_CARD_SX = {
+    borderRadius: 1.5,
+    boxShadow: 'none',
+};
+
 function remainingQty(row) {
     return Math.max(0, Number(row.qty_received ?? 0) - Number(row.qty_dispatched ?? 0));
 }
@@ -104,6 +109,19 @@ function groupStatusLabel(rows) {
         return 'INCOMING';
     }
     return 'COMPLETED';
+}
+
+function groupStatusColor(status) {
+    if (status === 'PENDING') return 'warning';
+    if (status === 'INCOMING') return 'info';
+    return 'success';
+}
+
+function paymentStatusColor(status) {
+    if (status === 'PAID') return 'success';
+    if (status === 'WAIVED') return 'default';
+    if (status === 'PARTIAL') return 'warning';
+    return 'error';
 }
 
 export default function WarehouseFulfillmentInbox() {
@@ -260,6 +278,47 @@ export default function WarehouseFulfillmentInbox() {
         fulfillmentPage === 'incoming'
             ? 'Goods loaded onto trips and in transit to destination warehouses. Not actionable until received.'
             : 'Goods already received at destination warehouses. Process owner pickup, direct delivery, or forward to another warehouse.';
+    const counts = useMemo(() => {
+        let pending = 0;
+        let incoming = 0;
+        let completed = 0;
+        let paymentAttention = 0;
+        for (const g of voucherGroups) {
+            const status = groupStatusLabel(g.rows);
+            if (status === 'PENDING') pending += 1;
+            else if (status === 'INCOMING') incoming += 1;
+            else completed += 1;
+
+            if (!isIncomingPage && g.payment_status !== 'PAID' && g.payment_status !== 'WAIVED') {
+                paymentAttention += 1;
+            }
+        }
+        return { pending, incoming, completed, paymentAttention };
+    }, [isIncomingPage, voucherGroups]);
+    const selectedWarehouse = warehouses.find((w) => String(w.id) === String(fulfillmentWarehouseFilter));
+    const hasActiveFilters = fulfillmentWarehouseFilter !== 'all' || (!fulfillmentFixedStatus && fulfillmentStatusFilter !== 'pending');
+    const summaryCards = [
+        { label: 'Visible vouchers', value: voucherGroups.length, helper: `${instructions.length} fulfillment lines`, tone: 'primary.main' },
+        { label: 'Pending', value: counts.pending, helper: 'Ready for next action', tone: counts.pending > 0 ? 'warning.main' : 'text.primary' },
+        { label: 'Incoming', value: counts.incoming, helper: 'Still in transit', tone: counts.incoming > 0 ? 'info.main' : 'text.primary' },
+        {
+            label: isIncomingPage ? 'Completed' : 'Payment attention',
+            value: isIncomingPage ? counts.completed : counts.paymentAttention,
+            helper: isIncomingPage ? 'Already closed' : 'Voucher payments not settled',
+            tone: isIncomingPage ? 'success.main' : counts.paymentAttention > 0 ? 'error.main' : 'success.main',
+        },
+    ];
+    const statusPresets = fulfillmentFixedStatus
+        ? []
+        : [
+              { key: 'pending', label: 'Pending', active: fulfillmentStatusFilter === 'pending' },
+              { key: 'incoming', label: 'Incoming', active: fulfillmentStatusFilter === 'incoming' },
+              { key: 'completed', label: 'Completed', active: fulfillmentStatusFilter === 'completed' },
+              { key: 'all', label: 'All', active: fulfillmentStatusFilter === 'all' },
+          ];
+    const goToFilters = (warehouseId, status) => {
+        router.get(pageHref, { warehouse_id: warehouseId, status }, { preserveScroll: true });
+    };
 
     return (
         <AdminLayout title={title}>
@@ -267,63 +326,132 @@ export default function WarehouseFulfillmentInbox() {
             <Stack spacing={2.5}>
                 {flash.success ? <Alert severity="success">{flash.success}</Alert> : null}
                 <PageHeader title={title} subtitle={subtitle}>
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} sx={{ mb: 1.5 }}>
-                        <FormControl size="small" sx={{ width: { xs: '100%', sm: 300 } }}>
-                            <InputLabel id="fulfillment-wh-filter">Warehouse</InputLabel>
-                            <Select
-                                labelId="fulfillment-wh-filter"
-                                label="Warehouse"
-                                value={fulfillmentWarehouseFilter}
-                                onChange={(e) => {
-                                    const v = e.target.value;
-                                    router.get(
-                                        pageHref,
-                                        { warehouse_id: v, status: fulfillmentStatusFilter },
-                                        { preserveScroll: true },
-                                    );
-                                }}
-                            >
-                                <MenuItem value="all">All</MenuItem>
-                                {warehouses.map((w) => (
-                                    <MenuItem key={w.id} value={String(w.id)}>
-                                        {w.code} · {w.name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
+                    <Stack spacing={2}>
+                        <Grid container spacing={1.5}>
+                            {summaryCards.map((item) => (
+                                <Grid key={item.label} item xs={6} md={3}>
+                                    <Paper variant="outlined" sx={{ ...SECTION_CARD_SX, p: 1.5, height: '100%' }}>
+                                        <Typography variant="caption" color="text.secondary">
+                                            {item.label}
+                                        </Typography>
+                                        <Typography variant="h5" sx={{ mt: 0.5, fontWeight: 900, color: item.tone }}>
+                                            {item.value}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, lineHeight: 1.5 }}>
+                                            {item.helper}
+                                        </Typography>
+                                    </Paper>
+                                </Grid>
+                            ))}
+                        </Grid>
+
                         {!fulfillmentFixedStatus ? (
-                            <FormControl size="small" sx={{ width: { xs: '100%', sm: 240 } }}>
-                                <InputLabel id="fulfillment-status-filter">Status</InputLabel>
+                            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                                {statusPresets.map((preset) => (
+                                    <Chip
+                                        key={preset.key}
+                                        label={preset.label}
+                                        color={preset.active ? 'primary' : 'default'}
+                                        variant={preset.active ? 'filled' : 'outlined'}
+                                        onClick={() => goToFilters(fulfillmentWarehouseFilter, preset.key)}
+                                    />
+                                ))}
+                            </Stack>
+                        ) : null}
+
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+                            <FormControl size="small" sx={{ width: { xs: '100%', sm: 300 } }}>
+                                <InputLabel id="fulfillment-wh-filter">Warehouse</InputLabel>
                                 <Select
-                                    labelId="fulfillment-status-filter"
-                                    label="Status"
-                                    value={fulfillmentStatusFilter}
+                                    labelId="fulfillment-wh-filter"
+                                    label="Warehouse"
+                                    value={fulfillmentWarehouseFilter}
                                     onChange={(e) => {
                                         const v = e.target.value;
-                                        router.get(pageHref, { warehouse_id: fulfillmentWarehouseFilter, status: v }, { preserveScroll: true });
+                                        goToFilters(v, fulfillmentStatusFilter);
                                     }}
                                 >
-                                    <MenuItem value="incoming">Incoming</MenuItem>
-                                    <MenuItem value="pending">Pending</MenuItem>
-                                    <MenuItem value="completed">Completed</MenuItem>
                                     <MenuItem value="all">All</MenuItem>
+                                    {warehouses.map((w) => (
+                                        <MenuItem key={w.id} value={String(w.id)}>
+                                            {w.code} · {w.name}
+                                        </MenuItem>
+                                    ))}
                                 </Select>
                             </FormControl>
+                            {!fulfillmentFixedStatus ? (
+                                <FormControl size="small" sx={{ width: { xs: '100%', sm: 240 } }}>
+                                    <InputLabel id="fulfillment-status-filter">Status</InputLabel>
+                                    <Select
+                                        labelId="fulfillment-status-filter"
+                                        label="Status"
+                                        value={fulfillmentStatusFilter}
+                                        onChange={(e) => {
+                                            const v = e.target.value;
+                                            goToFilters(fulfillmentWarehouseFilter, v);
+                                        }}
+                                    >
+                                        <MenuItem value="incoming">Incoming</MenuItem>
+                                        <MenuItem value="pending">Pending</MenuItem>
+                                        <MenuItem value="completed">Completed</MenuItem>
+                                        <MenuItem value="all">All</MenuItem>
+                                    </Select>
+                                </FormControl>
+                            ) : null}
+                            {hasActiveFilters ? (
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    onClick={() => goToFilters('all', fulfillmentFixedStatus ? fulfillmentStatusFilter : 'pending')}
+                                >
+                                    Clear filters
+                                </Button>
+                            ) : null}
+                        </Stack>
+
+                        {hasActiveFilters ? (
+                            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                                {selectedWarehouse ? (
+                                    <Chip
+                                        label={`Warehouse: ${selectedWarehouse.display_name ?? `${selectedWarehouse.code} · ${selectedWarehouse.name}`}`}
+                                        onDelete={() => goToFilters('all', fulfillmentStatusFilter)}
+                                    />
+                                ) : null}
+                                {!fulfillmentFixedStatus && fulfillmentStatusFilter !== 'pending' ? (
+                                    <Chip label={`Status: ${fulfillmentStatusFilter}`} onDelete={() => goToFilters(fulfillmentWarehouseFilter, 'pending')} />
+                                ) : null}
+                            </Stack>
                         ) : null}
                     </Stack>
                     {instructions.length === 0 ? (
-                        <Typography variant="body2" color="text.secondary">
-                            {fulfillmentStatusFilter === 'incoming'
-                                ? 'No incoming (in-transit) lines.'
-                                : fulfillmentStatusFilter === 'completed'
-                                ? 'No completed fulfillment instructions.'
-                                : fulfillmentStatusFilter === 'all'
-                                  ? 'No fulfillment instructions.'
-                                  : 'No pending fulfillment instructions.'}
-                        </Typography>
+                        <Paper variant="outlined" sx={{ ...SECTION_CARD_SX, p: 3, textAlign: 'center' }}>
+                            <Stack spacing={1.5} alignItems="center">
+                                <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                                    No fulfillment vouchers match this view
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    {fulfillmentStatusFilter === 'incoming'
+                                        ? 'No incoming (in-transit) lines.'
+                                        : fulfillmentStatusFilter === 'completed'
+                                        ? 'No completed fulfillment instructions.'
+                                        : fulfillmentStatusFilter === 'all'
+                                          ? 'No fulfillment instructions.'
+                                          : 'No pending fulfillment instructions.'}
+                                </Typography>
+                                {hasActiveFilters ? (
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        onClick={() => goToFilters('all', fulfillmentFixedStatus ? fulfillmentStatusFilter : 'pending')}
+                                    >
+                                        Clear filters
+                                    </Button>
+                                ) : null}
+                            </Stack>
+                        </Paper>
                     ) : (
                         isMdUp ? (
-                            <TableContainer sx={{ overflowX: 'auto' }}>
+                            <TableContainer component={Paper} variant="outlined" sx={{ overflowX: 'auto', ...SECTION_CARD_SX }}>
                                 <Table size="small" sx={{ minWidth: 800 }}>
                                 <TableHead>
                                     <TableRow>
@@ -338,9 +466,10 @@ export default function WarehouseFulfillmentInbox() {
                                     {voucherGroups.map((g) => {
                                         const isOpen = Boolean(expanded[g.key]);
                                         const statusLabel = groupStatusLabel(g.rows);
+                                        const isPending = statusLabel === 'PENDING';
                                         return (
                                             <Fragment key={g.key}>
-                                                <TableRow hover>
+                                                <TableRow hover sx={{ bgcolor: isPending ? 'warning.50' : 'inherit' }}>
                                                 <TableCell sx={{ width: 160, whiteSpace: 'nowrap' }}>
                                                     <Typography variant="body2" noWrap title={g.warehouse?.display_name ?? undefined}>
                                                         {g.warehouse ? `${g.warehouse.display_name}` : '—'}
@@ -381,7 +510,7 @@ export default function WarehouseFulfillmentInbox() {
                                                                         size="small"
                                                                         label={statusLabel}
                                                                         variant="outlined"
-                                                                        color={statusLabel === 'PENDING' ? 'warning' : statusLabel === 'INCOMING' ? 'info' : 'default'}
+                                                                        color={groupStatusColor(statusLabel)}
                                                                     />
                                                                 </Box>
                                                             </Stack>
@@ -421,7 +550,7 @@ export default function WarehouseFulfillmentInbox() {
                                                         </Stack>
                                                     </TableCell>
                                                     <TableCell sx={{ width: 96, whiteSpace: 'nowrap' }}>
-                                                        <Chip size="small" label={g.payment_status ?? 'UNPAID'} variant="outlined" />
+                                                        <Chip size="small" label={g.payment_status ?? 'UNPAID'} variant="outlined" color={paymentStatusColor(g.payment_status)} />
                                                     </TableCell>
                                                     <TableCell align="right" sx={{ width: 140 }}>
                                                         <Stack direction="row" spacing={1} justifyContent="flex-end">
@@ -504,8 +633,9 @@ export default function WarehouseFulfillmentInbox() {
                             <Stack spacing={1.25}>
                                 {voucherGroups.map((g) => {
                                     const statusLabel = groupStatusLabel(g.rows);
+                                    const isPending = statusLabel === 'PENDING';
                                     return (
-                                    <Paper key={g.key} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                                    <Paper key={g.key} variant="outlined" sx={{ ...SECTION_CARD_SX, p: 1.5, bgcolor: isPending ? 'warning.50' : 'background.paper' }}>
                                         <Stack spacing={1}>
                                             <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
                                                 <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
@@ -528,14 +658,14 @@ export default function WarehouseFulfillmentInbox() {
                                                         {g.merchant_name}
                                                     </Typography>
                                                 </Stack>
-                                                <Chip size="small" label={g.payment_status ?? 'UNPAID'} variant="outlined" />
+                                                <Chip size="small" label={g.payment_status ?? 'UNPAID'} variant="outlined" color={paymentStatusColor(g.payment_status)} />
                                             </Stack>
                                             <Box>
                                                 <Chip
                                                     size="small"
                                                     label={statusLabel}
                                                     variant="outlined"
-                                                    color={statusLabel === 'PENDING' ? 'warning' : statusLabel === 'INCOMING' ? 'info' : 'default'}
+                                                    color={groupStatusColor(statusLabel)}
                                                 />
                                             </Box>
                                             <Typography variant="body2" color="text.secondary">

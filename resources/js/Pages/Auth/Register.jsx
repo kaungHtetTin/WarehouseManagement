@@ -168,6 +168,10 @@ export default function Register() {
                                 </Typography>
                             </Stack>
 
+                            <Alert severity="info" sx={{ mb: 2 }}>
+                                The user who creates the organization becomes the Super Admin for that organization.
+                            </Alert>
+
                             {(errors.organization_name || errors.name || errors.email || errors.password) && (
                                 <Alert severity="error" sx={{ mb: 2 }}>
                                     {errors.organization_name || errors.name || errors.email || errors.password}
@@ -207,6 +211,7 @@ export default function Register() {
                                                 </InputAdornment>
                                             ),
                                         }}
+                                        helperText="This creates a new organization workspace."
                                     />
 
                                     <TextField
@@ -323,6 +328,10 @@ export default function Register() {
                                     >
                                         {processing ? <CircularProgress size={20} color="inherit" /> : t('auth.create_account')}
                                     </Button>
+
+                                    <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
+                                        This account will be created as the Super Admin for the new organization.
+                                    </Typography>
 
                                     <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
                                         {t('register.already_registered')}{' '}

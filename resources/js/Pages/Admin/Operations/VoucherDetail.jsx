@@ -1,4 +1,5 @@
 import AdminLayout from '@/Layouts/AdminLayout';
+import PageHeader from '@/Components/PageHeader';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
 import {
@@ -14,6 +15,7 @@ import {
     DialogTitle,
     Divider,
     FormControl,
+    Grid,
     IconButton,
     InputLabel,
     MenuItem,
@@ -77,6 +79,8 @@ const ADDITIONAL_COST_ICON_BUTTON_SX = {
         backgroundColor: 'action.hover',
     },
 };
+
+const SECTION_CARD_SX = { p: { xs: 2, sm: 2.5 }, borderRadius: 1.5 };
 
 function toDatetimeLocalValue(date) {
     const d = date instanceof Date ? date : new Date(date);
@@ -211,7 +215,7 @@ function statusChipColor(status) {
 function LineCard({ item, lineNo, canEdit, onEdit }) {
     const t = useT();
     return (
-        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, maxWidth: '100%', minWidth: 0 }}>
+        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, maxWidth: '100%', minWidth: 0 }}>
             <Stack spacing={1}>
                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
                     {t('voucher_detail.lines.line_no', { line_no: lineNo })}
@@ -445,6 +449,33 @@ export default function VoucherDetail() {
         return freightTotalFromItems(voucher.items) ?? 0;
     }, [voucher?.items]);
 
+    const summaryCards = [
+        {
+            label: 'Payment',
+            value: paymentLabels[voucher?.payment_status] ?? voucher?.payment_status ?? '—',
+            helper: `${formatMoneyAmount(paymentsTotal)} recorded`,
+            tone: voucher?.payment_status === 'UNPAID' || voucher?.payment_status === 'PARTIAL' ? 'warning.main' : 'success.main',
+        },
+        {
+            label: 'Voucher value',
+            value: formatMoneyAmount(clientPayableTotal),
+            helper: `${voucher?.items?.length ?? 0} lines`,
+            tone: 'primary.main',
+        },
+        {
+            label: 'Destination',
+            value: voucher?.default_to_warehouse?.display_name ?? '—',
+            helper: formatDefaultDestinationPreview(voucher),
+            tone: 'text.primary',
+        },
+        {
+            label: 'Merchant',
+            value: voucher?.merchant?.name ?? '—',
+            helper: voucher?.merchant?.phone ?? 'No phone available',
+            tone: 'text.primary',
+        },
+    ];
+
     if (!voucher) {
         return (
             <AdminLayout title={t('voucher_detail.title')}>
@@ -462,29 +493,59 @@ export default function VoucherDetail() {
             <Stack spacing={2.5}>
                 {flash.success ? <Alert severity="success">{flash.success}</Alert> : null}
 
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ xs: 'stretch', sm: 'center' }} justifyContent="space-between">
-                    <Button
-                        component={Link}
-                        href={`${adminAppUrl}/operations/vouchers`}
-                        startIcon={<ArrowBackIcon />}
-                        variant="text"
-                        sx={{ alignSelf: { xs: 'flex-start', sm: 'center' } }}
-                    >
-                        {t('voucher_detail.back_to_vouchers')}
-                    </Button>
-                    <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>
-                        <Button
-                            component="a"
-                            href={`${adminAppUrl}/operations/vouchers/${voucher.id}/print`}
-                            target="_blank"
-                            rel="noreferrer"
-                            variant="outlined"
-                            size="small"
-                        >
-                            {t('voucher_detail.actions.print')}
-                        </Button>
-                    </Stack>
-                </Stack>
+                <PageHeader
+                    eyebrow="Voucher Overview"
+                    title={voucher.voucher_no}
+                    subtitle={t('voucher_detail.read_only_hint')}
+                    actions={
+                        <Stack direction="row" spacing={1} sx={{ justifyContent: { xs: 'flex-start', md: 'flex-end' }, flexWrap: 'wrap', gap: 1 }}>
+                            <Chip size="small" label={voucher.status} color={statusChipColor(voucher.status)} variant="outlined" />
+                            <Chip
+                                size="small"
+                                label={paymentLabels[voucher.payment_status] ?? voucher.payment_status}
+                                color={voucher.payment_status === 'UNPAID' || voucher.payment_status === 'PARTIAL' ? 'warning' : 'default'}
+                                variant="outlined"
+                            />
+                            <Button
+                                component={Link}
+                                href={`${adminAppUrl}/operations/vouchers`}
+                                startIcon={<ArrowBackIcon />}
+                                variant="text"
+                                size="small"
+                            >
+                                {t('voucher_detail.back_to_vouchers')}
+                            </Button>
+                            <Button
+                                component="a"
+                                href={`${adminAppUrl}/operations/vouchers/${voucher.id}/print`}
+                                target="_blank"
+                                rel="noreferrer"
+                                variant="outlined"
+                                size="small"
+                            >
+                                {t('voucher_detail.actions.print')}
+                            </Button>
+                        </Stack>
+                    }
+                >
+                    <Grid container spacing={1.5}>
+                        {summaryCards.map((item) => (
+                            <Grid key={item.label} item xs={12} sm={6} lg={3}>
+                                <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, boxShadow: 'none', height: '100%' }}>
+                                    <Typography variant="caption" color="text.secondary">
+                                        {item.label}
+                                    </Typography>
+                                    <Typography variant="subtitle1" sx={{ mt: 0.5, fontWeight: 800, color: item.tone }}>
+                                        {item.value}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, lineHeight: 1.5 }}>
+                                        {item.helper}
+                                    </Typography>
+                                </Paper>
+                            </Grid>
+                        ))}
+                    </Grid>
+                </PageHeader>
 
                 <Box
                     sx={{
@@ -494,7 +555,7 @@ export default function VoucherDetail() {
                         alignItems: 'start',
                     }}
                 >
-                    <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+                    <Paper variant="outlined" sx={SECTION_CARD_SX}>
                         <Stack spacing={2}>
                             <Stack direction="row" alignItems="center" flexWrap="wrap" gap={1}>
                                 <Typography variant="h6" sx={{ fontWeight: 700, letterSpacing: '-0.02em', flex: '1 1 auto', minWidth: 0 }}>
@@ -528,7 +589,7 @@ export default function VoucherDetail() {
                         </Stack>
                     </Paper>
 
-                    <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+                    <Paper variant="outlined" sx={SECTION_CARD_SX}>
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>
                             {t('voucher_detail.payments.title')}
                         </Typography>
@@ -547,7 +608,7 @@ export default function VoucherDetail() {
                                 {t('voucher_detail.payments.permission_hint')}
                             </Typography>
                         ) : null}
-                        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, mb: 2 }}>
+                        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5, mb: 2 }}>
                             <Table size="small">
                                 <TableHead>
                                     <TableRow sx={{ bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>
@@ -656,7 +717,7 @@ export default function VoucherDetail() {
                                 {t('voucher_detail.payments.empty')}
                             </Typography>
                         ) : (
-                            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+                            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5 }}>
                                 <Table size="small">
                                     <TableHead>
                                         <TableRow sx={{ bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>
@@ -728,7 +789,7 @@ export default function VoucherDetail() {
                         )}
                     </Paper>
 
-                    <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+                    <Paper variant="outlined" sx={SECTION_CARD_SX}>
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>
                             {t('voucher_detail.merchant.title')}
                         </Typography>
@@ -740,7 +801,7 @@ export default function VoucherDetail() {
                         />
                     </Paper>
 
-                    <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+                    <Paper variant="outlined" sx={SECTION_CARD_SX}>
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>
                             {t('voucher_detail.default_delivery.title')}
                         </Typography>
@@ -768,7 +829,7 @@ export default function VoucherDetail() {
                 </Box>
 
                 {voucher.remark ? (
-                    <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+                    <Paper variant="outlined" sx={SECTION_CARD_SX}>
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
                             {t('voucher_detail.remark')}
                         </Typography>
@@ -783,7 +844,7 @@ export default function VoucherDetail() {
                         {t('voucher_detail.lines.title')}
                     </Typography>
                     <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-                        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+                        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5 }}>
                             <Table size="small">
                                 <TableHead>
                                     <TableRow sx={{ bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>

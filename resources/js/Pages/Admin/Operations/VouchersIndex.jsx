@@ -5,6 +5,7 @@ import { useT } from '@/i18n';
 import {
     Alert,
     Box,
+    Button,
     Chip,
     Fab,
     FormControl,
@@ -55,6 +56,7 @@ export default function VouchersIndex() {
     const canViewDetail = permissionCodes.includes('vouchers.view');
     const canRecordVoucherPayments = permissionCodes.includes('payments.manage');
     const openTableActionMenu = Boolean(tableActionAnchorEl);
+    const todayDate = new Date().toISOString().slice(0, 10);
 
     useEffect(() => {
         setSearchInput(voucherSearchFilter);
@@ -71,6 +73,22 @@ export default function VouchersIndex() {
                 search: searchInput.trim(),
                 voucher_date: voucherDateFilter,
                 ...overrides,
+            },
+            { preserveScroll: true },
+        );
+    };
+
+    const resetFilters = () => {
+        setSearchInput('');
+        router.get(
+            `${adminAppUrl}/operations/vouchers`,
+            {
+                destination_warehouse_id: 'all',
+                source_warehouse_id: 'all',
+                payment_status: 'all',
+                status: 'all',
+                search: '',
+                voucher_date: '',
             },
             { preserveScroll: true },
         );
@@ -136,6 +154,16 @@ export default function VouchersIndex() {
         row?.total_amount != null;
 
     const actionNeededCount = useMemo(() => vouchers.filter((r) => needsAction(r)).length, [vouchers]);
+    const draftCount = useMemo(() => vouchers.filter((row) => row?.status === 'DRAFT').length, [vouchers]);
+    const deliveredCount = useMemo(() => vouchers.filter((row) => row?.status === 'DELIVERED' || row?.status === 'CLOSED').length, [vouchers]);
+    const hasActiveFilters = Boolean(
+        searchInput.trim() ||
+            voucherWarehouseFilter !== 'all' ||
+            voucherSourceWarehouseFilter !== 'all' ||
+            voucherPaymentFilter !== 'all' ||
+            voucherStatusFilter !== 'all' ||
+            voucherDateFilter,
+    );
     const recipientLabel = (row) => {
         const bits = [];
         if (row?.default_recipient_name) {
@@ -146,6 +174,42 @@ export default function VouchersIndex() {
         }
         return bits.length ? bits.join(' · ') : '—';
     };
+
+    const warehouseLabel = (warehouse) => warehouse?.display_name ?? warehouse?.city ?? warehouse?.address ?? '—';
+
+    const filterPresets = [
+        {
+            key: 'all',
+            label: 'All vouchers',
+            active: !hasActiveFilters,
+            onClick: resetFilters,
+        },
+        {
+            key: 'payments',
+            label: 'Needs payment',
+            active: voucherPaymentFilter === 'UNPAID' && voucherStatusFilter === 'all',
+            onClick: () => applyFilters({ payment_status: 'UNPAID', status: 'all' }),
+        },
+        {
+            key: 'confirmed',
+            label: 'Confirmed',
+            active: voucherStatusFilter === 'confirmed',
+            onClick: () => applyFilters({ status: 'confirmed', payment_status: 'all' }),
+        },
+        {
+            key: 'today',
+            label: 'Today',
+            active: voucherDateFilter === todayDate,
+            onClick: () => applyFilters({ voucher_date: todayDate }),
+        },
+    ];
+
+    const summaryCards = [
+        { label: 'Results', value: vouchers.length, tone: 'primary.main' },
+        { label: 'Need action', value: actionNeededCount, tone: actionNeededCount > 0 ? 'warning.main' : 'success.main' },
+        { label: 'Drafts', value: draftCount, tone: 'text.primary' },
+        { label: 'Delivered', value: deliveredCount, tone: 'success.main' },
+    ];
 
     return (
         <AdminLayout title={t('nav.vouchers')}>
@@ -163,8 +227,13 @@ export default function VouchersIndex() {
                     title={t('nav.vouchers')}
                     subtitle={`${t('vouchers.subtitle')}${canManage && !canWizard ? ` ${t('vouchers.subtitle_requires_inventory_manage')}` : ''}`}
                     actions={
-                        canWizard ? (
-                            <Stack direction="row" spacing={1} sx={{ flexShrink: 0, alignItems: 'center' }}>
+                        <Stack direction="row" spacing={1} sx={{ flexShrink: 0, alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+                            {hasActiveFilters ? (
+                                <Button size="small" variant="outlined" onClick={resetFilters}>
+                                    Clear filters
+                                </Button>
+                            ) : null}
+                            {canWizard ? (
                                 <Fab
                                     size="small"
                                     color="primary"
@@ -174,11 +243,47 @@ export default function VouchersIndex() {
                                 >
                                     <AddIcon fontSize="small" />
                                 </Fab>
-                            </Stack>
-                        ) : null
+                            ) : null}
+                        </Stack>
                     }
                 >
-                    <Grid container spacing={1.5}>
+                    <Stack spacing={2}>
+                        <Grid container spacing={1.5}>
+                            {summaryCards.map((item) => (
+                                <Grid key={item.label} item xs={6} md={3}>
+                                    <Paper
+                                        variant="outlined"
+                                        sx={{
+                                            p: 1.5,
+                                            borderRadius: 1.5,
+                                            boxShadow: 'none',
+                                            backgroundColor: 'background.paper',
+                                        }}
+                                    >
+                                        <Typography variant="caption" color="text.secondary">
+                                            {item.label}
+                                        </Typography>
+                                        <Typography variant="h5" sx={{ mt: 0.5, fontWeight: 900, color: item.tone }}>
+                                            {item.value}
+                                        </Typography>
+                                    </Paper>
+                                </Grid>
+                            ))}
+                        </Grid>
+
+                        <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                            {filterPresets.map((preset) => (
+                                <Chip
+                                    key={preset.key}
+                                    label={preset.label}
+                                    color={preset.active ? 'primary' : 'default'}
+                                    variant={preset.active ? 'filled' : 'outlined'}
+                                    onClick={preset.onClick}
+                                />
+                            ))}
+                        </Stack>
+
+                        <Grid container spacing={1.5}>
                         <Grid item xs={12} md={6}>
                             <TextField
                                 fullWidth
@@ -288,13 +393,60 @@ export default function VouchersIndex() {
                                 sx={{ minWidth: 150 }}
                             />
                         </Grid>
-                    </Grid>
+                        </Grid>
+
+                        {hasActiveFilters ? (
+                            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                                {searchInput.trim() ? <Chip label={`Search: ${searchInput.trim()}`} onDelete={resetFilters} /> : null}
+                                {voucherSourceWarehouseFilter !== 'all' ? (
+                                    <Chip
+                                        label={`Source: ${warehouseLabel(warehouses.find((w) => String(w.id) === String(voucherSourceWarehouseFilter)))}`}
+                                        onDelete={() => applyFilters({ source_warehouse_id: 'all' })}
+                                    />
+                                ) : null}
+                                {voucherWarehouseFilter !== 'all' ? (
+                                    <Chip
+                                        label={`Destination: ${warehouseLabel(warehouses.find((w) => String(w.id) === String(voucherWarehouseFilter)))}`}
+                                        onDelete={() => applyFilters({ destination_warehouse_id: 'all' })}
+                                    />
+                                ) : null}
+                                {voucherPaymentFilter !== 'all' ? (
+                                    <Chip
+                                        label={`Payment: ${voucherPaymentFilter}`}
+                                        onDelete={() => applyFilters({ payment_status: 'all' })}
+                                    />
+                                ) : null}
+                                {voucherStatusFilter !== 'all' ? (
+                                    <Chip
+                                        label={`Status: ${voucherStatusFilter}`}
+                                        onDelete={() => applyFilters({ status: 'all' })}
+                                    />
+                                ) : null}
+                                {voucherDateFilter ? (
+                                    <Chip
+                                        label={`Date: ${voucherDateFilter}`}
+                                        onDelete={() => applyFilters({ voucher_date: '' })}
+                                    />
+                                ) : null}
+                            </Stack>
+                        ) : null}
+                    </Stack>
                 </PageHeader>
 
                 {isCompactList ? (
                     <Stack spacing={1.25}>
                         {vouchers.map((row) => (
-                            <Paper key={row.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2, boxShadow: 'none' }}>
+                            <Paper
+                                key={row.id}
+                                variant="outlined"
+                                sx={{
+                                    p: 1.5,
+                                    borderRadius: 1.5,
+                                    boxShadow: 'none',
+                                    borderColor: needsAction(row) ? 'warning.main' : 'divider',
+                                    bgcolor: needsAction(row) ? 'warning.50' : 'background.paper',
+                                }}
+                            >
                                 <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
                                     <Box sx={{ minWidth: 0, flex: 1 }}>
                                         {voucherHref(row) ? (
@@ -344,10 +496,27 @@ export default function VouchersIndex() {
                             </Paper>
                         ))}
                         {vouchers.length === 0 && (
-                            <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, boxShadow: 'none' }}>
-                                <Typography variant="body2" color="text.secondary">
-                                    {t('vouchers.empty')}
-                                </Typography>
+                            <Paper variant="outlined" sx={{ p: 3, borderRadius: 1.5, boxShadow: 'none', textAlign: 'center' }}>
+                                <Stack spacing={1.5} alignItems="center">
+                                    <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                                        No vouchers match the current view
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        {t('vouchers.empty')}
+                                    </Typography>
+                                    <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', justifyContent: 'center' }}>
+                                        {hasActiveFilters ? (
+                                            <Button size="small" variant="outlined" onClick={resetFilters}>
+                                                Clear filters
+                                            </Button>
+                                        ) : null}
+                                        {canWizard ? (
+                                            <Button size="small" variant="contained" onClick={() => router.visit(`${adminAppUrl}/operations/vouchers/create`)}>
+                                                {t('vouchers.actions.create_with_wizard')}
+                                            </Button>
+                                        ) : null}
+                                    </Stack>
+                                </Stack>
                             </Paper>
                         )}
                     </Stack>
@@ -367,9 +536,24 @@ export default function VouchersIndex() {
                             </TableHead>
                             <TableBody>
                                 {vouchers.map((row) => (
-                                    <TableRow key={row.id} hover>
+                                    <TableRow
+                                        key={row.id}
+                                        hover
+                                        sx={{
+                                            bgcolor: needsAction(row) ? 'warning.50' : 'inherit',
+                                        }}
+                                    >
                                         <TableCell sx={{ fontWeight: 600 }}>
-                                            {voucherHref(row) ? <Link href={voucherHref(row)}>{row.voucher_no}</Link> : row.voucher_no}
+                                            <Stack spacing={0.4}>
+                                                <Box sx={{ fontWeight: 700 }}>
+                                                    {voucherHref(row) ? <Link href={voucherHref(row)}>{row.voucher_no}</Link> : row.voucher_no}
+                                                </Box>
+                                                <Typography variant="caption" color="text.secondary">
+                                                    {warehouseLabel(row.source_warehouse) !== '—'
+                                                        ? warehouseLabel(row.source_warehouse)
+                                                        : warehouseLabel(row.default_to_warehouse)}
+                                                </Typography>
+                                            </Stack>
                                         </TableCell>
                                         <TableCell>{typeof row.voucher_date === 'string' ? row.voucher_date.slice(0, 10) : row.voucher_date}</TableCell>
                                         <TableCell>{recipientLabel(row)}</TableCell>
@@ -401,9 +585,26 @@ export default function VouchersIndex() {
                                 {vouchers.length === 0 && (
                                     <TableRow>
                                         <TableCell colSpan={7}>
-                                            <Typography variant="body2" color="text.secondary">
-                                                {t('vouchers.empty')}
-                                            </Typography>
+                                            <Stack spacing={1.5} alignItems="center" sx={{ py: 3 }}>
+                                                <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                                                    No vouchers match the current view
+                                                </Typography>
+                                                <Typography variant="body2" color="text.secondary">
+                                                    {t('vouchers.empty')}
+                                                </Typography>
+                                                <Stack direction="row" spacing={1}>
+                                                    {hasActiveFilters ? (
+                                                        <Button size="small" variant="outlined" onClick={resetFilters}>
+                                                            Clear filters
+                                                        </Button>
+                                                    ) : null}
+                                                    {canWizard ? (
+                                                        <Button size="small" variant="contained" onClick={() => router.visit(`${adminAppUrl}/operations/vouchers/create`)}>
+                                                            {t('vouchers.actions.create_with_wizard')}
+                                                        </Button>
+                                                    ) : null}
+                                                </Stack>
+                                            </Stack>
                                         </TableCell>
                                     </TableRow>
                                 )}

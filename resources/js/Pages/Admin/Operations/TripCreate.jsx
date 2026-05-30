@@ -1,4 +1,5 @@
 import AdminLayout from '@/Layouts/AdminLayout';
+import PageHeader from '@/Components/PageHeader';
 import axios from 'axios';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
@@ -7,8 +8,10 @@ import {
     Autocomplete,
     Box,
     Button,
+    Chip,
     FormControl,
     FormHelperText,
+    Grid,
     InputLabel,
     MenuItem,
     Paper,
@@ -19,6 +22,12 @@ import {
 } from '@mui/material';
 import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+const SECTION_CARD_SX = {
+    p: { xs: 2, sm: 2.5 },
+    borderRadius: 1.5,
+    boxShadow: 'none',
+};
 
 export default function TripCreate() {
     const {
@@ -99,6 +108,44 @@ export default function TripCreate() {
         return vehicleNo === '' ? null : vehicleNo;
     }, [vehicleId, vehicleOptions, vehicleNo, capacityWeight]);
 
+    const selectedDestination = useMemo(
+        () => routingWarehouses.find((w) => String(w.id) === String(destinationWarehouseId)) ?? null,
+        [routingWarehouses, destinationWarehouseId],
+    );
+
+    const summaryCards = [
+        {
+            label: 'Vehicle',
+            value: vehicleNo.trim() || 'Not selected',
+            helper: vehicleId ? 'Linked to existing vehicle record' : 'New vehicle details will be saved',
+            tone: vehicleNo.trim() ? 'primary.main' : 'text.primary',
+        },
+        {
+            label: 'Capacity',
+            value: capacityWeight ? `${capacityWeight}` : '—',
+            helper: 'Vehicle max weight',
+            tone: capacityWeight ? 'text.primary' : 'text.secondary',
+        },
+        {
+            label: 'Destination',
+            value: selectedDestination?.display_name ?? selectedDestination?.city ?? 'Not selected',
+            helper: selectedDestination ? 'Routing warehouse selected' : 'Choose where this trip is heading',
+            tone: selectedDestination ? 'text.primary' : 'text.secondary',
+        },
+        {
+            label: 'Driver',
+            value: driverName.trim() || 'Not assigned',
+            helper: driverPhone.trim() || 'Phone not added yet',
+            tone: driverName.trim() ? 'text.primary' : 'text.secondary',
+        },
+    ];
+
+    const readinessItems = [
+        { label: 'Vehicle registration', done: vehicleNo.trim().length > 0 },
+        { label: 'Destination warehouse', done: Boolean(destinationWarehouseId) },
+        { label: 'Driver assigned', done: driverName.trim().length > 0 },
+    ];
+
     const getVehicleOptionLabel = (option) => {
         if (typeof option === 'string') {
             return option;
@@ -178,25 +225,72 @@ export default function TripCreate() {
                     </Alert>
                 )}
 
-                <Button
-                    startIcon={<ArrowBackIcon />}
-                    variant="text"
-                    component={Link}
-                    href={`${adminAppUrl}/operations/trips`}
-                    sx={{ alignSelf: 'flex-start' }}
+                <PageHeader
+                    eyebrow="Trip Setup"
+                    title={t('trip_create.actions.create_trip')}
+                    subtitle={t('trip_create.setup_subtitle')}
+                    actions={
+                        <Button
+                            startIcon={<ArrowBackIcon />}
+                            variant="text"
+                            component={Link}
+                            href={`${adminAppUrl}/operations/trips`}
+                            size="small"
+                        >
+                            {t('trip_detail.back_to_trips')}
+                        </Button>
+                    }
                 >
-                    {t('trip_detail.back_to_trips')}
-                </Button>
+                    <Grid container spacing={1.5}>
+                        {summaryCards.map((item) => (
+                            <Grid key={item.label} item xs={12} sm={6} lg={3}>
+                                <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, boxShadow: 'none', height: '100%' }}>
+                                    <Typography variant="caption" color="text.secondary">
+                                        {item.label}
+                                    </Typography>
+                                    <Typography variant="subtitle1" sx={{ mt: 0.5, fontWeight: 800, color: item.tone }}>
+                                        {item.value}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, lineHeight: 1.5 }}>
+                                        {item.helper}
+                                    </Typography>
+                                </Paper>
+                            </Grid>
+                        ))}
+                    </Grid>
+                </PageHeader>
 
-                <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
-                        {t('trip_create.setup_title')}
-                    </Typography>
-                    <Stack spacing={2}>
-                        <Typography variant="body2" color="text.secondary">
-                            {t('trip_create.setup_subtitle')}
-                        </Typography>
+                <Paper variant="outlined" sx={SECTION_CARD_SX}>
+                    <Stack spacing={2.5}>
+                        <Box>
+                            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                                {t('trip_create.setup_title')}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                                Configure the trip basics first, then load vouchers from the trip detail page.
+                            </Typography>
+                        </Box>
 
+                        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, bgcolor: 'background.default', boxShadow: 'none' }}>
+                            <Stack spacing={1}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                                    Setup checklist
+                                </Typography>
+                                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                                    {readinessItems.map((item) => (
+                                        <Chip
+                                            key={item.label}
+                                            size="small"
+                                            label={item.label}
+                                            color={item.done ? 'success' : 'default'}
+                                            variant="outlined"
+                                        />
+                                    ))}
+                                </Stack>
+                            </Stack>
+                        </Paper>
+
+                        <Stack spacing={2}>
                         <Autocomplete
                             freeSolo
                             size="small"
@@ -258,53 +352,65 @@ export default function TripCreate() {
                             )}
                         />
 
-                        <TextField
-                            label={t('trip_create.fields.capacity_weight')}
-                            size="small"
-                            fullWidth
-                            type="number"
-                            inputProps={{ step: '1', min: '0' }}
-                            value={capacityWeight}
-                            onChange={(e) => setCapacityWeight(e.target.value)}
-                            error={Boolean(errors['vehicle.capacity_weight'])}
-                            helperText={errors['vehicle.capacity_weight']}
-                        />
+                            <Grid container spacing={2}>
+                                <Grid item xs={12} md={6}>
+                                    <TextField
+                                        label={t('trip_create.fields.capacity_weight')}
+                                        size="small"
+                                        fullWidth
+                                        type="number"
+                                        inputProps={{ step: '1', min: '0' }}
+                                        value={capacityWeight}
+                                        onChange={(e) => setCapacityWeight(e.target.value)}
+                                        error={Boolean(errors['vehicle.capacity_weight'])}
+                                        helperText={errors['vehicle.capacity_weight'] || 'Auto-filled when an existing vehicle is selected.'}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} md={6}>
+                                    <FormControl fullWidth size="small" required error={Boolean(errors.destination_warehouse_id)}>
+                                        <InputLabel id="dest-wh-label">{t('trips.labels.destination_warehouse')}</InputLabel>
+                                        <Select
+                                            labelId="dest-wh-label"
+                                            label={t('trips.labels.destination_warehouse')}
+                                            value={destinationWarehouseId}
+                                            onChange={(e) => setDestinationWarehouseId(e.target.value)}
+                                        >
+                                            <MenuItem value="">
+                                                <em>{t('ui.select')}</em>
+                                            </MenuItem>
+                                            {routingWarehouses.map((w) => (
+                                                <MenuItem key={w.id} value={String(w.id)}>
+                                                    {w.display_name || w.city}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                        {errors.destination_warehouse_id ? (
+                                            <FormHelperText>{errors.destination_warehouse_id}</FormHelperText>
+                                        ) : (
+                                            <FormHelperText>Select the warehouse this trip will serve first.</FormHelperText>
+                                        )}
+                                    </FormControl>
+                                </Grid>
+                            </Grid>
 
-                        <FormControl fullWidth size="small" required error={Boolean(errors.destination_warehouse_id)}>
-                            <InputLabel id="dest-wh-label">{t('trips.labels.destination_warehouse')}</InputLabel>
-                            <Select
-                                labelId="dest-wh-label"
-                                label={t('trips.labels.destination_warehouse')}
-                                value={destinationWarehouseId}
-                                onChange={(e) => setDestinationWarehouseId(e.target.value)}
-                            >
-                                <MenuItem value="">
-                                    <em>{t('ui.select')}</em>
-                                </MenuItem>
-                                {routingWarehouses.map((w) => (
-                                    <MenuItem key={w.id} value={String(w.id)}>
-                                        {w.display_name || w.city}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                            {errors.destination_warehouse_id ? <FormHelperText>{errors.destination_warehouse_id}</FormHelperText> : null}
-                        </FormControl>
-
-                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                            <TextField
-                                label={t('trip_detail.labels.driver')}
-                                size="small"
-                                fullWidth
-                                value={driverName}
-                                onChange={(e) => setDriverName(e.target.value)}
-                            />
-                            <TextField
-                                label={t('trip_create.fields.driver_phone')}
-                                size="small"
-                                fullWidth
-                                value={driverPhone}
-                                onChange={(e) => setDriverPhone(e.target.value)}
-                            />
+                            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                                <TextField
+                                    label={t('trip_detail.labels.driver')}
+                                    size="small"
+                                    fullWidth
+                                    value={driverName}
+                                    onChange={(e) => setDriverName(e.target.value)}
+                                    helperText="Assign a driver now or update it later from trip detail."
+                                />
+                                <TextField
+                                    label={t('trip_create.fields.driver_phone')}
+                                    size="small"
+                                    fullWidth
+                                    value={driverPhone}
+                                    onChange={(e) => setDriverPhone(e.target.value)}
+                                    helperText="Used for dispatch coordination and trip follow-up."
+                                />
+                            </Stack>
                         </Stack>
                     </Stack>
                 </Paper>

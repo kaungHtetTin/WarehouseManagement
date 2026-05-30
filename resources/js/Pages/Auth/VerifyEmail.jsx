@@ -1,6 +1,6 @@
-import GuestLayout from '@/Layouts/GuestLayout';
-import PrimaryButton from '@/Components/PrimaryButton';
+import AuthShell from '@/Components/AuthShell';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Alert, Button, Stack, Typography } from '@mui/material';
 import { useT } from '@/i18n';
 
 export default function VerifyEmail({ status }) {
@@ -15,33 +15,30 @@ export default function VerifyEmail({ status }) {
     };
 
     return (
-        <GuestLayout>
+        <AuthShell
+            title={t('auth.email_verification_title')}
+            subtitle={t('verify_email.description')}
+            eyebrow="Email Verification"
+            sideTitle="Verify the email that protects your workspace."
+            sideDescription="A verified email keeps account recovery, access notifications, and organization ownership flow secure."
+        >
             <Head title={t('auth.email_verification_title')} />
+            <Stack component="form" onSubmit={submit} spacing={2}>
+                {status === 'verification-link-sent' ? (
+                    <Alert severity="success">{t('verify_email.link_sent')}</Alert>
+                ) : null}
 
-            <div className="mb-4 text-sm text-gray-600">
-                {t('verify_email.description')}
-            </div>
+                <Button type="submit" variant="contained" disabled={processing} sx={{ py: 1.2, fontWeight: 700 }}>
+                    {t('verify_email.resend')}
+                </Button>
 
-            {status === 'verification-link-sent' && (
-                <div className="mb-4 font-medium text-sm text-green-600">
-                    {t('verify_email.link_sent')}
-                </div>
-            )}
-
-            <form onSubmit={submit}>
-                <div className="mt-4 flex items-center justify-between">
-                    <PrimaryButton disabled={processing}>{t('verify_email.resend')}</PrimaryButton>
-
-                    <Link
-                        href={`${admin_app_url}/logout`}
-                        method="post"
-                        as="button"
-                        className="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                    >
+                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+                    Need to use another account?{' '}
+                    <Link href={`${admin_app_url}/logout`} method="post" as="button" style={{ fontWeight: 700 }}>
                         {t('auth.log_out')}
                     </Link>
-                </div>
-            </form>
-        </GuestLayout>
+                </Typography>
+            </Stack>
+        </AuthShell>
     );
 }
