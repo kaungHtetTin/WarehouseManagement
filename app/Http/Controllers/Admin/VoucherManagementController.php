@@ -67,6 +67,10 @@ class VoucherManagementController extends Controller
             ? $rawStatusFilter
             : 'all';
         $searchFilter = trim((string) $request->query('search', ''));
+        $rawVoucherDateFilter = trim((string) $request->query('voucher_date', ''));
+        $voucherDateFilter = preg_match('/^\d{4}-\d{2}-\d{2}$/', $rawVoucherDateFilter) === 1
+            ? $rawVoucherDateFilter
+            : '';
 
         $query = Voucher::query()
             ->where('organization_id', $organizationId);
@@ -94,6 +98,10 @@ class VoucherManagementController extends Controller
                     ->orWhere('default_recipient_name', 'like', $like)
                     ->orWhere('default_recipient_phone', 'like', $like);
             });
+        }
+
+        if ($voucherDateFilter !== '') {
+            $query->whereDate('voucher_date', $voucherDateFilter);
         }
 
         if ($statusFilter === 'delivered') {
@@ -175,6 +183,7 @@ class VoucherManagementController extends Controller
             'voucher_payment_filter' => $paymentFilter,
             'voucher_status_filter' => $statusFilter,
             'voucher_search_filter' => $searchFilter,
+            'voucher_date_filter' => $voucherDateFilter,
         ]);
     }
 
@@ -290,6 +299,7 @@ class VoucherManagementController extends Controller
         return Inertia::render('Admin/Operations/VoucherPrint', [
             'voucher' => $model,
             'template' => $template,
+            'voucher_policy' => trim((string) env('VOUCHER_POLICY', '')),
             'tracking_url' => route('public.voucher.track', [
                 'org' => $organization->code,
                 'voucherNo' => $model->voucher_no,

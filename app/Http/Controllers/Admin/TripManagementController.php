@@ -2779,6 +2779,7 @@ class TripManagementController extends Controller
             ],
             'vouchers' => $vouchers,
             'template' => $template,
+            'voucher_policy' => trim((string) env('VOUCHER_POLICY', '')),
             'tracking_urls' => $trackingUrls,
         ]);
     }

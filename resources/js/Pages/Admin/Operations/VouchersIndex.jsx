@@ -41,6 +41,7 @@ export default function VouchersIndex() {
         voucher_payment_filter: voucherPaymentFilter = 'all',
         voucher_status_filter: voucherStatusFilter = 'all',
         voucher_search_filter: voucherSearchFilter = '',
+        voucher_date_filter: voucherDateFilter = '',
         admin_app_url: adminAppUrl,
         flash = {},
         auth,
@@ -68,6 +69,7 @@ export default function VouchersIndex() {
                 payment_status: voucherPaymentFilter,
                 status: voucherStatusFilter,
                 search: searchInput.trim(),
+                voucher_date: voucherDateFilter,
                 ...overrides,
             },
             { preserveScroll: true },
@@ -193,7 +195,7 @@ export default function VouchersIndex() {
                             />
                         </Grid>
                         <Grid item xs={12} sm={6} md={3}>
-                            <FormControl fullWidth size="small" sx={{ minWidth: { sm: 220 } }}>
+                            <FormControl fullWidth size="small" sx={{ minWidth: 200 }}>
                                 <InputLabel id="voucher-source-wh-filter">{t('voucher_detail.fields.source_warehouse')}</InputLabel>
                                 <Select
                                     labelId="voucher-source-wh-filter"
@@ -207,14 +209,14 @@ export default function VouchersIndex() {
                                     <MenuItem value="all">{t('filters.all')}</MenuItem>
                                     {warehouses.map((w) => (
                                         <MenuItem key={w.id} value={String(w.id)}>
-                                            {w.display_name || w.city}
+                                            {w.display_name}
                                         </MenuItem>
                                     ))}
                                 </Select>
                             </FormControl>
                         </Grid>
                         <Grid item xs={12} sm={6} md={3}>
-                            <FormControl fullWidth size="small" sx={{ minWidth: { sm: 220 } }}>
+                            <FormControl fullWidth size="small" sx={{ minWidth:200 }}>
                                 <InputLabel id="voucher-wh-filter">{t('trips.labels.destination_warehouse')}</InputLabel>
                                 <Select
                                     labelId="voucher-wh-filter"
@@ -228,14 +230,14 @@ export default function VouchersIndex() {
                                     <MenuItem value="all">{t('filters.all')}</MenuItem>
                                     {warehouses.map((w) => (
                                         <MenuItem key={w.id} value={String(w.id)}>
-                                            {w.display_name || w.city}
+                                            {w.display_name}
                                         </MenuItem>
                                     ))}
                                 </Select>
                             </FormControl>
                         </Grid>
                         <Grid item xs={12} sm={6} md={3}>
-                            <FormControl fullWidth size="small" sx={{ minWidth: { sm: 220 } }}>
+                            <FormControl fullWidth size="small" sx={{ minWidth:100 }}>
                                 <InputLabel id="voucher-pay-filter">{t('vouchers.filters.payment')}</InputLabel>
                                 <Select
                                     labelId="voucher-pay-filter"
@@ -255,7 +257,7 @@ export default function VouchersIndex() {
                             </FormControl>
                         </Grid>
                         <Grid item xs={12} sm={6} md={3}>
-                            <FormControl fullWidth size="small" sx={{ minWidth: { sm: 220 } }}>
+                            <FormControl fullWidth size="small" sx={{ minWidth: 80 }}>
                                 <InputLabel id="voucher-status-filter">{t('vouchers.filters.status')}</InputLabel>
                                 <Select
                                     labelId="voucher-status-filter"
@@ -273,6 +275,18 @@ export default function VouchersIndex() {
                                     <MenuItem value="delivered">{t('vouchers.status.delivered')}</MenuItem>
                                 </Select>
                             </FormControl>
+                        </Grid>
+                        <Grid item xs={12} sm={6} md={3}>
+                            <TextField
+                                fullWidth
+                                size="small"
+                                type="date"
+                                InputLabelProps={{ shrink: true }}
+                                value={voucherDateFilter}
+                                onChange={(e) => applyFilters({ voucher_date: e.target.value })}
+                                inputProps={{ 'aria-label': t('vouchers.filters.created_date') }}
+                                sx={{ minWidth: 150 }}
+                            />
                         </Grid>
                     </Grid>
                 </PageHeader>
