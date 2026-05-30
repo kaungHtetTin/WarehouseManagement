@@ -112,6 +112,8 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
     }, [dark]);
 
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+    const can = (code) => permissionCodes.includes(code);
+    const canAny = (...codes) => codes.some((code) => can(code));
 
     const toggleTheme = () => {
         setDark((prev) => {
@@ -303,8 +305,15 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                 ...(permissionCodes.includes('public_page.manage')
                     ? [{ label: t('nav.settings'), href: `${adminAppUrl}/system/organization-settings`, icon: <SettingsIcon />, iconOutlined: <SettingsOutlinedIcon /> }]
                     : []),
-                { label: t('nav.users'), href: `${adminAppUrl}/iam/users`, icon: <AdminPanelSettingsIcon />, iconOutlined: <AdminPanelSettingsOutlinedIcon /> },
-                { label: t('nav.roles'), href: `${adminAppUrl}/iam/roles`, icon: <AdminPanelSettingsIcon />, iconOutlined: <AdminPanelSettingsOutlinedIcon /> },
+                ...(permissionCodes.includes('activity_logs.view')
+                    ? [{ label: t('nav.activity_logs'), href: `${adminAppUrl}/system/activity-logs`, icon: <AdminPanelSettingsIcon />, iconOutlined: <AdminPanelSettingsOutlinedIcon /> }]
+                    : []),
+                ...(can('users.manage')
+                    ? [{ label: t('nav.users'), href: `${adminAppUrl}/iam/users`, icon: <AdminPanelSettingsIcon />, iconOutlined: <AdminPanelSettingsOutlinedIcon /> }]
+                    : []),
+                ...(can('roles.manage')
+                    ? [{ label: t('nav.roles'), href: `${adminAppUrl}/iam/roles`, icon: <AdminPanelSettingsIcon />, iconOutlined: <AdminPanelSettingsOutlinedIcon /> }]
+                    : []),
             ],
         },
         {
@@ -501,6 +510,15 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                                         { label: t('nav.profile'), href: `${adminAppUrl}/profile`, icon: <PersonIcon fontSize="small" /> },
                                         ...(permissionCodes.includes('public_page.manage')
                                             ? [{ label: t('nav.settings'), href: `${adminAppUrl}/system/organization-settings`, icon: <SettingsIcon fontSize="small" /> }]
+                                            : []),
+                                        ...(can('activity_logs.view')
+                                            ? [{ label: t('nav.activity_logs'), href: `${adminAppUrl}/system/activity-logs`, icon: <AdminPanelSettingsIcon fontSize="small" /> }]
+                                            : []),
+                                        ...(can('users.manage')
+                                            ? [{ label: t('nav.users'), href: `${adminAppUrl}/iam/users`, icon: <AdminPanelSettingsIcon fontSize="small" /> }]
+                                            : []),
+                                        ...(can('roles.manage')
+                                            ? [{ label: t('nav.roles'), href: `${adminAppUrl}/iam/roles`, icon: <AdminPanelSettingsIcon fontSize="small" /> }]
                                             : []),
                                     ].map((item) => (
                                         <MenuItem

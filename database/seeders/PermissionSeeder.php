@@ -15,6 +15,7 @@ class PermissionSeeder extends Seeder
         $permissions = [
             ['code' => 'users.manage', 'name' => 'Manage users', 'module' => 'iam'],
             ['code' => 'roles.manage', 'name' => 'Manage roles and permissions', 'module' => 'iam'],
+            ['code' => 'activity_logs.view', 'name' => 'View activity logs', 'module' => 'iam'],
             ['code' => 'warehouses.view', 'name' => 'View warehouses', 'module' => 'warehouse'],
             ['code' => 'warehouses.manage', 'name' => 'Manage warehouses', 'module' => 'warehouse'],
             ['code' => 'inventory.view', 'name' => 'View inventory', 'module' => 'inventory'],

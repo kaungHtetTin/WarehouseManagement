@@ -6,14 +6,23 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import { Link, usePage } from '@inertiajs/react';
 
 export default function MobileBottomNav({ adminAppUrl, value = 'dashboard' }) {
-    const { url } = usePage();
+    const { url, props } = usePage();
     const currentPath = url.split('?')[0];
+    const permissionCodes = props.auth?.permission_codes ?? [];
+    const can = (code) => permissionCodes.includes(code);
+    const canAny = (...codes) => codes.some((code) => can(code));
 
     const items = [
         { value: 'dashboard', label: 'Home', href: `${adminAppUrl}/dashboard`, icon: <DashboardIcon /> },
-        { value: 'vouchers', label: 'Vouchers', href: `${adminAppUrl}/operations/vouchers`, icon: <ReceiptLongIcon /> },
-        { value: 'finance', label: 'Finance', href: `${adminAppUrl}/finance/reports`, icon: <InsightsIcon /> },
-        { value: 'settings', label: 'Settings', href: `${adminAppUrl}/system/organization-settings`, icon: <SettingsIcon /> },
+        ...(canAny('vouchers.view', 'vouchers.manage')
+            ? [{ value: 'vouchers', label: 'Vouchers', href: `${adminAppUrl}/operations/vouchers`, icon: <ReceiptLongIcon /> }]
+            : []),
+        ...(canAny('finance.view', 'finance.manage')
+            ? [{ value: 'finance', label: 'Finance', href: `${adminAppUrl}/finance/reports`, icon: <InsightsIcon /> }]
+            : []),
+        ...(can('public_page.manage')
+            ? [{ value: 'settings', label: 'Settings', href: `${adminAppUrl}/system/organization-settings`, icon: <SettingsIcon /> }]
+            : []),
     ];
 
     const active =

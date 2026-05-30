@@ -24,6 +24,7 @@ class TenantRoleBootstrapper
                 'name' => 'Manager',
                 'is_system_role' => true,
                 'permissions' => [
+                    'activity_logs.view',
                     'warehouses.view',
                     'warehouses.manage',
                     'inventory.view',

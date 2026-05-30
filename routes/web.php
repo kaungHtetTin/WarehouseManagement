@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Admin\CategoryManagementController;
+use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\Admin\MerchantManagementController;
 use App\Http\Controllers\Admin\ProductManagementController;
 use App\Http\Controllers\Admin\VehicleManagementController;
@@ -98,6 +99,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
         Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+        Route::get('/system/activity-logs', [ActivityLogController::class, 'index'])
+            ->middleware('permission:activity_logs.view')
+            ->name('activity-logs.index');
 
         Route::prefix('iam')->name('iam.')->group(function () {
             Route::get('/users', [UserManagementController::class, 'index'])
