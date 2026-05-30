@@ -140,7 +140,7 @@ export default function MerchantsIndex() {
                 {isCompactList ? (
                     <Stack spacing={1.25}>
                         {merchants.map((row) => (
-                            <Paper key={row.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2, boxShadow: 'none' }}>
+                            <Paper key={row.id} variant="outlined" sx={{ p: 1.25, borderRadius: 2, boxShadow: 'none' }}>
                                 <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
                                     <Box sx={{ minWidth: 0, flex: 1 }}>
                                         <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.3 }} noWrap title={row.name}>

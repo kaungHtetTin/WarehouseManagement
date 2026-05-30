@@ -122,7 +122,7 @@ export default function CategoriesIndex() {
     return (
         <AdminLayout title={t('nav.categories')}>
             <Head title={t('nav.categories')} />
-            <Stack spacing={2}>
+            <Stack spacing={1.5}>
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
 

@@ -129,7 +129,7 @@ export default function VehiclesIndex() {
     return (
         <AdminLayout title={t('nav.vehicles')}>
             <Head title={t('nav.vehicles')} />
-            <Stack spacing={2}>
+            <Stack spacing={1.5}>
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
 

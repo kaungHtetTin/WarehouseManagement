@@ -19,6 +19,8 @@ export const PRINT_PAPER_PRESETS = [
 ];
 
 const PRESET_MAP = new Map(PRINT_PAPER_PRESETS.map((preset) => [preset.value, preset]));
+const PAPER_STORAGE_KEY = 'warehouse.printPaperSize.v1';
+
 const PAPER_ALIASES = {
     '80': 'ROLL_80MM',
     '80MM': 'ROLL_80MM',
@@ -75,7 +77,16 @@ export function getInitialPrintPaper(templatePaperSize = 'A4') {
                 return normalizePrintPaper(fromQuery);
             }
         } catch {
-            return normalizePrintPaper(templatePaperSize);
+            // fall through
+        }
+
+        try {
+            const saved = window.localStorage.getItem(PAPER_STORAGE_KEY);
+            if (saved) {
+                return normalizePrintPaper(saved);
+            }
+        } catch {
+            // fall through
         }
     }
 

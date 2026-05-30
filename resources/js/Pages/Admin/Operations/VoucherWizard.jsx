@@ -99,7 +99,7 @@ function WizardSection({ title, children }) {
             <Typography
                 variant="caption"
                 color="text.secondary"
-                sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', mb: 1.5 }}
+                sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', mb: 1.25 }}
             >
                 {title}
             </Typography>
@@ -740,7 +740,7 @@ export default function VoucherWizard() {
                     <Divider />
                     <Box sx={{ p: { xs: 2, sm: 3 } }}>
                         {tab === 0 && (
-                            <Stack spacing={3}>
+                            <Stack spacing={2}>
                                 {step1Error ? (
                                     <Alert severity="warning" sx={{ py: 0.75 }} onClose={() => setStep1Error('')}>
                                         {step1Error}
@@ -904,7 +904,7 @@ export default function VoucherWizard() {
                         )}
 
                         {tab === 1 && voucher && (
-                            <Stack spacing={3}>
+                            <Stack spacing={2}>
                                 <Stack direction="row" alignItems="center" flexWrap="wrap" sx={{ gap: 1 }}>
                                     <Typography variant="body2" color="text.secondary" sx={{ mr: 0.5 }}>
                                         {t('voucher_wizard.draft')}
@@ -1122,8 +1122,8 @@ export default function VoucherWizard() {
                                         {t('voucher_detail.actions.print')}
                                     </Button>
                                 </Stack>
-                                <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
-                                    <Stack spacing={2.5}>
+                                <Paper variant="outlined" sx={{ p: { xs: 1.75, sm: 2 }, borderRadius: 2 }}>
+                                    <Stack spacing={2}>
                                         <WizardSection title={t('voucher_wizard.review.sections.voucher_basic_info')}>
                                             <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
                                                 <Table size="small">

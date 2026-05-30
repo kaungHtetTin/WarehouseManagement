@@ -144,7 +144,7 @@ export default function VoucherAdditionalCostCategoriesIndex() {
     return (
         <AdminLayout title={t('nav.voucher_cost_categories')}>
             <Head title={t('nav.voucher_cost_categories')} />
-            <Stack spacing={2}>
+            <Stack spacing={1.5}>
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
 

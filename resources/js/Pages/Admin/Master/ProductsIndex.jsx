@@ -132,7 +132,7 @@ export default function ProductsIndex() {
     return (
         <AdminLayout title={t('nav.products')}>
             <Head title={t('nav.products')} />
-            <Stack spacing={2}>
+            <Stack spacing={1.5}>
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
 

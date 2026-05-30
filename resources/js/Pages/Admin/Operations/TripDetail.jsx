@@ -74,8 +74,8 @@ const TRIP_ITEM_STATUS_COLOR = {
 };
 
 const SECTION_CARD_SX = {
-    p: { xs: 2, sm: 2.5 },
-    borderRadius: 1.5,
+    p: { xs: 1.75, sm: 2 },
+    borderRadius: 2,
     boxShadow: 'none',
 };
 
@@ -834,7 +834,7 @@ export default function TripDetail() {
     return (
         <AdminLayout title={layoutTitle}>
             <Head title={layoutTitle} />
-            <Stack spacing={2.5}>
+            <Stack spacing={2}>
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {errors.target_status ? (
                     <Alert severity="error">
@@ -873,7 +873,7 @@ export default function TripDetail() {
                     <Grid container spacing={1.5}>
                         {tripSummaryCards.map((item) => (
                             <Grid key={item.label} item xs={12} sm={6} lg={3}>
-                                <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, boxShadow: 'none', height: '100%' }}>
+                                <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 2, boxShadow: 'none', height: '100%' }}>
                                     <Typography variant="caption" color="text.secondary">
                                         {item.label}
                                     </Typography>
@@ -1488,7 +1488,7 @@ export default function TripDetail() {
                                             const checked = Boolean(selectedVoucherMap[String(row.id)]);
                                             const w = row.total_weight;
                                             return (
-                                                <Paper key={row.id} variant="outlined" sx={{ p: 1.5, borderRadius: 1.5 }}>
+                                                <Paper key={row.id} variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
                                                     <Stack spacing={1}>
                                                         <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
                                                             <Box sx={{ minWidth: 0 }}>
@@ -1701,7 +1701,7 @@ export default function TripDetail() {
                                 const dest = row.destination ?? '—';
                                 const isOpen = Boolean(voucherExpanded[row.voucher_id]);
                                 return (
-                                    <Paper key={row.voucher_id} variant="outlined" sx={{ p: 1.5, borderRadius: 1.5 }}>
+                                    <Paper key={row.voucher_id} variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
                                         <Stack spacing={1.25}>
                                             <Stack direction="row" alignItems="flex-start" justifyContent="space-between" gap={1}>
                                                 <Typography variant="subtitle2" sx={{ fontWeight: 700, wordBreak: 'break-word', flex: '1 1 auto', minWidth: 0 }}>

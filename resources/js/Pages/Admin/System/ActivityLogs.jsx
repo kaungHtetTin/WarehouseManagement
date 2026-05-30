@@ -98,7 +98,7 @@ export default function ActivityLogs() {
     return (
         <AdminLayout title={t('activity_logs.title')}>
             <Head title={t('activity_logs.title')} />
-            <Stack spacing={2}>
+            <Stack spacing={1.5}>
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
 

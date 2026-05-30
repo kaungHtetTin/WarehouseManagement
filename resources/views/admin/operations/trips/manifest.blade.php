@@ -14,13 +14,13 @@
         body {
             font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
             margin: 0;
-            padding: 1rem;
+            padding: 0.75rem;
             color: #111;
             background: #fafafa;
             font-size: 13px;
-            line-height: 1.45;
+            line-height: 1.4;
         }
-        .wrap { max-width: 960px; margin: 0 auto; background: #fff; padding: 1.25rem 1.5rem 2rem; border: 1px solid var(--border); border-radius: 8px; }
+        .wrap { max-width: 210mm; margin: 0 auto; background: #fff; padding: 1rem 1.25rem 1.5rem; border: 1px solid var(--border); border-radius: 6px; }
         h1 { font-size: 1.35rem; margin: 0 0 0.35rem; }
         .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 1rem; }
         .screen-actions {
@@ -38,6 +38,16 @@
             font-weight: 600;
         }
         .screen-actions a:hover { text-decoration: underline; }
+        .paper-select {
+            font-size: 0.875rem;
+            font-weight: 600;
+            padding: 0.35rem 0.6rem;
+            border: 1px solid #1565c0;
+            border-radius: 6px;
+            background: #fff;
+            color: #1565c0;
+            cursor: pointer;
+        }
         button, .btn {
             display: inline-flex;
             align-items: center;
@@ -57,7 +67,7 @@
             color: #1565c0;
         }
         .flash { background: #e8f5e9; border: 1px solid #a5d6a7; color: #1b5e20; padding: 0.6rem 0.75rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem; }
-        section { margin-top: 1.25rem; }
+        section { margin-top: 1rem; }
         h2 { font-size: 1rem; margin: 0 0 0.5rem; border-bottom: 2px solid #eee; padding-bottom: 0.25rem; }
         dl.grid {
             display: grid;
@@ -65,6 +75,12 @@
             gap: 0.65rem 1.25rem;
             margin: 0;
         }
+        .trip-grid-dense {
+            grid-template-columns: 1fr;
+            gap: 0.35rem 0.75rem;
+        }
+        .trip-grid-dense dt { font-size: 0.7rem; }
+        .trip-grid-dense dd { font-size: 0.85rem; }
         dl.grid dt { margin: 0; font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
         dl.grid dd { margin: 0.15rem 0 0; font-weight: 600; word-break: break-word; }
         table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
@@ -74,31 +90,160 @@
         .muted { color: var(--muted); font-size: 0.85rem; }
         .items-cell { font-size: 0.82rem; line-height: 1.35; }
         .items-cell .muted { font-size: 0.8rem; }
-        .cargo-table { table-layout: fixed; }
+        .cargo-table { table-layout: auto; width: 100%; }
+        .cargo-table th, .cargo-table td { padding: 0.25rem 0.3rem; font-size: inherit; }
         .cargo-table th { white-space: nowrap; }
         .cargo-table th.num { text-align: right; }
         .cargo-table tbody tr { page-break-inside: avoid; break-inside: avoid; }
+        .cargo-table .items-cell { word-break: break-word; }
+        .cargo-table .dest-cell { word-break: break-word; white-space: pre-wrap; }
         footer { margin-top: 1.5rem; padding-top: 0.75rem; border-top: 1px solid #eee; font-size: 0.8rem; color: var(--muted); }
-        @media print {
-            @page { size: A4; margin: 10mm; }
-            body { background: #fff; padding: 0; }
-            body { font-size: 10px; }
-            .wrap { border: none; max-width: 190mm; margin: 0 auto; padding: 0; }
-            .screen-actions { display: none !important; }
-            .flash { border-color: #ccc; background: #fff; }
-            a { color: #000; text-decoration: none; }
-            table { font-size: 10px; }
-            th { font-size: 9px; }
-        }
         table .text-center {
             text-align: center;
         }
+        :root {
+            --page-width: 210mm;
+            --page-margin: 10mm;
+            --base-font: 10px;
+            --table-font: 10px;
+            --th-font: 9px;
+        }
+        @media print {
+            @page { size: var(--page-width) auto; margin: var(--page-margin); }
+            body { background: #fff; padding: 0; font-size: var(--base-font); }
+            .wrap { border: none; width: var(--page-width); max-width: 100%; margin: 0 auto; padding: 0; }
+            .screen-actions { display: none !important; }
+            .flash { border-color: #ccc; background: #fff; }
+            a { color: #000; text-decoration: none; }
+            table { font-size: var(--table-font); }
+            th { font-size: var(--th-font); }
+        }
+
+        /* Narrow paper overrides (A5 / 4IN) */
+        .is-narrow .section { margin-top: 0.45rem; }
+        .is-narrow h2 { font-size: 0.8rem; margin-bottom: 0.2rem; }
+        .is-narrow .cargo-table th, .is-narrow .cargo-table td { padding: 0.15rem 0.2rem; }
+        .is-narrow .cargo-table { font-size: 9px; }
+
+        /* Extra dense for 4-inch */
+        .is-4in .section { margin-top: 0.35rem; }
+        .is-4in h2 { font-size: 0.72rem; margin-bottom: 0.15rem; border-bottom-width: 1px; }
+        .is-4in .trip-grid-dense { gap: 0.12rem 0.35rem; }
+        .is-4in .trip-grid-dense dt { font-size: 0.6rem; }
+        .is-4in .trip-grid-dense dd { font-size: 0.68rem; margin-bottom: 0.08rem; }
+
+        .is-4in .cargo-table { font-size: 9.5px; }
+        .is-4in .cargo-table th, .is-4in .cargo-table td { padding: 0.18rem 0.22rem; }
+
+        .is-4in header h1 { font-size: 0.95rem; margin-bottom: 0.15rem; }
+        .is-4in .sub { font-size: 0.65rem; margin-bottom: 0.5rem; }
+        .is-4in footer { margin-top: 0.6rem; padding-top: 0.4rem; font-size: 0.62rem; }
+        .is-4in .wrap { padding: 0.5rem 0.6rem 0.8rem; }
+
+        /* 4-inch vertical block layout */
+        .cargo-blocks { display: none; }
+        .is-4in .cargo-table { display: none !important; }
+        .is-4in .cargo-blocks { display: block; }
+        .cargo-block {
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 0.3rem 0.4rem;
+            margin-bottom: 0.35rem;
+            font-size: 12px;
+            line-height: 1.25;
+        }
+        .cargo-block:last-child { margin-bottom: 0; }
+        .cargo-block .dest { font-weight: 700; margin-bottom: 0.15rem; }
+        .cargo-block .items { color: #333; margin-bottom: 0.2rem; }
+        .cargo-block .items .muted { color: #666; }
+        .cargo-block .totals {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.5rem;
+            font-weight: 600;
+            border-top: 1px dashed #ccc;
+            padding-top: 0.2rem;
+            margin-top: 0.15rem;
+        }
+        .cargo-block .remark { font-size: 7px; color: #555; margin-top: 0.1rem; }
     </style>
+    <script>
+        function getPaperConfig(size) {
+            switch (size) {
+                case 'A5':
+                    return { width: '148mm', margin: '8mm', baseFont: '9px', tableFont: '9px', thFont: '8px' };
+                case '4IN':
+                    return { width: '101.6mm', margin: '4mm', baseFont: '8px', tableFont: '8px', thFont: '7px' };
+                default:
+                    return { width: '210mm', margin: '10mm', baseFont: '10px', tableFont: '10px', thFont: '9px' };
+            }
+        }
+
+        let printStyleEl = null;
+
+        function applyPaperSize() {
+            const select = document.getElementById('paperSize');
+            if (!select) return;
+            const size = select.value;
+            const cfg = getPaperConfig(size);
+            const root = document.documentElement;
+            root.style.setProperty('--page-margin', cfg.margin);
+            root.style.setProperty('--base-font', cfg.baseFont);
+            root.style.setProperty('--table-font', cfg.tableFont);
+            root.style.setProperty('--th-font', cfg.thFont);
+
+            // Update @page size via injected style
+            if (printStyleEl) printStyleEl.remove();
+            printStyleEl = document.createElement('style');
+            printStyleEl.textContent = `@media print { @page { size: ${cfg.width} auto; margin: ${cfg.margin}; } }`;
+            document.head.appendChild(printStyleEl);
+
+            // Update wrap width
+            const wrap = document.querySelector('.wrap');
+            if (wrap) wrap.style.maxWidth = cfg.width;
+
+            // Toggle narrow / 4in body classes
+            const body = document.body;
+            body.classList.remove('is-narrow', 'is-4in');
+            if (size === 'A5') body.classList.add('is-narrow');
+            if (size === '4IN') body.classList.add('is-narrow', 'is-4in');
+
+            // Persist selection
+            try { localStorage.setItem('warehouse.printPaperSize.v1', size); } catch (e) {}
+        }
+
+        function initPaperSize() {
+            const select = document.getElementById('paperSize');
+            if (!select) return;
+
+            // Restore from localStorage or URL
+            let saved = null;
+            try {
+                const params = new URLSearchParams(window.location.search);
+                saved = params.get('paper') || localStorage.getItem('warehouse.printPaperSize.v1');
+            } catch (e) {}
+
+            if (saved && ['A4', 'A5', '4IN'].includes(saved)) {
+                select.value = saved;
+            }
+            applyPaperSize();
+        }
+
+        document.addEventListener('DOMContentLoaded', initPaperSize);
+    </script>
 </head>
 <body>
     <div class="wrap">
         <div class="screen-actions">
             <a href="{{ $adminAppUrl }}/operations/trips/{{ $trip->id }}">← Back to trip</a>
+            <label style="display:inline-flex; align-items:center; gap:0.4rem; font-weight:600; color:#1565c0;">
+                Paper:
+                <select id="paperSize" class="paper-select" onchange="applyPaperSize()">
+                    <option value="A4">A4 (210 × 297 mm)</option>
+                    <option value="A5">A5 (148 × 210 mm)</option>
+                    <option value="4IN">4 inches (101.6 mm)</option>
+                </select>
+            </label>
             <button type="button" class="secondary" onclick="window.print()">Print</button>
             @if ($canMarkPrinted)
                 <form method="post" action="{{ $adminAppUrl }}/operations/trips/{{ $trip->id }}/manifest-printed" style="display:inline;">
@@ -119,7 +264,7 @@
 
         <section>
             <h2>Trip</h2>
-            <dl class="grid">
+            <dl class="grid trip-grid-dense">
                 <div>
                     <dt>Vehicle</dt>
                     <dd>{{ $trip->vehicle ? $trip->vehicle->vehicle_no.' · '.$trip->vehicle->vehicle_type : '—' }}</dd>
@@ -147,13 +292,13 @@
                 <div style="overflow-x: auto;">
                     <table class="cargo-table">
                         <colgroup>
-                            <col style="width: 8mm;">
-                            <col style="width: 46mm;">
-                            <col style="width: 60mm;">
-                            <col style="width: 14mm;">
-                            <col style="width: 18mm;">
-                            <col style="width: 14mm;">
-                            <col style="width: 30mm;">
+                            <col style="width: 6%;">
+                            <col style="width: 18%;">
+                            <col style="width: 32%;">
+                            <col style="width: 9%;">
+                            <col style="width: 11%;">
+                            <col style="width: 9%;">
+                            <col style="width: 15%;">
                         </colgroup>
                         <thead>
                             <tr>
@@ -204,6 +349,38 @@
                             @endforeach
                         </tbody>
                     </table>
+
+                    <!-- Vertical block layout for 4-inch paper -->
+                    <div class="cargo-blocks">
+                        @foreach ($cargoRows as $i => $row)
+                            @php
+                                $items = $row['items'] ?? [];
+                            @endphp
+                            <div class="cargo-block">
+                                <div class="dest">{{ $row['destination'] ?? '—' }}</div>
+
+                                @if (count($items) > 0)
+                                    <div class="items">
+                                        @foreach ($items as $it)
+                                            <div>{{ $it['product_name'] ?? '—' }} <span class="muted">. {{ $it['qty'] ?? '—' }}</span></div>
+                                        @endforeach
+                                    </div>
+                                @else
+                                    <div class="items"><span class="muted">—</span></div>
+                                @endif
+
+                                <div class="totals">
+                                    <span>Items: {{ (int) ($row['total_items_qty'] ?? 0) }}</span>
+                                    <span>Amt: {{ isset($row['total_amount']) ? number_format((float) $row['total_amount'], 0, '.', ',') : '—' }}</span>
+                                    <span>Paid: {{ number_format((float) ($row['paid_amount'] ?? 0), 0, '.', ',') }}</span>
+                                </div>
+
+                                @if (!empty($row['destination_remark']))
+                                    <div class="remark">{{ $row['destination_remark'] }}</div>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
             @endif
         </section>

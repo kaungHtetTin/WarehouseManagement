@@ -171,13 +171,7 @@ export default function TripCreate() {
                 });
                 const results = data.results || [];
                 setVehicleOptions(results);
-                if (results.length === 1) {
-                    pickVehicle(results[0]);
-                }
                 if (results.length === 0) {
-                    clearVehicleSelection(true);
-                }
-                if (results.length > 1) {
                     clearVehicleSelection(true);
                 }
             } catch {
@@ -217,7 +211,7 @@ export default function TripCreate() {
     return (
         <AdminLayout title={t('trips.actions.new_trip')}>
             <Head title={t('trips.actions.new_trip')} />
-            <Stack spacing={2.5}>
+            <Stack spacing={2}>
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
                 {operatingWarehouses.length === 0 && (
                     <Alert severity="warning">
@@ -261,7 +255,7 @@ export default function TripCreate() {
                 </PageHeader>
 
                 <Paper variant="outlined" sx={SECTION_CARD_SX}>
-                    <Stack spacing={2.5}>
+                    <Stack spacing={2}>
                         <Box>
                             <Typography variant="h6" sx={{ fontWeight: 700 }}>
                                 {t('trip_create.setup_title')}
@@ -352,6 +346,63 @@ export default function TripCreate() {
                             )}
                         />
 
+                            {vehicleOptions.length > 0 && vehicleId == null && (
+                                <Paper
+                                    variant="outlined"
+                                    sx={{
+                                        p: 1.5,
+                                        borderRadius: 1.5,
+                                        bgcolor: 'action.hover',
+                                        borderColor: 'primary.light',
+                                    }}
+                                >
+                                    <Stack spacing={1.25}>
+                                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                                            Recommended vehicles
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                            Select one to auto-fill capacity, driver details
+                                        </Typography>
+                                        <Stack spacing={1}>
+                                            {vehicleOptions.map((opt) => (
+                                                <Box
+                                                    key={opt.id}
+                                                    sx={{
+                                                        display: 'flex',
+                                                        flexDirection: { xs: 'column', sm: 'row' },
+                                                        alignItems: { xs: 'flex-start', sm: 'center' },
+                                                        justifyContent: 'space-between',
+                                                        gap: 1,
+                                                        p: 1,
+                                                        borderRadius: 1,
+                                                        bgcolor: 'background.paper',
+                                                        border: '1px solid',
+                                                        borderColor: 'divider',
+                                                    }}
+                                                >
+                                                    <Box>
+                                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                            {opt.vehicle_no} ({opt.vehicle_type || '—'})
+                                                        </Typography>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            Capacity: {opt.capacity_weight ?? '—'} • Driver: {opt.driver_name || '—'} {opt.driver_phone ? `(${opt.driver_phone})` : ''}
+                                                        </Typography>
+                                                    </Box>
+                                                    <Button
+                                                        size="small"
+                                                        variant="outlined"
+                                                        onClick={() => pickVehicle(opt)}
+                                                        sx={{ alignSelf: { xs: 'flex-start', sm: 'center' } }}
+                                                    >
+                                                        Use this
+                                                    </Button>
+                                                </Box>
+                                            ))}
+                                        </Stack>
+                                    </Stack>
+                                </Paper>
+                            )}
+
                             <Grid container spacing={2}>
                                 <Grid item xs={12} md={6}>
                                     <TextField
@@ -363,7 +414,7 @@ export default function TripCreate() {
                                         value={capacityWeight}
                                         onChange={(e) => setCapacityWeight(e.target.value)}
                                         error={Boolean(errors['vehicle.capacity_weight'])}
-                                        helperText={errors['vehicle.capacity_weight'] || 'Auto-filled when an existing vehicle is selected.'}
+                                        helperText={errors['vehicle.capacity_weight'] || 'Use a recommendation above to fill, or enter manually.'}
                                     />
                                 </Grid>
                                 <Grid item xs={12} md={6}>

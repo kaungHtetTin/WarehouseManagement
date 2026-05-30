@@ -134,7 +134,7 @@ export default function VoucherTracking() {
                     </Grid>
 
                     <Paper variant="outlined" sx={{ p: { xs: 2.25, md: 2.75 }, borderRadius: 1.5, boxShadow: 'none' }}>
-                        <Stack spacing={2}>
+                        <Stack spacing={1.5}>
                             <Box>
                                 <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
                                     Delivery progress

@@ -31,7 +31,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const sectionCardSx = {
-    p: { xs: 2, sm: 2.5 },
+    p: { xs: 1.75, sm: 2 },
     borderRadius: 2,
     border: '1px solid',
     borderColor: 'divider',

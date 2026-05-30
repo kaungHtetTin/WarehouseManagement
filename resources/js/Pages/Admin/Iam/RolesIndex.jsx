@@ -157,7 +157,7 @@ export default function RolesIndex() {
     return (
         <AdminLayout title={t('iam.roles.title')}>
             <Head title={t('iam.roles.title')} />
-            <Stack spacing={2}>
+            <Stack spacing={1.5}>
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
 

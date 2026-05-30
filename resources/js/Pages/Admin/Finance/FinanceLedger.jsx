@@ -198,7 +198,7 @@ export default function FinanceLedger() {
     return (
         <AdminLayout title={t('finance.ledger.title')}>
             <Head title={t('finance.ledger.title')} />
-            <Stack spacing={2.5}>
+            <Stack spacing={2}>
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
 
@@ -213,8 +213,8 @@ export default function FinanceLedger() {
                         ) : null
                     }
                 >
-                    <Stack spacing={1.5}>
-                        <Grid container spacing={1.5}>
+                    <Stack spacing={1.25}>
+                        <Grid container spacing={1.25}>
                             <Grid item xs={12} sm={6} md={3}>
                                 <Typography variant="caption" color="text.secondary">
                                     {t('finance.totals.total_income')}
@@ -375,7 +375,7 @@ export default function FinanceLedger() {
                             const canEdit = canManageFinance && (row.source === 'MANUAL' || row.reference_type === 'TRIP_NET_INCOME');
 
                             return (
-                                <Paper key={row.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                                <Paper key={row.id} variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
                                     <Stack spacing={1}>
                                         <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
                                             <Box sx={{ minWidth: 0 }}>
@@ -423,7 +423,7 @@ export default function FinanceLedger() {
                             );
                         })}
                         {entries.length === 0 ? (
-                            <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+                            <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 2 }}>
                                 <Typography variant="body2" color="text.secondary">
                                     {t('finance.ledger.empty')}
                                 </Typography>
@@ -469,7 +469,7 @@ export default function FinanceLedger() {
                         {entryForm.id ? t('finance.ledger.dialog.edit_title') : t('finance.ledger.dialog.add_title')}
                     </DialogTitle>
                     <DialogContent>
-                        <Stack spacing={1.5} sx={{ mt: 1 }}>
+                        <Stack spacing={1.25} sx={{ mt: 1 }}>
                             {entryDialogError ? <Alert severity="error">{entryDialogError}</Alert> : null}
 
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>

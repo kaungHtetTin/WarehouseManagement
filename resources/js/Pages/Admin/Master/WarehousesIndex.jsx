@@ -123,7 +123,7 @@ export default function WarehousesIndex() {
     return (
         <AdminLayout title={t('nav.warehouses')}>
             <Head title={t('nav.warehouses')} />
-            <Stack spacing={2}>
+            <Stack spacing={1.5}>
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
 

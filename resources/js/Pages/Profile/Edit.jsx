@@ -17,7 +17,7 @@ export default function Edit({ auth, mustVerifyEmail, status }) {
             <Stack spacing={1.5}>
                 <PageHeader title={t('profile.title')} subtitle={t('profile.subtitle')} />
 
-                <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 1.5 }}>
+                <Paper variant="outlined" sx={{ p: { xs: 1.75, md: 2 }, borderRadius: 2 }}>
                     <UpdateProfileInformationForm
                         mustVerifyEmail={mustVerifyEmail}
                         status={status}
@@ -25,11 +25,11 @@ export default function Edit({ auth, mustVerifyEmail, status }) {
                     />
                 </Paper>
 
-                <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 1.5 }}>
+                <Paper variant="outlined" sx={{ p: { xs: 1.75, md: 2 }, borderRadius: 2 }}>
                     <UpdatePasswordForm className="max-w-none" />
                 </Paper>
 
-                <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 1.5 }}>
+                <Paper variant="outlined" sx={{ p: { xs: 1.75, md: 2 }, borderRadius: 2 }}>
                     <DeleteUserForm className="max-w-none" />
                 </Paper>
             </Stack>

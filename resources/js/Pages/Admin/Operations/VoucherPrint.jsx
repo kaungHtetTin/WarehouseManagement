@@ -73,6 +73,17 @@ export default function VoucherPrint() {
         return Math.round(sum * 100) / 100;
     }, [voucher?.items]);
 
+    const totalQty = useMemo(() => {
+        const items = Array.isArray(voucher?.items) ? voucher.items : [];
+        let sum = 0;
+        for (const it of items) {
+            const n = n2(it?.qty);
+            if (n == null) continue;
+            sum += n;
+        }
+        return Math.round(sum * 1000) / 1000;
+    }, [voucher?.items]);
+
     const fromWarehouseName = voucher?.source_warehouse?.city || voucher?.sourceWarehouse?.city || '—';
     const toWarehouseName = voucher?.default_to_warehouse?.city || voucher?.defaultToWarehouse?.city || '—';
 
@@ -126,12 +137,17 @@ export default function VoucherPrint() {
             u.searchParams.set('paper', paperSize);
             window.history.replaceState(null, '', `${u.pathname}?${u.searchParams.toString()}${u.hash}`);
         } catch {
-            return;
+            // ignore
+        }
+        try {
+            window.localStorage.setItem('warehouse.printPaperSize.v1', paperSize);
+        } catch {
+            // ignore
         }
     }, [paperSize]);
 
     return (
-        <Box sx={{ minHeight: '100vh', bgcolor: 'grey.100', py: 2 }}>
+        <Box sx={{ minHeight: '100vh', bgcolor: 'grey.100', py: 1.5 }}>
             <Head title={`Print ${voucher?.voucher_no || 'Voucher'}`} />
             <style>{`
                 @page { size: ${layout.pageSize}; margin: ${layout.pageMargin}; }
@@ -141,7 +157,7 @@ export default function VoucherPrint() {
                     .print-sheet { box-shadow: none !important; border: none !important; }
                 }
                 .print-sheet { width: ${layout.sheetWidth}; max-width: 100%; }
-                .kv { display: grid; grid-template-columns: ${layout.keyColumnWidth} 1fr; gap: 6px 12px; }
+                .kv { display: grid; grid-template-columns: ${layout.keyColumnWidth} 1fr; gap: 0 10px; }
                 .kv .k { color: rgba(0,0,0,0.60); font-size: ${layout.keyFontSize}; }
                 .kv .v { font-size: ${layout.valueFontSize}; font-weight: 600; }
             `}</style>
@@ -205,8 +221,8 @@ export default function VoucherPrint() {
                 </Stack>
             </Paper>
 
-            <Paper className="print-sheet" variant="outlined" sx={{ mx: 'auto', p: layout.contentPadding, borderRadius: 1.5, bgcolor: '#fff' }}>
-                <Stack spacing={layout.isRoll ? 1 : 1.5}>
+            <Paper className="print-sheet" variant="outlined" sx={{ mx: 'auto', p: layout.contentPadding, borderRadius: 2, bgcolor: '#fff' }}>
+                <Stack spacing={layout.isRoll ? 0.75 : 1}>
                     <Stack direction="row" spacing={2} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
                         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 0 }}>
                             {showLogo && logoUrl ? (
@@ -228,14 +244,14 @@ export default function VoucherPrint() {
                                 ) : null}
                             </Box>
                         </Stack>
-                        <Box sx={{ textAlign: 'right' }}>
-                            <Typography variant="body2" sx={{ fontWeight: 900 }}>
+                        <Stack spacing={0} sx={{ textAlign: 'right' }}>
+                            <Typography variant="caption" sx={{ fontWeight: 900, fontSize: 8 }}>
                                 {voucher?.voucher_no || '—'}
                             </Typography>
                             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
                                 {typeof voucher?.voucher_date === 'string' ? voucher.voucher_date.slice(0, 10) : voucher?.voucher_date || '—'}
                             </Typography>
-                        </Box>
+                        </Stack>
                     </Stack>
 
                     {showContact && (contactPhone || contactEmail || contactAddress) ? (
@@ -284,125 +300,57 @@ export default function VoucherPrint() {
                     <Table
                         size="small"
                         sx={{
-                            tableLayout: 'fixed',
-                            '& th, & td': { borderColor: 'rgba(0,0,0,0.15)' },
-                            '& th, & td': layout.isRoll
-                                ? { px: 0.5, py: 0.5, fontSize: layout.valueFontSize, verticalAlign: 'top' }
-                                : undefined,
+                            '& th, & td': {
+                                borderColor: 'rgba(0,0,0,0.15)',
+                                py: 0.25,
+                                px: 0.75,
+                                fontSize: layout.isRoll ? layout.valueFontSize : '13px',
+                                verticalAlign: 'top',
+                            },
                         }}
                     >
-                        {layout.isRoll ? (
-                            <>
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell width="12%" sx={{ fontWeight: 900 }}>
-                                            No
-                                        </TableCell>
-                                        <TableCell width="58%" sx={{ fontWeight: 900 }}>
-                                            Item
-                                        </TableCell>
-                                        <TableCell width="30%" sx={{ fontWeight: 900 }} align="right">
-                                            Qty
-                                        </TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {(voucher?.items || []).map((it, idx) => (
-                                        <TableRow key={it.id || idx}>
-                                            <TableCell>{idx + 1}</TableCell>
-                                            <TableCell sx={{ fontWeight: 700, wordBreak: 'break-word' }}>
-                                                {it?.product?.name || it?.product_name || '—'}
-                                                {it?.is_fragile ? (
-                                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: layout.policyFontSize }}>
-                                                        Fragile
-                                                    </Typography>
-                                                ) : null}
-                                                {it?.description ? (
-                                                    <Typography
-                                                        variant="caption"
-                                                        color="text.secondary"
-                                                        sx={{ display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: layout.policyFontSize }}
-                                                    >
-                                                        {it.description}
-                                                    </Typography>
-                                                ) : null}
-                                            </TableCell>
-                                            <TableCell align="right">
-                                                {formatQty(it?.qty)}
-                                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: layout.policyFontSize }}>
-                                                    {it?.unit || it?.product?.unit || ''}
-                                                </Typography>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                    {(!voucher?.items || voucher.items.length === 0) && (
-                                        <TableRow>
-                                            <TableCell colSpan={3}>
-                                                <Typography variant="body2" color="text.secondary">
-                                                    No items.
-                                                </Typography>
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </>
-                        ) : (
-                            <>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell width={52} sx={{ fontWeight: 900 }}>
-                                        No
+                        <TableHead>
+                            <TableRow>
+                                <TableCell sx={{ fontWeight: 900, width: '8%' }}>No</TableCell>
+                                <TableCell sx={{ fontWeight: 900 }}>Item</TableCell>
+                                <TableCell sx={{ fontWeight: 900, width: '16%', textAlign: 'right' }} align="right">
+                                    Freight
+                                </TableCell>
+                                <TableCell sx={{ fontWeight: 900 }}>Remark</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {(voucher?.items || []).map((it, idx) => (
+                                <TableRow key={it.id || idx}>
+                                    <TableCell>{idx + 1}</TableCell>
+                                    <TableCell sx={{ fontWeight: 700, wordBreak: 'break-word' }}>
+                                        {`${it?.product?.name || it?.product_name || '—'} . ${formatQty(it?.qty)} . ${it?.unit || it?.product?.unit || '—'}`}
                                     </TableCell>
-                                    <TableCell sx={{ fontWeight: 900 }}>Item</TableCell>
-                                    <TableCell width={96} sx={{ fontWeight: 900 }} align="right">
-                                        Qty
+                                    <TableCell align="right" sx={{ fontWeight: 600 }}>
+                                        {formatMoneyAmount(it?.freight_amount)}
                                     </TableCell>
-                                    <TableCell width={72} sx={{ fontWeight: 900 }}>
-                                        Unit
-                                    </TableCell>
-                                    <TableCell width={140} sx={{ fontWeight: 900 }}>
-                                        From
-                                    </TableCell>
-                                    <TableCell width={64} sx={{ fontWeight: 900 }}>
-                                        Fragile
+                                    <TableCell sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                        {it?.description || '—'}
                                     </TableCell>
                                 </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {(voucher?.items || []).map((it, idx) => (
-                                    <TableRow key={it.id || idx}>
-                                        <TableCell>{idx + 1}</TableCell>
-                                        <TableCell sx={{ fontWeight: 700 }}>
-                                            {it?.product?.name || it?.product_name || '—'}
-                                            {it?.description ? (
-                                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'pre-wrap' }}>
-                                                    {it.description}
-                                                </Typography>
-                                            ) : null}
-                                        </TableCell>
-                                        <TableCell align="right">{formatQty(it?.qty)}</TableCell>
-                                        <TableCell>{it?.unit || it?.product?.unit || '—'}</TableCell>
-                                        <TableCell>{it?.from_warehouse?.city || it?.fromWarehouse?.city || '—'}</TableCell>
-                                        <TableCell>{it?.is_fragile ? 'Yes' : 'No'}</TableCell>
-                                    </TableRow>
-                                ))}
-                                {(!voucher?.items || voucher.items.length === 0) && (
-                                    <TableRow>
-                                        <TableCell colSpan={6}>
-                                            <Typography variant="body2" color="text.secondary">
-                                                No items.
-                                            </Typography>
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                            </>
-                        )}
+                            ))}
+                            {(!voucher?.items || voucher.items.length === 0) && (
+                                <TableRow>
+                                    <TableCell colSpan={4}>
+                                        <Typography variant="body2" color="text.secondary">
+                                            No items.
+                                        </Typography>
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
                     </Table>
 
                     <Stack direction="row" spacing={2} sx={{ justifyContent: 'flex-end' }}>
                         <Box sx={{ minWidth: layout.isRoll ? 1 : layout.amountBoxMinWidth, width: layout.isRoll ? '100%' : 'auto' }}>
                             <Box className="kv">
+                            <div className="k">Total qty</div>
+                            <div className="v" style={{ textAlign: 'right' }}>{formatQty(totalQty)}</div>
                                 <div className="k">Client payable</div>
                                 <div className="v" style={{ textAlign: 'right', fontWeight: 900 }}>
                                     {formatMoneyAmount(freightTotal)}

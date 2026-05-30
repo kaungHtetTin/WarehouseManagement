@@ -216,7 +216,7 @@ export default function UsersIndex() {
                             </Paper>
                         ))}
                         {users.length === 0 && (
-                            <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, boxShadow: 'none' }}>
+                            <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 2, boxShadow: 'none' }}>
                                 <Typography variant="body2" color="text.secondary">
                                     {t('iam.users.empty')}
                                 </Typography>

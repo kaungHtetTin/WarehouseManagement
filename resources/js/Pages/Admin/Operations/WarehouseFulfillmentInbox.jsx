@@ -326,7 +326,7 @@ export default function WarehouseFulfillmentInbox() {
             <Stack spacing={2.5}>
                 {flash.success ? <Alert severity="success">{flash.success}</Alert> : null}
                 <PageHeader title={title} subtitle={subtitle}>
-                    <Stack spacing={2}>
+                    <Stack spacing={1.5}>
                         <Grid container spacing={1.5}>
                             {summaryCards.map((item) => (
                                 <Grid key={item.label} item xs={6} md={3}>

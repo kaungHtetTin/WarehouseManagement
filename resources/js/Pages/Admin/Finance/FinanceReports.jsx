@@ -168,7 +168,7 @@ export default function FinanceReports() {
         <AdminLayout title={t('finance.reports.title')}>
             <Head title={t('finance.reports.title')} />
 
-            <Stack spacing={2.5}>
+            <Stack spacing={2}>
                 <PageHeader
                     title={t('finance.reports.title')}
                     subtitle={t('finance.reports.subtitle')}
