@@ -61,8 +61,8 @@ import {
 import { useT } from '@/i18n';
 
 
-const drawerWidth = 248;
-const drawerWidthCollapsed = 72;
+const drawerWidth = 232;
+const drawerWidthCollapsed = 68;
 
 export default function AdminLayout({ children, title = 'Admin Panel' }) {
     const { url, props } = usePage();
@@ -171,17 +171,17 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
 
     const navItemButtonSx = {
         position: 'relative',
-        borderRadius: 2,
-        minHeight: 40,
-        px: 1.25,
+        borderRadius: 1.5,
+        minHeight: 36,
+        px: 1,
         '&::before': {
             content: '""',
             position: 'absolute',
-            left: 6,
+            left: 5,
             top: '50%',
             transform: 'translateY(-50%)',
             width: 3,
-            height: 18,
+            height: 16,
             borderRadius: 999,
             bgcolor: 'transparent',
         },
@@ -376,7 +376,7 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                         borderColor: 'divider',
                     }}
                 >
-                    <Toolbar sx={{ minHeight: { xs: 56, sm: 64 }, px: { xs: 1.5, sm: 2 }, gap: 1 }}>
+                    <Toolbar sx={{ minHeight: { xs: 52, sm: 60 }, px: { xs: 1, sm: 1.5 }, gap: 0.75 }}>
                         <IconButton onClick={toggleNavigation} edge="start" sx={{ mr: { xs: 0, sm: 0.5 } }}>
                             <MenuIcon />
                         </IconButton>

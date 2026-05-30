@@ -263,7 +263,7 @@ export default function Dashboard() {
                 />
 
                 {stats.length > 0 ? (
-                    <Grid container spacing={2} sx={{ mb: 3 }}>
+                    <Grid container spacing={1.5} sx={{ mb: 3 }}>
                         {stats.map((stat) => (
                             <Grid key={stat.title} item xs={12} sm={6} lg={3}>
                                 <KpiStatCard
@@ -279,10 +279,10 @@ export default function Dashboard() {
                     </Grid>
                 ) : null}
 
-                <Grid container spacing={2} sx={{ mb: 3 }}>
+                <Grid container spacing={1.5} sx={{ mb: 3 }}>
                     <Grid item xs={12} lg={8}>
                         <Card sx={{ height: '100%' }}>
-                            <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
+                            <CardContent sx={{ p: { xs: 1.75, sm: 2 } }}>
                                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" sx={{ mb: 2 }}>
                                     <Box>
                                         <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
@@ -310,9 +310,9 @@ export default function Dashboard() {
                                                     justifyContent: 'flex-start',
                                                     alignItems: 'flex-start',
                                                     textAlign: 'left',
-                                                    p: 1.5,
+                                                    p: 1.25,
                                                     height: '100%',
-                                                    borderRadius: 3,
+                                                    borderRadius: 2,
                                                 }}
                                             >
                                                 <Stack spacing={1} sx={{ alignItems: 'flex-start' }}>
@@ -333,20 +333,20 @@ export default function Dashboard() {
 
                     <Grid item xs={12} lg={4}>
                         <Card sx={{ height: '100%' }}>
-                            <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
+                            <CardContent sx={{ p: { xs: 1.75, sm: 2 } }}>
                                 <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
                                     Workspace Snapshot
                                 </Typography>
                                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                                     A quick view of how much action is available from this dashboard.
                                 </Typography>
-                                <Stack spacing={1.25}>
+                                <Stack spacing={1}>
                                     {workspaceSummary.map((item) => (
                                         <Box
                                             key={item.label}
                                             sx={{
-                                                p: 1.5,
-                                                borderRadius: 3,
+                                                p: 1.25,
+                                                borderRadius: 2,
                                                 bgcolor: 'action.hover',
                                                 border: 1,
                                                 borderColor: 'divider',
@@ -366,7 +366,7 @@ export default function Dashboard() {
                     </Grid>
                 </Grid>
 
-                <Grid container spacing={2}>
+                <Grid container spacing={1.5}>
                     <Grid item xs={12} lg={7}>
                         <Card sx={{ height: '100%' }}>
                             <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>

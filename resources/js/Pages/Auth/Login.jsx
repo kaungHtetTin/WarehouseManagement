@@ -91,17 +91,17 @@ export default function Login({ status, canResetPassword }) {
                                 <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
                                     <Box
                                         sx={{
-                                            width: 48,
-                                            height: 48,
+                                            width: 44,
+                                            height: 44,
                                             borderRadius: 1.5,
                                             bgcolor: 'primary.main',
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            boxShadow: '0 8px 16px rgba(59, 130, 246, 0.3)',
+                                            boxShadow: '0 6px 14px rgba(59, 130, 246, 0.28)',
                                         }}
                                     >
-                                        <WarehouseIcon sx={{ color: 'white', fontSize: 28 }} />
+                                        <WarehouseIcon sx={{ color: 'white', fontSize: 24 }} />
                                     </Box>
                                     <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: '-0.5px' }}>
                                         {t('app.name')}
@@ -150,7 +150,7 @@ export default function Login({ status, canResetPassword }) {
                             overflowY: 'auto',
                         }}
                     >
-                        <Box sx={{ maxWidth: 360, width: '100%', mx: 'auto' }}>
+                        <Box sx={{ maxWidth: 340, width: '100%', mx: 'auto' }}>
                             {isMobile && (
                                 <Stack direction="row" spacing={1.5} sx={{ mb: 4, alignItems: 'center' }}>
                                     <Box
@@ -185,7 +185,7 @@ export default function Login({ status, canResetPassword }) {
                             {errors.email && <Alert severity="error" sx={{ mb: 2 }}>{errors.email}</Alert>}
 
                             <Box component="form" onSubmit={submit}>
-                                <Stack spacing={2}>
+                                <Stack spacing={1.75}>
                                     <FormControl size="small">
                                         <Select
                                             value={locale}
@@ -285,15 +285,11 @@ export default function Login({ status, canResetPassword }) {
                                         type="submit"
                                         disabled={processing}
                                         sx={{
-                                            py: 1.25,
                                             fontWeight: 700,
                                             borderRadius: 1.5,
-                                            textTransform: 'none',
-                                            fontSize: '0.875rem',
-                                            boxShadow: '0 4px 12px rgba(59, 130, 246, 0.2)',
                                         }}
                                     >
-                                        {processing ? <CircularProgress size={20} color="inherit" /> : t('auth.sign_in')}
+                                        {processing ? <CircularProgress size={18} color="inherit" /> : t('auth.sign_in')}
                                     </Button>
 
                                     <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>

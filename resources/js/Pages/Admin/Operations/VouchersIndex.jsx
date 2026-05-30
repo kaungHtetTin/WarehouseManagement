@@ -214,7 +214,7 @@ export default function VouchersIndex() {
     return (
         <AdminLayout title={t('nav.vouchers')}>
             <Head title={t('nav.vouchers')} />
-            <Stack spacing={2}>
+            <Stack spacing={1.5}>
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
                 {actionNeededCount > 0 ? (
@@ -254,8 +254,8 @@ export default function VouchersIndex() {
                                     <Paper
                                         variant="outlined"
                                         sx={{
-                                            p: 1.5,
-                                            borderRadius: 1.5,
+                                            p: 1.25,
+                                            borderRadius: 2,
                                             boxShadow: 'none',
                                             backgroundColor: 'background.paper',
                                         }}

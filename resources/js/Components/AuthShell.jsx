@@ -114,11 +114,11 @@ export default function AuthShell({
                     elevation={0}
                     sx={{
                         width: '100%',
-                        maxWidth: 440,
-                        p: { xs: 2.5, sm: 3.5 },
+                        maxWidth: 400,
+                        p: { xs: 2, sm: 2.5 },
                         borderRadius: 2,
                         border: '1px solid rgba(148,163,184,.18)',
-                        boxShadow: '0 20px 45px rgba(15,23,42,.08)',
+                        boxShadow: '0 16px 40px rgba(15,23,42,.07)',
                     }}
                 >
                     <Stack spacing={2.5}>

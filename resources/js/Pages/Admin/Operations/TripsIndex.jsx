@@ -40,7 +40,7 @@ const TRIP_STATUS_COLOR = {
 };
 
 const SECTION_CARD_SX = {
-    borderRadius: 1.5,
+    borderRadius: 2,
     boxShadow: 'none',
 };
 

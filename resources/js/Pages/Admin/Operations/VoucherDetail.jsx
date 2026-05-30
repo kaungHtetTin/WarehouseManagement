@@ -80,7 +80,7 @@ const ADDITIONAL_COST_ICON_BUTTON_SX = {
     },
 };
 
-const SECTION_CARD_SX = { p: { xs: 2, sm: 2.5 }, borderRadius: 1.5 };
+const SECTION_CARD_SX = { p: { xs: 1.75, sm: 2 }, borderRadius: 2 };
 
 function toDatetimeLocalValue(date) {
     const d = date instanceof Date ? date : new Date(date);
@@ -215,7 +215,7 @@ function statusChipColor(status) {
 function LineCard({ item, lineNo, canEdit, onEdit }) {
     const t = useT();
     return (
-        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, maxWidth: '100%', minWidth: 0 }}>
+        <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 2, maxWidth: '100%', minWidth: 0 }}>
             <Stack spacing={1}>
                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
                     {t('voucher_detail.lines.line_no', { line_no: lineNo })}
@@ -490,7 +490,7 @@ export default function VoucherDetail() {
     return (
         <AdminLayout title={layoutTitle}>
             <Head title={layoutTitle} />
-            <Stack spacing={2.5}>
+            <Stack spacing={2}>
                 {flash.success ? <Alert severity="success">{flash.success}</Alert> : null}
 
                 <PageHeader
