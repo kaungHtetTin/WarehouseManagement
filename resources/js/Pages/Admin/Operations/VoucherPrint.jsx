@@ -21,6 +21,7 @@ import {
 } from '@mui/material';
 import { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
+import { formatPrintDate } from '@/utils/printing/dateFormat';
 import { getInitialPrintPaper, getPrintLayout, PRINT_PAPER_PRESETS } from '@/utils/printing/printPaperPresets';
 
 function n2(value) {
@@ -157,7 +158,7 @@ export default function VoucherPrint() {
                     .print-sheet { box-shadow: none !important; border: none !important; }
                 }
                 .print-sheet { width: ${layout.sheetWidth}; max-width: 100%; }
-                .kv { display: grid; grid-template-columns: ${layout.keyColumnWidth} 1fr; gap: 0 10px; }
+                .kv { display: grid; grid-template-columns: ${layout.keyColumnWidth} 1fr; gap: 0 ${layout.kvColumnGap}; }
                 .kv .k { color: rgba(0,0,0,0.60); font-size: ${layout.keyFontSize}; }
                 .kv .v { font-size: ${layout.valueFontSize}; font-weight: 600; }
             `}</style>
@@ -222,9 +223,9 @@ export default function VoucherPrint() {
             </Paper>
 
             <Paper className="print-sheet" variant="outlined" sx={{ mx: 'auto', p: layout.contentPadding, borderRadius: 2, bgcolor: '#fff' }}>
-                <Stack spacing={layout.isRoll ? 0.75 : 1}>
-                    <Stack direction="row" spacing={2} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 0 }}>
+                <Stack spacing={layout.contentSpacing}>
+                    <Stack direction="row" spacing={layout.headerSpacing} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Stack direction="row" spacing={layout.headerInnerSpacing} sx={{ alignItems: 'center', minWidth: 0 }}>
                             {showLogo && logoUrl ? (
                                 <Box
                                     component="img"
@@ -234,28 +235,28 @@ export default function VoucherPrint() {
                                 />
                             ) : null}
                             <Box sx={{ minWidth: 0 }}>
-                                <Typography variant={layout.isRoll ? 'body1' : 'h6'} sx={{ fontWeight: 900, lineHeight: 1.1 }}>
+                                <Typography variant={layout.isRoll ? 'body1' : 'h6'} sx={{ fontWeight: 900, fontSize: layout.titleFontSize, lineHeight: 1.1 }}>
                                     {headerTitle}
                                 </Typography>
                                 {headerSubtitle ? (
-                                    <Typography variant={layout.isRoll ? 'caption' : 'body2'} color="text.secondary" sx={{ fontWeight: 700 }}>
+                                    <Typography variant={layout.isRoll ? 'caption' : 'body2'} color="text.secondary" sx={{ fontWeight: 700, fontSize: layout.metaFontSize }}>
                                         {headerSubtitle}
                                     </Typography>
                                 ) : null}
                             </Box>
                         </Stack>
                         <Stack spacing={0} sx={{ textAlign: 'right' }}>
-                            <Typography variant="caption" sx={{ fontWeight: 900, fontSize: 8 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 900, fontSize: layout.metaFontSize }}>
                                 {voucher?.voucher_no || '—'}
                             </Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-                                {typeof voucher?.voucher_date === 'string' ? voucher.voucher_date.slice(0, 10) : voucher?.voucher_date || '—'}
+                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, fontSize: layout.metaFontSize }}>
+                                {formatPrintDate(voucher?.voucher_date) || '—'}
                             </Typography>
                         </Stack>
                     </Stack>
 
                     {showContact && (contactPhone || contactEmail || contactAddress) ? (
-                        <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: layout.metaFontSize, whiteSpace: 'pre-wrap' }}>
                             {[contactPhone ? `Phone: ${contactPhone}` : null, contactEmail ? `Email: ${contactEmail}` : null, contactAddress || null]
                                 .filter(Boolean)
                                 .join(' • ')}
@@ -293,7 +294,7 @@ export default function VoucherPrint() {
 
                     <Divider />
 
-                    <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 900, fontSize: layout.sectionTitleFontSize }}>
                         Items
                     </Typography>
 
@@ -302,9 +303,9 @@ export default function VoucherPrint() {
                         sx={{
                             '& th, & td': {
                                 borderColor: 'rgba(0,0,0,0.15)',
-                                py: 0.25,
-                                px: 0.75,
-                                fontSize: layout.isRoll ? layout.valueFontSize : '13px',
+                                py: layout.tableCellPaddingY,
+                                px: layout.tableCellPaddingX,
+                                fontSize: layout.tableFontSize,
                                 verticalAlign: 'top',
                             },
                         }}
@@ -366,21 +367,21 @@ export default function VoucherPrint() {
                     {visibleQrDataUrl || footerNote || visibleVoucherPolicy ? <Divider /> : null}
 
                     {visibleQrDataUrl ? (
-                        <Stack spacing={0.75} sx={{ alignItems: 'center', pt: 1 }}>
+                        <Stack spacing={0.5} sx={{ alignItems: 'center', pt: layout.qrTopPadding }}>
                             <Box
                                 component="img"
                                 src={visibleQrDataUrl}
                                 alt="QR"
                                 sx={{ width: layout.qrImageSize, height: layout.qrImageSize }}
                             />
-                            <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: layout.metaFontSize, textAlign: 'center' }}>
                                 Scan to view voucher status
                             </Typography>
                         </Stack>
                     ) : null}
 
                     {footerNote ? (
-                        <Typography variant="caption" color="text.secondary" sx={{ pt: 1.5, textAlign: 'center' }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ pt: layout.footerTopPadding, fontSize: layout.metaFontSize, textAlign: 'center' }}>
                             {footerNote}
                         </Typography>
                     ) : null}
@@ -390,7 +391,7 @@ export default function VoucherPrint() {
                             variant="caption"
                             color="text.secondary"
                             sx={{
-                                pt: footerNote ? 0.75 : 1.5,
+                                pt: layout.policyTopPadding,
                                 textAlign: 'justify',
                                 whiteSpace: 'pre-wrap',
                                 fontSize: layout.policyFontSize,

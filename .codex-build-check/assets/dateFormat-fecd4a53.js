@@ -1,0 +1,1 @@
+function e(t,f){const n=typeof t=="string"?t.trim():"";if(!n)return"";const r=n.match(/^(\d{4})-(\d{2})-(\d{2})/);if(!r)return n;const i=f?n.slice(r[0].length):"";return`${r[3]}-${r[2]}-${r[1]}${i}`}function a(t){return e(t,!1)}function o(t){return e(t,!0)}export{a,o as f};

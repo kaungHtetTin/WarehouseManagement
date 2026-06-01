@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Divider, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
 import QRCode from 'qrcode';
+import { formatPrintDate } from '@/utils/printing/dateFormat';
 import { getThermalPaperLayout } from '@/utils/printing/thermalPaper';
 
 function n2(value) {
@@ -31,9 +32,9 @@ export function getVoucherPrintCss({ paperSize = 'A4', thermalPaperWidth = 80 } 
     return `
         @page { size: ${isReceipt ? `${thermalLayout.paperWidth}mm auto` : 'A4'}; margin: ${isReceipt ? thermalLayout.pageMargin : '12mm'}; }
         .print-sheet { width: ${isReceipt ? `${thermalLayout.paperWidth}mm` : '210mm'}; max-width: 100%; }
-        .kv { display: grid; grid-template-columns: ${isReceipt ? `${thermalLayout.keyColumnWidth}px 1fr` : '140px 1fr'}; gap: 0 10px; }
-        .kv .k { color: rgba(0,0,0,0.60); font-size: ${isReceipt ? thermalLayout.keyFontSize : '12px'}; }
-        .kv .v { font-size: ${isReceipt ? thermalLayout.valueFontSize : '12px'}; font-weight: 600; }
+        .kv { display: grid; grid-template-columns: ${isReceipt ? `${thermalLayout.keyColumnWidth}px 1fr` : '140px 1fr'}; gap: 0 ${isReceipt ? thermalLayout.kvColumnGap : '8px'}; }
+        .kv .k { color: rgba(0,0,0,0.60); font-size: ${isReceipt ? thermalLayout.keyFontSize : '13px'}; }
+        .kv .v { font-size: ${isReceipt ? thermalLayout.valueFontSize : '13px'}; font-weight: 600; }
     `;
 }
 
@@ -49,6 +50,7 @@ export default function VoucherPrintableDocument({
     const isReceipt = String(paperSize || 'A4').toUpperCase() === 'RECEIPT_80';
     const thermalLayout = useMemo(() => getThermalPaperLayout(thermalPaperWidth), [thermalPaperWidth]);
     const [qrDataUrl, setQrDataUrl] = useState(null);
+    const metaFontSize = isReceipt ? thermalLayout.metaFontSize : '13px';
 
     const paymentsTotal = useMemo(() => {
         const rows = Array.isArray(voucher?.payments) ? voucher.payments : [];
@@ -128,35 +130,35 @@ export default function VoucherPrintableDocument({
 
     return (
         <Paper className={['print-sheet', className].filter(Boolean).join(' ')} variant="outlined" sx={{ mx: 'auto', p: isReceipt && thermalLayout.paperWidth <= 58 ? 0.75 : isReceipt ? 1 : 2, borderRadius: 1.5, bgcolor: '#fff' }}>
-            <Stack spacing={isReceipt ? 0.5 : 0.75}>
-                <Stack direction="row" spacing={2} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 0 }}>
+            <Stack spacing={isReceipt ? thermalLayout.contentSpacing : 0.6}>
+                <Stack direction="row" spacing={isReceipt ? thermalLayout.headerSpacing : 1.5} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Stack direction="row" spacing={isReceipt ? thermalLayout.headerInnerSpacing : 1} sx={{ alignItems: 'center', minWidth: 0 }}>
                         {showLogo && logoUrl ? (
                             <Box component="img" src={logoUrl} alt="Logo" sx={{ width: isReceipt ? 30 : 40, height: isReceipt ? 30 : 40, objectFit: 'contain', borderRadius: 1 }} />
                         ) : null}
                         <Box sx={{ minWidth: 0 }}>
-                            <Typography variant={isReceipt ? 'body1' : 'h6'} sx={{ fontWeight: 900, lineHeight: 1.1 }}>
+                            <Typography variant={isReceipt ? 'body1' : 'h6'} sx={{ fontWeight: 900, fontSize: isReceipt ? thermalLayout.titleFontSize : '21px', lineHeight: 1.1 }}>
                                 {headerTitle}
                             </Typography>
                             {headerSubtitle ? (
-                                <Typography variant={isReceipt ? 'caption' : 'body2'} color="text.secondary" sx={{ fontWeight: 700 }}>
+                                <Typography variant={isReceipt ? 'caption' : 'body2'} color="text.secondary" sx={{ fontWeight: 700, fontSize: metaFontSize }}>
                                     {headerSubtitle}
                                 </Typography>
                             ) : null}
                         </Box>
                     </Stack>
                     <Stack spacing={0} sx={{ textAlign: 'right' }}>
-                        <Typography variant="caption" sx={{ fontWeight: 900, fontSize: 8 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 900, fontSize: metaFontSize }}>
                             {voucher?.voucher_no || '—'}
                         </Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-                            {typeof voucher?.voucher_date === 'string' ? voucher.voucher_date.slice(0, 10) : voucher?.voucher_date || '—'}
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, fontSize: metaFontSize }}>
+                            {formatPrintDate(voucher?.voucher_date) || '—'}
                         </Typography>
                     </Stack>
                 </Stack>
 
                 {showContact && (contactPhone || contactEmail || contactAddress) ? (
-                    <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: metaFontSize, whiteSpace: 'pre-wrap' }}>
                         {[contactPhone ? `Phone: ${contactPhone}` : null, contactEmail ? `Email: ${contactEmail}` : null, contactAddress || null]
                             .filter(Boolean)
                             .join(' • ')}
@@ -194,7 +196,7 @@ export default function VoucherPrintableDocument({
 
                 <Divider />
 
-                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 900, fontSize: isReceipt ? thermalLayout.sectionTitleFontSize : '15px' }}>
                     Items
                 </Typography>
 
@@ -203,9 +205,9 @@ export default function VoucherPrintableDocument({
                     sx={{
                         '& th, & td': {
                             borderColor: 'rgba(0,0,0,0.15)',
-                            py: 0.2,
-                            px: 0.6,
-                            fontSize: isReceipt ? thermalLayout.valueFontSize || '10.5px' : '12.5px',
+                            py: isReceipt ? thermalLayout.tableCellPaddingY : 0.15,
+                            px: isReceipt ? thermalLayout.tableCellPaddingX : 0.5,
+                            fontSize: isReceipt ? thermalLayout.tableFontSize : '13.5px',
                             verticalAlign: 'top',
                         },
                     }}
@@ -267,16 +269,16 @@ export default function VoucherPrintableDocument({
                 {qrDataUrl || footerNote || printableVoucherPolicy ? <Divider /> : null}
 
                 {qrDataUrl ? (
-                    <Stack spacing={0.75} sx={{ alignItems: 'center', pt: 1 }}>
+                    <Stack spacing={0.5} sx={{ alignItems: 'center', pt: 0.75 }}>
                         <Box component="img" src={qrDataUrl} alt="QR" sx={{ width: isReceipt ? thermalLayout.qrImageSize : 140, height: isReceipt ? thermalLayout.qrImageSize : 140 }} />
-                        <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: metaFontSize, textAlign: 'center' }}>
                             Scan to view voucher status
                         </Typography>
                     </Stack>
                 ) : null}
 
                 {footerNote ? (
-                    <Typography variant="caption" color="text.secondary" sx={{ pt: 1.5, textAlign: 'center' }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ pt: 1, fontSize: metaFontSize, textAlign: 'center' }}>
                         {footerNote}
                     </Typography>
                 ) : null}
@@ -286,9 +288,9 @@ export default function VoucherPrintableDocument({
                         variant="caption"
                         color="text.secondary"
                         sx={{
-                            pt: footerNote ? 0.75 : 1.5,
+                            pt: 0.5,
                             textAlign: 'center',
-                            fontSize: isReceipt ? '8px' : '9px',
+                            fontSize: isReceipt ? thermalLayout.policyFontSize : '10px',
                             lineHeight: 1.25,
                             whiteSpace: 'pre-wrap',
                         }}

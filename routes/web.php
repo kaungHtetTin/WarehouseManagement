@@ -383,6 +383,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/operations/vouchers/{voucher}/payment-waive', [VoucherManagementController::class, 'setWaived'])
             ->middleware('permission:payments.manage')
             ->name('vouchers.payment-waive');
+        Route::patch('/operations/vouchers/{voucher}/details', [VoucherManagementController::class, 'updateDetails'])
+            ->middleware('permission:vouchers.manage')
+            ->name('vouchers.details.update');
         Route::patch('/operations/vouchers/{voucher}/additional-costs', [VoucherManagementController::class, 'updateAdditionalCosts'])
             ->middleware('permission:vouchers.manage')
             ->name('vouchers.additional-costs.update');

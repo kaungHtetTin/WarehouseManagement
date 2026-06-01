@@ -2,6 +2,7 @@ import { Head, usePage } from '@inertiajs/react';
 import { Box, Button, Checkbox, Divider, FormControl, FormControlLabel, MenuItem, NativeSelect, Paper, Select, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography, useMediaQuery } from '@mui/material';
 import { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
+import { formatPrintDate, formatPrintDateTime } from '@/utils/printing/dateFormat';
 import { getInitialPrintPaper, getPrintLayout, PRINT_PAPER_PRESETS } from '@/utils/printing/printPaperPresets';
 
 function n2(value) {
@@ -32,22 +33,22 @@ function TripOverviewSheet({ trip, overviewSlip, layout }) {
 
     return (
         <Paper className="print-sheet voucher-sheet" variant="outlined" sx={{ mx: 'auto', p: layout.contentPadding, borderRadius: 2, bgcolor: '#fff' }}>
-            <Stack spacing={layout.isRoll ? 0.75 : 1}>
-                <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            <Stack spacing={layout.contentSpacing}>
+                <Stack direction="row" spacing={layout.headerSpacing} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
                     <Box sx={{ minWidth: 0 }}>
-                        <Typography variant={layout.isRoll ? 'body1' : 'h6'} sx={{ fontWeight: 900, lineHeight: 1.1 }}>
+                        <Typography variant={layout.isRoll ? 'body1' : 'h6'} sx={{ fontWeight: 900, fontSize: layout.titleFontSize, lineHeight: 1.1 }}>
                             {overviewSlip.title || 'Trip Overview Slip'}
                         </Typography>
-                        <Typography variant={layout.isRoll ? 'caption' : 'body2'} color="text.secondary" sx={{ fontWeight: 700 }}>
+                        <Typography variant={layout.isRoll ? 'caption' : 'body2'} color="text.secondary" sx={{ fontWeight: 700, fontSize: layout.metaFontSize }}>
                             Loaded vouchers summary for trip {overviewSlip.trip_no || trip?.trip_no || '—'}
                         </Typography>
                     </Box>
                     <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 900 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 900, fontSize: layout.metaFontSize }}>
                             {overviewSlip.trip_no || trip?.trip_no || '—'}
                         </Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-                            {overviewSlip.generated_at || '—'}
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, fontSize: layout.metaFontSize }}>
+                            {formatPrintDateTime(overviewSlip.generated_at) || '—'}
                         </Typography>
                     </Box>
                 </Stack>
@@ -81,14 +82,14 @@ function TripOverviewSheet({ trip, overviewSlip, layout }) {
                 </Box>
 
                 {overviewSlip.manifest_printed_at ? (
-                    <Typography variant="caption" color="text.secondary">
-                        Manifest printed: {overviewSlip.manifest_printed_at}
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: layout.metaFontSize }}>
+                        Manifest printed: {formatPrintDateTime(overviewSlip.manifest_printed_at)}
                     </Typography>
                 ) : null}
 
                 <Divider />
 
-                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 900, fontSize: layout.sectionTitleFontSize }}>
                     Loaded vouchers
                 </Typography>
 
@@ -96,10 +97,10 @@ function TripOverviewSheet({ trip, overviewSlip, layout }) {
                     size="small"
                     sx={{
                         tableLayout: 'fixed',
-                        '& th, & td': { borderColor: 'rgba(0,0,0,0.15)' },
-                        '& th, & td': layout.isRoll
-                            ? { px: 0.5, py: 0.5, fontSize: layout.valueFontSize, verticalAlign: 'top' }
-                            : undefined,
+                        '& th, & td': {
+                            borderColor: 'rgba(0,0,0,0.15)',
+                            ...(layout.isRoll ? { px: layout.tableCellPaddingX, py: layout.tableCellPaddingY, fontSize: layout.tableFontSize, verticalAlign: 'top' } : {}),
+                        },
                     }}
                 >
                     {layout.isRoll ? (
@@ -253,9 +254,9 @@ function VoucherSheet({ voucher, template, voucherPolicy, layout, qrDataUrl, inc
 
     return (
         <Paper className="print-sheet voucher-sheet" variant="outlined" sx={{ mx: 'auto', p: layout.contentPadding, borderRadius: 2, bgcolor: '#fff' }}>
-            <Stack spacing={layout.isRoll ? 0.75 : 1}>
-                <Stack direction="row" spacing={2} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 0 }}>
+            <Stack spacing={layout.contentSpacing}>
+                <Stack direction="row" spacing={layout.headerSpacing} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Stack direction="row" spacing={layout.headerInnerSpacing} sx={{ alignItems: 'center', minWidth: 0 }}>
                         {showLogo && logoUrl ? (
                             <Box
                                 component="img"
@@ -265,28 +266,28 @@ function VoucherSheet({ voucher, template, voucherPolicy, layout, qrDataUrl, inc
                             />
                         ) : null}
                         <Box sx={{ minWidth: 0 }}>
-                            <Typography variant={layout.isRoll ? 'body1' : 'h6'} sx={{ fontWeight: 900, lineHeight: 1.1 }}>
+                            <Typography variant={layout.isRoll ? 'body1' : 'h6'} sx={{ fontWeight: 900, fontSize: layout.titleFontSize, lineHeight: 1.1 }}>
                                 {headerTitle}
                             </Typography>
                             {headerSubtitle ? (
-                                <Typography variant={layout.isRoll ? 'caption' : 'body2'} color="text.secondary" sx={{ fontWeight: 700 }}>
+                                <Typography variant={layout.isRoll ? 'caption' : 'body2'} color="text.secondary" sx={{ fontWeight: 700, fontSize: layout.metaFontSize }}>
                                     {headerSubtitle}
                                 </Typography>
                             ) : null}
                         </Box>
                     </Stack>
                     <Stack spacing={0} sx={{ textAlign: 'right' }}>
-                        <Typography variant="caption" sx={{ fontSize: 8 }}>
+                        <Typography variant="caption" sx={{ fontSize: layout.metaFontSize }}>
                             {voucher?.voucher_no || '—'}
                         </Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-                            {typeof voucher?.voucher_date === 'string' ? voucher.voucher_date.slice(0, 10) : voucher?.voucher_date || '—'}
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, fontSize: layout.metaFontSize }}>
+                            {formatPrintDate(voucher?.voucher_date) || '—'}
                         </Typography>
                     </Stack>
                 </Stack>
 
                 {showContact && (contactPhone || contactEmail || contactAddress) ? (
-                    <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: layout.metaFontSize, whiteSpace: 'pre-wrap' }}>
                         {[contactPhone ? `Phone: ${contactPhone}` : null, contactEmail ? `Email: ${contactEmail}` : null, contactAddress || null]
                             .filter(Boolean)
                             .join(' • ')}
@@ -324,7 +325,7 @@ function VoucherSheet({ voucher, template, voucherPolicy, layout, qrDataUrl, inc
 
                 <Divider />
 
-                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 900, fontSize: layout.sectionTitleFontSize }}>
                     Items
                 </Typography>
 
@@ -333,9 +334,9 @@ function VoucherSheet({ voucher, template, voucherPolicy, layout, qrDataUrl, inc
                     sx={{
                         '& th, & td': {
                             borderColor: 'rgba(0,0,0,0.15)',
-                            py: 0.25,
-                            px: 0.75,
-                            fontSize: layout.isRoll ? layout.valueFontSize : '13px',
+                            py: layout.tableCellPaddingY,
+                            px: layout.tableCellPaddingX,
+                            fontSize: layout.tableFontSize,
                             verticalAlign: 'top',
                         },
                     }}
@@ -397,21 +398,21 @@ function VoucherSheet({ voucher, template, voucherPolicy, layout, qrDataUrl, inc
                 {visibleQrDataUrl || footerNote || visibleVoucherPolicy ? <Divider /> : null}
 
                 {visibleQrDataUrl ? (
-                    <Stack spacing={0.75} sx={{ alignItems: 'center', pt: 1 }}>
+                    <Stack spacing={0.5} sx={{ alignItems: 'center', pt: layout.qrTopPadding }}>
                         <Box
                             component="img"
                             src={visibleQrDataUrl}
                             alt="QR"
                             sx={{ width: layout.qrImageSize, height: layout.qrImageSize }}
                         />
-                        <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: layout.metaFontSize, textAlign: 'center' }}>
                             Scan to view voucher status
                         </Typography>
                     </Stack>
                 ) : null}
 
                 {footerNote ? (
-                    <Typography variant="caption" color="text.secondary" sx={{ pt: 1.5, textAlign: 'center' }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ pt: layout.footerTopPadding, fontSize: layout.metaFontSize, textAlign: 'center' }}>
                         {footerNote}
                     </Typography>
                 ) : null}
@@ -421,7 +422,7 @@ function VoucherSheet({ voucher, template, voucherPolicy, layout, qrDataUrl, inc
                         variant="caption"
                         color="text.secondary"
                         sx={{
-                            pt: footerNote ? 0.75 : 1.5,
+                            pt: layout.policyTopPadding,
                             textAlign: 'justify',
                             whiteSpace: 'pre-wrap',
                             fontSize: layout.policyFontSize,
@@ -500,7 +501,7 @@ export default function TripVouchersPrint() {
                 .print-sheet { width: ${layout.sheetWidth}; max-width: 100%; }
                 .voucher-sheet { page-break-after: always; break-after: page; margin-bottom: ${layout.pageMargin}; }
                 .voucher-sheet:last-child { page-break-after: auto; break-after: auto; margin-bottom: 0; }
-                .kv { display: grid; grid-template-columns: ${layout.keyColumnWidth} 1fr; gap: 0 10px; }
+                .kv { display: grid; grid-template-columns: ${layout.keyColumnWidth} 1fr; gap: 0 ${layout.kvColumnGap}; }
                 .kv .k { color: rgba(0,0,0,0.60); font-size: ${layout.keyFontSize}; }
                 .kv .v { font-size: ${layout.valueFontSize}; font-weight: 600; }
             `}</style>

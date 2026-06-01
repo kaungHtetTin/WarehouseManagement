@@ -43,6 +43,23 @@ class VoucherDetailPageTest extends TestCase
         $response->assertNotFound();
     }
 
+    public function test_voucher_print_qr_tracking_url_defaults_to_myanmar(): void
+    {
+        [$user, $voucher] = $this->confirmedVoucherWithLine();
+        $organization = Organization::query()->findOrFail($voucher->organization_id);
+
+        $response = $this->actingAs($user)->get(route('admin.vouchers.print', $voucher));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->component('Admin/Operations/VoucherPrint')
+            ->where('tracking_url', route('public.voucher.track', [
+                'org' => $organization->code,
+                'voucherNo' => $voucher->voucher_no,
+                'locale' => 'my',
+            ])));
+    }
+
     public function test_voucher_detail_not_found_for_other_tenant(): void
     {
         [$user, $voucher] = $this->confirmedVoucherWithLine();
@@ -71,6 +88,40 @@ class VoucherDetailPageTest extends TestCase
         $response = $this->actingAs($viewer)->get(route('admin.vouchers.show', $voucher));
 
         $response->assertOk();
+    }
+
+    public function test_manager_can_update_confirmed_voucher_details_from_detail_page(): void
+    {
+        [$user, $voucher] = $this->confirmedVoucherWithLine();
+
+        $response = $this->actingAs($user)->patch(route('admin.vouchers.details.update', $voucher), [
+            'default_recipient_name' => ' New Recipient ',
+            'default_recipient_phone' => ' 09123456789 ',
+            'default_destination_remark' => ' Leave at the front desk. ',
+            'total_weight' => '12',
+        ]);
+
+        $response->assertRedirect();
+
+        $voucher->refresh();
+        $this->assertSame('New Recipient', $voucher->default_recipient_name);
+        $this->assertSame('09123456789', $voucher->default_recipient_phone);
+        $this->assertSame('Leave at the front desk.', $voucher->default_destination_remark);
+        $this->assertSame('12.000', $voucher->total_weight);
+    }
+
+    public function test_voucher_detail_weight_must_be_a_whole_number(): void
+    {
+        [$user, $voucher] = $this->confirmedVoucherWithLine();
+
+        $response = $this->actingAs($user)->patch(route('admin.vouchers.details.update', $voucher), [
+            'default_recipient_name' => 'Recipient',
+            'default_recipient_phone' => '09123456789',
+            'default_destination_remark' => null,
+            'total_weight' => '12.5',
+        ]);
+
+        $response->assertSessionHasErrors('total_weight');
     }
 
     /**

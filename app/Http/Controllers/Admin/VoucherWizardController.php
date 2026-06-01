@@ -371,16 +371,25 @@ class VoucherWizardController extends Controller
         }
 
         $qty = (float) $validated['qty'];
+        $lineUnit = trim((string) $validated['unit']);
         $freightAmount = VoucherLineFreight::resolveAmount(
             $qty,
             $validated['freight_rate'] ?? null,
             $validated['freight_amount'] ?? null,
         );
 
-        DB::transaction(function () use ($actor, $voucherModel, $organizationId, $validated, $hasProductId, $hasNewProduct, $hasProductName, $productName, $freightAmount) {
-            $productId = null;
+        DB::transaction(function () use ($actor, $voucherModel, $organizationId, $validated, $hasProductId, $hasNewProduct, $hasProductName, $productName, $lineUnit, $freightAmount) {
+            $product = null;
 
-            if ($hasProductName) {
+            if ($hasProductId) {
+                $product = Product::query()
+                    ->where('organization_id', $organizationId)
+                    ->whereNull('deleted_at')
+                    ->whereKey((int) $validated['product_id'])
+                    ->firstOrFail();
+            }
+
+            if ($product === null && $hasProductName) {
                 $existing = Product::query()
                     ->where('organization_id', $organizationId)
                     ->whereNull('deleted_at')
@@ -390,14 +399,14 @@ class VoucherWizardController extends Controller
                     ->first();
 
                 if ($existing) {
-                    $productId = $existing->id;
+                    $product = $existing;
                 } else {
                     $product = Product::query()->create([
                         'organization_id' => $organizationId,
                         'category_id' => null,
                         'sku' => null,
                         'name' => $productName,
-                        'unit' => $validated['unit'],
+                        'unit' => $lineUnit,
                         'default_weight' => null,
                         'status' => 'ACTIVE',
                     ]);
@@ -405,15 +414,10 @@ class VoucherWizardController extends Controller
                         'name' => $product->name,
                         'context' => 'voucher_wizard',
                     ]);
-                    $productId = $product->id;
                 }
             }
 
-            if ($productId === null && $hasProductId) {
-                $productId = (int) $validated['product_id'];
-            }
-
-            if ($productId === null && $hasNewProduct) {
+            if ($product === null && $hasNewProduct) {
                 $np = $validated['new_product'];
                 $sku = isset($np['sku']) ? trim((string) $np['sku']) : null;
                 $sku = $sku === '' ? null : $sku;
@@ -431,7 +435,18 @@ class VoucherWizardController extends Controller
                     'name' => $product->name,
                     'context' => 'voucher_wizard',
                 ]);
-                $productId = $product->id;
+            }
+
+            $productId = $product?->id;
+            if ($product !== null && (string) $product->unit !== $lineUnit) {
+                $previousUnit = $product->unit;
+                $product->unit = $lineUnit;
+                $product->save();
+                AuditLogger::record($actor, 'product.update', $product, [
+                    'unit_from' => $previousUnit,
+                    'unit_to' => $lineUnit,
+                    'context' => 'voucher_wizard',
+                ]);
             }
 
             $nextLine = (int) (VoucherItem::query()->where('voucher_id', $voucherModel->id)->max('line_no') ?? 0) + 1;
@@ -446,7 +461,7 @@ class VoucherWizardController extends Controller
                 'qty' => $validated['qty'],
                 'loaded_qty' => 0,
                 'delivered_qty' => 0,
-                'unit' => $validated['unit'],
+                'unit' => $lineUnit,
                 'freight_rate' => $validated['freight_rate'] ?? null,
                 'freight_amount' => $freightAmount,
                 'is_fragile' => (bool) ($validated['is_fragile'] ?? false),

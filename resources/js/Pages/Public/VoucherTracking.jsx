@@ -1,10 +1,11 @@
-import { Head, usePage } from '@inertiajs/react';
-import { Box, Chip, Container, Divider, Grid, Paper, Stack, Step, StepLabel, Stepper, Typography } from '@mui/material';
+import { useT } from '@/i18n';
+import { Head, router, usePage } from '@inertiajs/react';
+import { Box, Chip, Container, Divider, FormControl, Grid, MenuItem, Paper, Select, Stack, Step, StepLabel, Stepper, Typography } from '@mui/material';
 
-function formatDateTime(value) {
+function formatDateTime(value, locale) {
     if (!value) return '—';
     try {
-        return new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+        return new Date(value).toLocaleString(locale === 'my' ? 'my-MM' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' });
     } catch {
         return value;
     }
@@ -27,49 +28,66 @@ function trackingTone(code) {
     return 'default';
 }
 
+function translatedCode(t, prefix, code, fallback = '—') {
+    if (!code) return fallback;
+
+    const key = `${prefix}.${String(code).toLowerCase()}`;
+    const translated = t(key);
+
+    return translated === key ? String(code).replace(/_/g, ' ') : translated;
+}
+
 export default function VoucherTracking() {
-    const { organization, voucher, trip, tracking } = usePage().props;
+    const { organization, voucher, trip, tracking, i18n } = usePage().props;
+    const t = useT();
+    const locale = i18n?.locale ?? 'my';
+    const supportedLocales = i18n?.supported_locales ?? { my: 'မြန်မာ', en: 'English' };
+    const trackingStatus = translatedCode(t, 'voucher_tracking.status', tracking?.code);
 
     const steps = [
-        { label: 'Confirmed', code: 'CONFIRMED' },
-        { label: 'Loading', code: 'LOADING' },
-        { label: 'In transit', code: 'IN_TRANSIT' },
-        { label: 'Delivered', code: 'DELIVERED' },
+        { label: t('voucher_tracking.status.confirmed'), code: 'CONFIRMED' },
+        { label: t('voucher_tracking.status.loading'), code: 'LOADING' },
+        { label: t('voucher_tracking.status.in_transit'), code: 'IN_TRANSIT' },
+        { label: t('voucher_tracking.status.delivered'), code: 'DELIVERED' },
     ];
 
     const activeStep = Number.isFinite(Number(tracking?.step)) ? Number(tracking.step) : 0;
-    const title = voucher?.voucher_no ? `Track ${voucher.voucher_no}` : 'Track voucher';
+    const title = voucher?.voucher_no
+        ? t('voucher_tracking.head_title', { voucher_no: voucher.voucher_no })
+        : t('voucher_tracking.track_voucher');
     const latestUpdate = trip?.updated_at || voucher?.updated_at || null;
     const summaryCards = [
         {
-            label: 'Tracking status',
-            value: tracking?.label || '—',
-            helper: `Last updated ${formatDateTime(latestUpdate)}`,
+            label: t('voucher_tracking.tracking_status'),
+            value: trackingStatus,
+            helper: t('voucher_tracking.last_updated', { time: formatDateTime(latestUpdate, locale) }),
         },
         {
-            label: 'Recipient',
+            label: t('voucher_tracking.recipient'),
             value: voucher?.default_recipient_name || '—',
-            helper: voucher?.default_recipient_phone || 'Phone not available',
+            helper: voucher?.default_recipient_phone || t('voucher_tracking.phone_not_available'),
         },
         {
-            label: 'Destination',
+            label: t('voucher_tracking.destination'),
             value: voucher?.default_to_warehouse?.city || voucher?.default_to_city || '—',
             helper: formatAddress(voucher),
         },
         {
-            label: 'Trip reference',
-            value: trip?.trip_no || 'Awaiting trip assignment',
-            helper: trip?.status || 'Confirmed and preparing',
+            label: t('voucher_tracking.trip_reference'),
+            value: trip?.trip_no || t('voucher_tracking.awaiting_trip_assignment'),
+            helper: trip?.status
+                ? translatedCode(t, 'voucher_tracking.trip_status', trip.status)
+                : t('voucher_tracking.confirmed_and_preparing'),
         },
     ];
     const nextStepMessage =
         tracking?.code === 'DELIVERED'
-            ? 'This voucher has been delivered successfully.'
+            ? t('voucher_tracking.message.delivered')
             : tracking?.code === 'IN_TRANSIT'
-              ? 'Your goods are currently on the way to the destination.'
+              ? t('voucher_tracking.message.in_transit')
               : tracking?.code === 'LOADING'
-                ? 'Your goods are being prepared and loaded for departure.'
-                : 'Your voucher has been confirmed and is waiting for the next operational step.';
+                ? t('voucher_tracking.message.loading')
+                : t('voucher_tracking.message.confirmed');
 
     return (
         <Box
@@ -82,6 +100,24 @@ export default function VoucherTracking() {
             <Head title={title} />
             <Container maxWidth="md">
                 <Stack spacing={2.5}>
+                    <Stack direction="row" justifyContent="flex-end">
+                        <FormControl size="small" sx={{ minWidth: 120 }}>
+                            <Select
+                                value={locale}
+                                inputProps={{ 'aria-label': t('voucher_tracking.language') }}
+                                onChange={(event) =>
+                                    router.get(window.location.pathname, { locale: event.target.value }, { preserveScroll: true, replace: true })
+                                }
+                            >
+                                {Object.entries(supportedLocales).map(([code, label]) => (
+                                    <MenuItem key={code} value={code}>
+                                        {label}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </Stack>
+
                     <Paper
                         elevation={0}
                         sx={{
@@ -94,19 +130,19 @@ export default function VoucherTracking() {
                     >
                         <Stack spacing={1.25}>
                             <Typography variant="overline" sx={{ fontWeight: 800, letterSpacing: '0.08em', opacity: 0.9 }}>
-                                Voucher Tracking
+                                {t('voucher_tracking.title')}
                             </Typography>
                             <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: '-0.03em' }}>
                                 {voucher?.voucher_no || '—'}
                             </Typography>
                             <Typography variant="body2" sx={{ maxWidth: 640, opacity: 0.9 }}>
-                                Track the current delivery progress for this voucher and review the latest shipment information.
+                                {t('voucher_tracking.subtitle')}
                             </Typography>
                             <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1, pt: 0.5 }}>
-                                <Chip size="small" label={organization?.name || 'Voucher Tracking'} sx={{ bgcolor: 'rgba(255,255,255,.12)', color: '#fff' }} />
+                                <Chip size="small" label={organization?.name || t('voucher_tracking.title')} sx={{ bgcolor: 'rgba(255,255,255,.12)', color: '#fff' }} />
                                 <Chip
                                     size="small"
-                                    label={tracking?.label || '—'}
+                                    label={trackingStatus}
                                     color={trackingTone(tracking?.code)}
                                     variant="outlined"
                                     sx={{ color: '#fff', borderColor: 'rgba(255,255,255,.25)' }}
@@ -137,7 +173,7 @@ export default function VoucherTracking() {
                         <Stack spacing={1.5}>
                             <Box>
                                 <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                                    Delivery progress
+                                    {t('voucher_tracking.delivery_progress')}
                                 </Typography>
                                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                                     {nextStepMessage}
@@ -158,13 +194,13 @@ export default function VoucherTracking() {
                             <Paper variant="outlined" sx={{ p: 2.25, borderRadius: 1.5, boxShadow: 'none', height: '100%' }}>
                                 <Stack spacing={1.5}>
                                     <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                                        Shipment details
+                                        {t('voucher_tracking.shipment_details')}
                                     </Typography>
                                     <Divider />
                                     <Stack spacing={1.25}>
                                         <Box>
                                             <Typography variant="caption" color="text.secondary">
-                                                Voucher
+                                                {t('voucher_tracking.voucher')}
                                             </Typography>
                                             <Typography variant="body1" sx={{ fontWeight: 700 }}>
                                                 {voucher?.voucher_no || '—'}
@@ -172,7 +208,7 @@ export default function VoucherTracking() {
                                         </Box>
                                         <Box>
                                             <Typography variant="caption" color="text.secondary">
-                                                Destination
+                                                {t('voucher_tracking.destination')}
                                             </Typography>
                                             <Typography variant="body1" sx={{ fontWeight: 700 }}>
                                                 {formatAddress(voucher)}
@@ -180,7 +216,7 @@ export default function VoucherTracking() {
                                         </Box>
                                         <Box>
                                             <Typography variant="caption" color="text.secondary">
-                                                Recipient
+                                                {t('voucher_tracking.recipient')}
                                             </Typography>
                                             <Typography variant="body1" sx={{ fontWeight: 700 }}>
                                                 {voucher?.default_recipient_name || '—'}
@@ -193,13 +229,15 @@ export default function VoucherTracking() {
                                         </Box>
                                         <Box>
                                             <Typography variant="caption" color="text.secondary">
-                                                Current trip
+                                                {t('voucher_tracking.current_trip')}
                                             </Typography>
                                             <Typography variant="body1" sx={{ fontWeight: 700 }}>
-                                                {trip?.trip_no || 'Not assigned yet'}
+                                                {trip?.trip_no || t('voucher_tracking.not_assigned_yet')}
                                             </Typography>
                                             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-                                                {trip?.status || 'Waiting for trip assignment'}
+                                                {trip?.status
+                                                    ? translatedCode(t, 'voucher_tracking.trip_status', trip.status)
+                                                    : t('voucher_tracking.waiting_for_trip_assignment')}
                                             </Typography>
                                         </Box>
                                     </Stack>
@@ -211,25 +249,25 @@ export default function VoucherTracking() {
                             <Paper variant="outlined" sx={{ p: 2.25, borderRadius: 1.5, boxShadow: 'none', height: '100%' }}>
                                 <Stack spacing={1.5}>
                                     <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                                        What happens next
+                                        {t('voucher_tracking.what_happens_next')}
                                     </Typography>
                                     <Typography variant="body2" color="text.secondary">
-                                        Status updates appear here as your voucher moves from confirmation to loading, transport, and delivery.
+                                        {t('voucher_tracking.status_updates_description')}
                                     </Typography>
                                     <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, bgcolor: 'background.default', boxShadow: 'none' }}>
                                         <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                                            Latest update
+                                            {t('voucher_tracking.latest_update')}
                                         </Typography>
                                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                                            {formatDateTime(latestUpdate)}
+                                            {formatDateTime(latestUpdate, locale)}
                                         </Typography>
                                     </Paper>
                                     <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, bgcolor: 'background.default', boxShadow: 'none' }}>
                                         <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                                            Need help?
+                                            {t('voucher_tracking.need_help')}
                                         </Typography>
                                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.6 }}>
-                                            Contact the sender or warehouse operator and provide voucher number `{voucher?.voucher_no || '—'}` for faster support.
+                                            {t('voucher_tracking.help_message', { voucher_no: voucher?.voucher_no || '—' })}
                                         </Typography>
                                     </Paper>
                                 </Stack>

@@ -119,31 +119,31 @@
             th { font-size: var(--th-font); }
         }
 
-        /* Narrow paper overrides (A5 / 4IN) */
+        /* Narrow paper overrides (A5 / roll paper) */
         .is-narrow .section { margin-top: 0.45rem; }
         .is-narrow h2 { font-size: 0.8rem; margin-bottom: 0.2rem; }
         .is-narrow .cargo-table th, .is-narrow .cargo-table td { padding: 0.15rem 0.2rem; }
         .is-narrow .cargo-table { font-size: 9px; }
 
-        /* Extra dense for 4-inch */
-        .is-4in .section { margin-top: 0.35rem; }
-        .is-4in h2 { font-size: 0.72rem; margin-bottom: 0.15rem; border-bottom-width: 1px; }
-        .is-4in .trip-grid-dense { gap: 0.12rem 0.35rem; }
-        .is-4in .trip-grid-dense dt { font-size: 0.6rem; }
-        .is-4in .trip-grid-dense dd { font-size: 0.68rem; margin-bottom: 0.08rem; }
+        /* Extra dense for roll paper */
+        .is-roll .section { margin-top: 0.35rem; }
+        .is-roll h2 { font-size: 0.72rem; margin-bottom: 0.15rem; border-bottom-width: 1px; }
+        .is-roll .trip-grid-dense { gap: 0.12rem 0.35rem; }
+        .is-roll .trip-grid-dense dt { font-size: 0.6rem; }
+        .is-roll .trip-grid-dense dd { font-size: 0.68rem; margin-bottom: 0.08rem; }
 
-        .is-4in .cargo-table { font-size: 9.5px; }
-        .is-4in .cargo-table th, .is-4in .cargo-table td { padding: 0.18rem 0.22rem; }
+        .is-roll .cargo-table { font-size: 9.5px; }
+        .is-roll .cargo-table th, .is-roll .cargo-table td { padding: 0.18rem 0.22rem; }
 
-        .is-4in header h1 { font-size: 0.95rem; margin-bottom: 0.15rem; }
-        .is-4in .sub { font-size: 0.65rem; margin-bottom: 0.5rem; }
-        .is-4in footer { margin-top: 0.6rem; padding-top: 0.4rem; font-size: 0.62rem; }
-        .is-4in .wrap { padding: 0.5rem 0.6rem 0.8rem; }
+        .is-roll header h1 { font-size: 0.95rem; margin-bottom: 0.15rem; }
+        .is-roll .sub { font-size: 0.65rem; margin-bottom: 0.5rem; }
+        .is-roll footer { margin-top: 0.6rem; padding-top: 0.4rem; font-size: 0.62rem; }
+        .is-roll .wrap { padding: 0.5rem 0.6rem 0.8rem; }
 
-        /* 4-inch vertical block layout */
+        /* Roll-paper vertical block layout */
         .cargo-blocks { display: none; }
-        .is-4in .cargo-table { display: none !important; }
-        .is-4in .cargo-blocks { display: block; }
+        .is-roll .cargo-table { display: none !important; }
+        .is-roll .cargo-blocks { display: block; }
         .cargo-block {
             border: 1px solid var(--border);
             border-radius: 3px;
@@ -166,6 +166,8 @@
             margin-top: 0.15rem;
         }
         .cargo-block .remark { font-size: 7px; color: #555; margin-top: 0.1rem; }
+        .is-3in .cargo-block { padding: 0.25rem 0.3rem; font-size: 10px; }
+        .is-3in .cargo-block .totals { flex-wrap: wrap; gap: 0.2rem 0.4rem; }
     </style>
     <script>
         function getPaperConfig(size) {
@@ -174,6 +176,8 @@
                     return { width: '148mm', margin: '8mm', baseFont: '9px', tableFont: '9px', thFont: '8px' };
                 case '4IN':
                     return { width: '101.6mm', margin: '4mm', baseFont: '8px', tableFont: '8px', thFont: '7px' };
+                case '3IN':
+                    return { width: '76.2mm', margin: '3mm', baseFont: '7px', tableFont: '7px', thFont: '6px' };
                 default:
                     return { width: '210mm', margin: '10mm', baseFont: '10px', tableFont: '10px', thFont: '9px' };
             }
@@ -202,11 +206,12 @@
             const wrap = document.querySelector('.wrap');
             if (wrap) wrap.style.maxWidth = cfg.width;
 
-            // Toggle narrow / 4in body classes
+            // Toggle narrow / roll-paper body classes
             const body = document.body;
-            body.classList.remove('is-narrow', 'is-4in');
+            body.classList.remove('is-narrow', 'is-roll', 'is-3in');
             if (size === 'A5') body.classList.add('is-narrow');
-            if (size === '4IN') body.classList.add('is-narrow', 'is-4in');
+            if (size === '4IN') body.classList.add('is-narrow', 'is-roll');
+            if (size === '3IN') body.classList.add('is-narrow', 'is-roll', 'is-3in');
 
             // Persist selection
             try { localStorage.setItem('warehouse.printPaperSize.v1', size); } catch (e) {}
@@ -223,7 +228,7 @@
                 saved = params.get('paper') || localStorage.getItem('warehouse.printPaperSize.v1');
             } catch (e) {}
 
-            if (saved && ['A4', 'A5', '4IN'].includes(saved)) {
+            if (saved && ['A4', 'A5', '4IN', '3IN'].includes(saved)) {
                 select.value = saved;
             }
             applyPaperSize();
@@ -242,6 +247,7 @@
                     <option value="A4">A4 (210 × 297 mm)</option>
                     <option value="A5">A5 (148 × 210 mm)</option>
                     <option value="4IN">4 inches (101.6 mm)</option>
+                    <option value="3IN">3 inches (76.2 mm)</option>
                 </select>
             </label>
             <button type="button" class="secondary" onclick="window.print()">Print</button>
@@ -279,7 +285,7 @@
                 </div>
                 <div>
                     <dt>Manifest printed</dt>
-                    <dd>{{ $trip->manifest_printed_at ? $trip->manifest_printed_at->timezone(config('app.timezone'))->format('Y-m-d H:i') : '—' }}</dd>
+                    <dd>{{ $trip->manifest_printed_at ? $trip->manifest_printed_at->timezone(config('app.timezone'))->format('d-m-Y H:i') : '—' }}</dd>
                 </div>
             </dl>
         </section>
@@ -386,7 +392,7 @@
         </section>
 
         <footer>
-            Generated {{ now()->timezone(config('app.timezone'))->format('Y-m-d H:i') }}
+            Generated {{ now()->timezone(config('app.timezone'))->format('d-m-Y H:i') }}
         </footer>
     </div>
 </body>

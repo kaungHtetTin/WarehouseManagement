@@ -51,6 +51,40 @@ class VoucherWizardLineFreightTest extends TestCase
         $this->assertSame(12.5, (float) $item->freight_amount);
     }
 
+    public function test_wizard_line_uses_selected_product_id_before_typed_name_lookup(): void
+    {
+        [$user, $voucher, $warehouse, $product] = $this->wizardFixtures();
+        $otherProduct = Product::factory()->create([
+            'organization_id' => $user->organization_id,
+            'name' => 'Typed product name',
+            'unit' => 'bag',
+        ]);
+
+        $payload = $this->minimalLinePayload($warehouse->id, $product->id);
+        $payload['product_name'] = $otherProduct->name;
+
+        $response = $this->actingAs($user)->post(route('admin.vouchers.wizard.lines.store', $voucher), $payload);
+
+        $response->assertRedirect();
+        $item = VoucherItem::query()->where('voucher_id', $voucher->id)->firstOrFail();
+        $this->assertSame($product->id, (int) $item->product_id);
+    }
+
+    public function test_wizard_line_updates_selected_master_product_unit(): void
+    {
+        [$user, $voucher, $warehouse, $product] = $this->wizardFixtures();
+
+        $payload = $this->minimalLinePayload($warehouse->id, $product->id);
+        $payload['unit'] = 'box';
+
+        $response = $this->actingAs($user)->post(route('admin.vouchers.wizard.lines.store', $voucher), $payload);
+
+        $response->assertRedirect();
+        $item = VoucherItem::query()->where('voucher_id', $voucher->id)->firstOrFail();
+        $this->assertSame('box', $item->unit);
+        $this->assertSame('box', $product->fresh()->unit);
+    }
+
     /**
      * @return array{0: User, 1: Voucher, 2: Warehouse, 3: Product}
      */

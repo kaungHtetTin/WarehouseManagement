@@ -11,15 +11,18 @@ class SetLocale
     {
         $supportedLocales = array_keys((array) config('app.supported_locales', ['en' => 'English']));
         $fallback = (string) config('app.fallback_locale', 'en');
+        $isPublicVoucherTracking = $request->route()?->named('public.voucher.track') ?? false;
 
-        $locale = $request->session()->get('locale')
-            ?? $request->cookie('locale')
-            ?? config('app.locale', $fallback);
+        $locale = $isPublicVoucherTracking
+            ? $request->query('locale', 'my')
+            : ($request->session()->get('locale')
+                ?? $request->cookie('locale')
+                ?? config('app.locale', $fallback));
 
-        $locale = (string) $locale;
+        $locale = is_string($locale) ? $locale : ($isPublicVoucherTracking ? 'my' : $fallback);
 
         if (! in_array($locale, $supportedLocales, true)) {
-            $locale = $fallback;
+            $locale = $isPublicVoucherTracking ? 'my' : $fallback;
         }
 
         app()->setLocale($locale);
@@ -27,4 +30,3 @@ class SetLocale
         return $next($request);
     }
 }
-

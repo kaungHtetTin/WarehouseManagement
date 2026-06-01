@@ -2784,6 +2784,7 @@ class TripManagementController extends Controller
             $trackingUrls[$voucherModel->id] = route('public.voucher.track', [
                 'org' => $organization->code,
                 'voucherNo' => $voucherModel->voucher_no,
+                'locale' => 'my',
             ]);
         }
 

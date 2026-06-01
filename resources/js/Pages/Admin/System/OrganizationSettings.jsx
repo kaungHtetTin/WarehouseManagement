@@ -29,6 +29,7 @@ import {
     Save as SaveIcon,
 } from '@mui/icons-material';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { formatPrintDate } from '@/utils/printing/dateFormat';
 
 const sectionCardSx = {
     p: { xs: 1.75, sm: 2 },
@@ -148,10 +149,16 @@ function VoucherPrintLivePreview({ voucher, template }) {
                         bgcolor: '#fff',
                     }}
                 >
-                    <Box sx={{ p: isReceipt ? 1.25 : 2 }}>
-                        <Stack spacing={1.25}>
-                            <Stack direction="row" spacing={2} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-                                <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', minWidth: 0 }}>
+                    <Box
+                        sx={{
+                            p: isReceipt ? 1.25 : 2,
+                            '& .MuiTypography-caption': { fontSize: isReceipt ? '12px' : '13px', lineHeight: 1.25 },
+                            '& .MuiTypography-subtitle2': { fontSize: '15px' },
+                        }}
+                    >
+                        <Stack spacing={1}>
+                            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
                                     {showLogo && logoUrl ? (
                                         <Box component="img" src={logoUrl} alt="Logo" sx={{ width: 40, height: 40, objectFit: 'contain', borderRadius: 1 }} />
                                     ) : null}
@@ -171,7 +178,7 @@ function VoucherPrintLivePreview({ voucher, template }) {
                                         {voucher?.voucher_no || '-'}
                                     </Typography>
                                     <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>
-                                        {voucher?.voucher_date || '-'}
+                                        {formatPrintDate(voucher?.voucher_date) || '-'}
                                     </Typography>
                                 </Box>
                             </Stack>
@@ -186,7 +193,7 @@ function VoucherPrintLivePreview({ voucher, template }) {
 
                             <Divider />
 
-                            <Box sx={{ display: 'grid', gridTemplateColumns: isReceipt ? '110px 1fr' : '140px 1fr', gap: '6px 12px' }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: isReceipt ? '110px 1fr' : '140px 1fr', gap: '3px 10px' }}>
                                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
                                     From warehouse
                                 </Typography>
@@ -252,7 +259,7 @@ function VoucherPrintLivePreview({ voucher, template }) {
                                         display: 'grid',
                                         gridTemplateColumns: isReceipt ? '36px 1fr 70px' : '52px 1fr 110px 80px',
                                         bgcolor: 'rgba(0,0,0,0.03)',
-                                        p: 1,
+                                        p: 0.75,
                                     }}
                                 >
                                     {(isReceipt ? ['No', 'Item', 'Qty'] : ['No', 'Item', 'Qty', 'Fragile']).map((header) => (
@@ -267,7 +274,7 @@ function VoucherPrintLivePreview({ voucher, template }) {
                                         sx={{
                                             display: 'grid',
                                             gridTemplateColumns: isReceipt ? '36px 1fr 70px' : '52px 1fr 110px 80px',
-                                            p: 1,
+                                            p: 0.75,
                                             borderTop: idx === 0 ? 'none' : '1px solid rgba(0,0,0,0.08)',
                                         }}
                                     >
@@ -292,7 +299,7 @@ function VoucherPrintLivePreview({ voucher, template }) {
 
                             <Stack direction="row" spacing={2} sx={{ justifyContent: 'flex-end' }}>
                                 <Box sx={{ minWidth: isReceipt ? 1 : 260, width: isReceipt ? '100%' : 'auto' }}>
-                                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px' }}>
+                                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px 10px' }}>
                                         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
                                             Client payable
                                         </Typography>

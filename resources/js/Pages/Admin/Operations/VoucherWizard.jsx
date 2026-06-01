@@ -143,6 +143,7 @@ const initialStep1 = () => ({
 });
 
 const emptyLineForm = () => ({
+    product_id: null,
     product_name: '',
     qty: '1',
     unit: '',
@@ -525,6 +526,21 @@ export default function VoucherWizard() {
         return () => window.clearTimeout(productDebounceRef.current);
     }, [lineForm.product_name, adminAppUrl, canWizard]);
 
+    useEffect(() => {
+        const typedName = (lineForm.product_name ?? '').trim().toLocaleLowerCase();
+        if (!typedName || lineForm.product_id != null) return;
+
+        const matches = productOptions.filter((option) => String(option?.name ?? '').trim().toLocaleLowerCase() === typedName);
+        if (matches.length !== 1) return;
+
+        const match = matches[0];
+        setLineForm((p) => ({
+            ...p,
+            product_id: match.id ?? null,
+            unit: match.unit ?? '',
+        }));
+    }, [lineForm.product_id, lineForm.product_name, productOptions]);
+
     const buildStep1Payload = useCallback(
         (overrides = {}) => {
             const totalWeightRaw = step1.total_weight;
@@ -607,6 +623,7 @@ export default function VoucherWizard() {
         };
 
         const base = {
+            product_id: lineForm.product_id,
             product_name: lineForm.product_name.trim(),
             qty,
             unit: lineForm.unit,
@@ -934,17 +951,25 @@ export default function VoucherWizard() {
                                             }}
                                             value={null}
                                             inputValue={lineForm.product_name}
-                                            onInputChange={(_, v) => setLineForm((p) => ({ ...p, product_name: v }))}
+                                            onInputChange={(_, v, reason) =>
+                                                setLineForm((p) => ({
+                                                    ...p,
+                                                    product_name: v,
+                                                    product_id: reason === 'input' ? null : p.product_id,
+                                                    unit: reason === 'input' ? '' : p.unit,
+                                                }))
+                                            }
                                             onChange={(_, v) => {
                                                 if (typeof v === 'string') {
-                                                    setLineForm((p) => ({ ...p, product_name: v }));
+                                                    setLineForm((p) => ({ ...p, product_id: null, product_name: v, unit: '' }));
                                                     return;
                                                 }
                                                 if (v && typeof v === 'object') {
                                                     setLineForm((p) => ({
                                                         ...p,
+                                                        product_id: v.id ?? null,
                                                         product_name: v.name ?? p.product_name,
-                                                        unit: v.unit || p.unit,
+                                                        unit: v.unit ?? '',
                                                     }));
                                                 }
                                             }}
@@ -958,7 +983,6 @@ export default function VoucherWizard() {
                                                 />
                                             )}
                                         />
-
                                         {lineError ? (
                                             <Alert severity="warning" sx={{ py: 0.5 }} onClose={() => setLineError('')}>
                                                 {lineError}

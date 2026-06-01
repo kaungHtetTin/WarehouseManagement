@@ -98,8 +98,8 @@ export function getPrintLayout(paperSize) {
 
     if (preset.type === 'roll') {
         const widthMm = roundMm(preset.widthMm);
-        const compactFont = clamp(Math.round(widthMm / 7), 7, 11);
-        const valueFont = clamp(compactFont + 1, 8, 12);
+        const compactFont = clamp(Math.round(widthMm / 7) + 1, 8, 12);
+        const valueFont = clamp(compactFont + 1, 9, 13);
         const keyColumnWidthMm = roundMm(clamp(widthMm * 0.34, 9, 30));
         const qrWidthPx = clamp(Math.round(widthMm * 3), 96, 260);
 
@@ -114,9 +114,22 @@ export function getPrintLayout(paperSize) {
             keyColumnWidth: `${keyColumnWidthMm}mm`,
             keyFontSize: `${compactFont}px`,
             valueFontSize: `${valueFont}px`,
+            titleFontSize: `${clamp(valueFont + 4, 13, 17)}px`,
+            metaFontSize: `${compactFont}px`,
+            sectionTitleFontSize: `${clamp(valueFont + 1, 10, 14)}px`,
+            tableFontSize: `${valueFont}px`,
             contentPadding: widthMm <= 30 ? 0.5 : widthMm <= 58 ? 1 : 1.25,
+            contentSpacing: widthMm <= 58 ? 0.35 : 0.5,
+            headerSpacing: widthMm <= 58 ? 0.75 : 1,
+            headerInnerSpacing: widthMm <= 58 ? 0.5 : 0.75,
+            kvColumnGap: widthMm <= 58 ? '5px' : '6px',
+            tableCellPaddingX: widthMm <= 58 ? 0.3 : 0.5,
+            tableCellPaddingY: 0.1,
+            qrTopPadding: 0.5,
+            footerTopPadding: 0.75,
+            policyTopPadding: 0.5,
             amountBoxMinWidth: '100%',
-            policyFontSize: `${clamp(compactFont, 7, 9)}px`,
+            policyFontSize: `${clamp(compactFont, 8, 10)}px`,
         };
     }
 
@@ -132,10 +145,23 @@ export function getPrintLayout(paperSize) {
         qrPreviewWidth: narrowSheet ? 220 : 260,
         qrImageSize: narrowSheet ? 120 : 140,
         keyColumnWidth: narrowSheet ? '32mm' : '38mm',
-        keyFontSize: narrowSheet ? '11px' : '12px',
-        valueFontSize: narrowSheet ? '11px' : '12px',
+        keyFontSize: narrowSheet ? '12px' : '13px',
+        valueFontSize: narrowSheet ? '12px' : '13px',
+        titleFontSize: '21px',
+        metaFontSize: '13px',
+        sectionTitleFontSize: '15px',
+        tableFontSize: '14px',
         contentPadding: narrowSheet ? 2 : widthMm >= 297 ? 3 : 2.5,
+        contentSpacing: 0.75,
+        headerSpacing: 1.5,
+        headerInnerSpacing: 1,
+        kvColumnGap: '8px',
+        tableCellPaddingX: 0.6,
+        tableCellPaddingY: 0.15,
+        qrTopPadding: 0.75,
+        footerTopPadding: 1,
+        policyTopPadding: 0.5,
         amountBoxMinWidth: narrowSheet ? '220px' : '260px',
-        policyFontSize: narrowSheet ? '8px' : '9px',
+        policyFontSize: narrowSheet ? '9px' : '10px',
     };
 }

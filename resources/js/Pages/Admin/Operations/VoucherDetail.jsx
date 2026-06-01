@@ -252,6 +252,7 @@ export default function VoucherDetail() {
     const voucher = pageProps.voucher;
     const adminAppUrl = pageProps.admin_app_url;
     const canRecordVoucherPayments = pageProps.can_record_voucher_payments ?? false;
+    const canManageVoucherDetails = pageProps.can_manage_voucher_details ?? false;
     const canManageVoucherLines = pageProps.can_manage_voucher_lines ?? false;
     const warehouses = pageProps.warehouses ?? [];
     const additionalCostCategories = pageProps.additional_cost_categories ?? [];
@@ -262,6 +263,7 @@ export default function VoucherDetail() {
     const [expandedPaymentId, setExpandedPaymentId] = useState(null);
     const [lineEditOpen, setLineEditOpen] = useState(false);
     const [lineEditItem, setLineEditItem] = useState(null);
+    const [detailsEditOpen, setDetailsEditOpen] = useState(false);
     const [additionalCostsEditOpen, setAdditionalCostsEditOpen] = useState(false);
 
     const paymentForm = useForm({
@@ -283,6 +285,12 @@ export default function VoucherDetail() {
     });
     const additionalCostsForm = useForm({
         additional_costs: [],
+    });
+    const detailsForm = useForm({
+        default_recipient_name: '',
+        default_recipient_phone: '',
+        default_destination_remark: '',
+        total_weight: '',
     });
 
     const openPaymentDialog = () => {
@@ -320,6 +328,23 @@ export default function VoucherDetail() {
         if (lineForm.processing) return;
         setLineEditOpen(false);
         setLineEditItem(null);
+    };
+
+    const openDetailsEdit = () => {
+        if (!canManageVoucherDetails || !voucher?.id) return;
+        detailsForm.setData({
+            default_recipient_name: voucher.default_recipient_name ?? '',
+            default_recipient_phone: voucher.default_recipient_phone ?? '',
+            default_destination_remark: voucher.default_destination_remark ?? '',
+            total_weight: voucher.total_weight != null ? String(Math.round(Number(voucher.total_weight))) : '',
+        });
+        detailsForm.clearErrors();
+        setDetailsEditOpen(true);
+    };
+
+    const closeDetailsEdit = () => {
+        if (detailsForm.processing) return;
+        setDetailsEditOpen(false);
     };
 
     const openAdditionalCostsEdit = () => {
@@ -374,6 +399,15 @@ export default function VoucherDetail() {
         lineForm.patch(`${adminAppUrl}/operations/vouchers/${voucher.id}/items/${lineEditItem.id}`, {
             preserveScroll: true,
             onSuccess: () => closeLineEdit(),
+        });
+    };
+
+    const submitDetailsEdit = (e) => {
+        e.preventDefault();
+        if (!voucher?.id) return;
+        detailsForm.patch(`${adminAppUrl}/operations/vouchers/${voucher.id}/details`, {
+            preserveScroll: true,
+            onSuccess: () => closeDetailsEdit(),
         });
     };
 
@@ -567,6 +601,11 @@ export default function VoucherDetail() {
                                     label={paymentLabels[voucher.payment_status] ?? voucher.payment_status}
                                     variant="outlined"
                                 />
+                                {canManageVoucherDetails ? (
+                                    <Button size="small" variant="outlined" startIcon={<EditIcon />} onClick={openDetailsEdit}>
+                                        {t('voucher_detail.actions.edit_details')}
+                                    </Button>
+                                ) : null}
                             </Stack>
                             <Typography variant="body2" color="text.secondary">
                                 {t('voucher_detail.read_only_hint')}
@@ -580,7 +619,7 @@ export default function VoucherDetail() {
                                     },
                                     { label: t('voucher_detail.fields.source_warehouse'), value: voucher.source_warehouse?.display_name || '—' },
                                     { label: t('voucher_detail.fields.total_qty'), value: voucher.total_qty != null ? String(voucher.total_qty) : null },
-                                    { label: t('voucher_detail.fields.weight'), value: voucher.total_weight != null ? String(voucher.total_weight) : null },
+                                    { label: t('voucher_detail.fields.weight'), value: voucher.total_weight != null ? String(Math.round(Number(voucher.total_weight))) : null },
                                     { label: t('voucher_detail.fields.client_payable'), value: formatMoneyAmount(clientPayableTotal) },
                                     { label: t('voucher_detail.fields.additional_costs_internal'), value: formatMoneyAmount(additionalCostsTotal) },
                                     { label: t('voucher_detail.fields.created_by'), value: voucher.creator?.name },
@@ -903,6 +942,70 @@ export default function VoucherDetail() {
                         )}
                     </Stack>
                 </Box>
+
+                <Dialog open={detailsEditOpen} onClose={closeDetailsEdit} fullWidth maxWidth="sm">
+                    <Box component="form" onSubmit={submitDetailsEdit} noValidate>
+                        <DialogTitle>{t('voucher_detail.edit_dialog.title')}</DialogTitle>
+                        <DialogContent>
+                            <Stack spacing={2} sx={{ mt: 1 }}>
+                                <TextField
+                                    required
+                                    label={t('voucher_detail.default_delivery.recipient_name')}
+                                    value={detailsForm.data.default_recipient_name}
+                                    onChange={(e) => detailsForm.setData('default_recipient_name', e.target.value)}
+                                    error={Boolean(detailsForm.errors.default_recipient_name)}
+                                    helperText={detailsForm.errors.default_recipient_name}
+                                    size="small"
+                                />
+                                <TextField
+                                    required
+                                    label={t('voucher_detail.default_delivery.recipient_phone')}
+                                    value={detailsForm.data.default_recipient_phone}
+                                    onChange={(e) => detailsForm.setData('default_recipient_phone', e.target.value)}
+                                    error={Boolean(detailsForm.errors.default_recipient_phone)}
+                                    helperText={detailsForm.errors.default_recipient_phone}
+                                    size="small"
+                                />
+                                <TextField
+                                    label={t('voucher_detail.default_delivery.destination_remark')}
+                                    multiline
+                                    minRows={2}
+                                    value={detailsForm.data.default_destination_remark}
+                                    onChange={(e) => detailsForm.setData('default_destination_remark', e.target.value)}
+                                    error={Boolean(detailsForm.errors.default_destination_remark)}
+                                    helperText={detailsForm.errors.default_destination_remark}
+                                    size="small"
+                                />
+                                <TextField
+                                    label={t('voucher_detail.fields.weight')}
+                                    type="number"
+                                    inputProps={{ step: '1', min: '0' }}
+                                    value={detailsForm.data.total_weight}
+                                    onChange={(e) => {
+                                        const raw = e.target.value;
+                                        if (raw == null || raw === '') {
+                                            detailsForm.setData('total_weight', '');
+                                            return;
+                                        }
+                                        const n = Number(raw);
+                                        detailsForm.setData('total_weight', Number.isFinite(n) ? String(Math.max(0, Math.round(n))) : '');
+                                    }}
+                                    error={Boolean(detailsForm.errors.total_weight)}
+                                    helperText={detailsForm.errors.total_weight}
+                                    size="small"
+                                />
+                            </Stack>
+                        </DialogContent>
+                        <DialogActions>
+                            <Button onClick={closeDetailsEdit} disabled={detailsForm.processing}>
+                                {t('ui.cancel')}
+                            </Button>
+                            <Button type="submit" variant="contained" disabled={detailsForm.processing}>
+                                {t('ui.save')}
+                            </Button>
+                        </DialogActions>
+                    </Box>
+                </Dialog>
 
                 <Dialog open={lineEditOpen} onClose={closeLineEdit} fullWidth maxWidth="sm">
                     <Box component="form" onSubmit={submitLineEdit} noValidate>

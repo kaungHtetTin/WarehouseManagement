@@ -215,6 +215,7 @@ class VoucherManagementController extends Controller
         return Inertia::render('Admin/Operations/VoucherDetail', [
             'voucher' => $model,
             'can_record_voucher_payments' => $user->hasPermission('payments.manage'),
+            'can_manage_voucher_details' => $user->hasPermission('vouchers.manage'),
             'can_manage_voucher_lines' => $user->hasPermission('vouchers.manage'),
             'warehouses' => $this->operationalContext->accessibleWarehousesForUi($user)->values(),
             'additional_cost_categories' => VoucherAdditionalCostCategory::query()
@@ -303,6 +304,7 @@ class VoucherManagementController extends Controller
             'tracking_url' => route('public.voucher.track', [
                 'org' => $organization->code,
                 'voucherNo' => $model->voucher_no,
+                'locale' => 'my',
             ]),
         ]);
     }
@@ -731,6 +733,70 @@ class VoucherManagementController extends Controller
         ]);
 
         return Redirect::back()->with('success', 'Line updated.');
+    }
+
+    public function updateDetails(Request $request, string $voucher): RedirectResponse
+    {
+        $actor = $request->user();
+        abort_if(! $actor->hasPermission('vouchers.manage'), 403);
+
+        $organizationId = $actor->organization_id;
+        abort_if($organizationId === null, 404);
+
+        $validated = $request->validate([
+            'default_recipient_name' => ['required', 'string', 'max:255'],
+            'default_recipient_phone' => ['required', 'string', 'max:64'],
+            'default_destination_remark' => ['nullable', 'string', 'max:2000'],
+            'total_weight' => ['nullable', 'integer', 'min:0'],
+        ]);
+
+        $voucherModel = Voucher::query()
+            ->whereKey($voucher)
+            ->where('organization_id', $organizationId)
+            ->firstOrFail();
+
+        abort_if($voucherModel->status === 'DRAFT', 404);
+
+        $before = $voucherModel->only([
+            'default_recipient_name',
+            'default_recipient_phone',
+            'default_destination_remark',
+            'total_weight',
+        ]);
+
+        DB::transaction(function () use ($organizationId, $voucherModel, $validated) {
+            $lockedVoucher = Voucher::query()
+                ->whereKey($voucherModel->id)
+                ->where('organization_id', $organizationId)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            abort_if($lockedVoucher->status === 'DRAFT', 404);
+
+            $remark = trim((string) ($validated['default_destination_remark'] ?? ''));
+            $lockedVoucher->fill([
+                'default_recipient_name' => trim((string) $validated['default_recipient_name']),
+                'default_recipient_phone' => trim((string) $validated['default_recipient_phone']),
+                'default_destination_remark' => $remark !== '' ? $remark : null,
+                'total_weight' => isset($validated['total_weight']) ? (int) $validated['total_weight'] : null,
+            ]);
+            $lockedVoucher->save();
+        });
+
+        $freshVoucher = $voucherModel->fresh();
+
+        AuditLogger::record($actor, 'voucher.details.update', $freshVoucher, [
+            'voucher_no' => $voucherModel->voucher_no,
+            'before' => $before,
+            'after' => $freshVoucher->only([
+                'default_recipient_name',
+                'default_recipient_phone',
+                'default_destination_remark',
+                'total_weight',
+            ]),
+        ]);
+
+        return Redirect::back()->with('success', 'Voucher details updated.');
     }
 
     public function updateAdditionalCosts(Request $request, string $voucher): RedirectResponse
