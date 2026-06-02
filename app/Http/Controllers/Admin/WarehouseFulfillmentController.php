@@ -191,8 +191,8 @@ class WarehouseFulfillmentController extends Controller
         $organizationId = $user->organization_id;
         abort_if($organizationId === null, 404);
 
-        $warehouses = $this->operationalContext->assignedWarehousesOnly($user);
-        $allowedIds = $this->operationalContext->assignedWarehouseIds($user);
+        $warehouses = $this->operationalContext->organizationWarehouses($user);
+        $allowedIds = $this->operationalContext->organizationWarehouseIds($user);
 
         $rawStatusFilter = (string) $request->query('status', 'pending');
         $selectedStatusFilter = in_array($rawStatusFilter, ['incoming', 'pending', 'completed', 'all'], true) ? $rawStatusFilter : 'pending';
@@ -295,7 +295,7 @@ class WarehouseFulfillmentController extends Controller
         if ($includeIncoming) {
             $incoming = $this->buildIncomingRows(
                 organizationId: (int) $organizationId,
-                assignedWarehouseIds: $allowedIds,
+                organizationWarehouseIds: $allowedIds,
                 warehouses: $warehouses,
                 warehouseFilter: $selectedFilter === 'all' ? null : (int) $selectedFilter,
             );
@@ -327,8 +327,8 @@ class WarehouseFulfillmentController extends Controller
         $organizationId = $user->organization_id;
         abort_if($organizationId === null, 404);
 
-        $warehouses = $this->operationalContext->assignedWarehousesOnly($user);
-        $allowedIds = $this->operationalContext->assignedWarehouseIds($user);
+        $warehouses = $this->operationalContext->organizationWarehouses($user);
+        $allowedIds = $this->operationalContext->organizationWarehouseIds($user);
 
         $rawFilter = $request->query('warehouse_id', 'all');
         $selectedFilter = 'all';
@@ -341,7 +341,7 @@ class WarehouseFulfillmentController extends Controller
 
         $incoming = $this->buildIncomingRows(
             organizationId: (int) $organizationId,
-            assignedWarehouseIds: $allowedIds,
+            organizationWarehouseIds: $allowedIds,
             warehouses: $warehouses,
             warehouseFilter: $selectedFilter === 'all' ? null : (int) $selectedFilter,
         );
@@ -357,9 +357,9 @@ class WarehouseFulfillmentController extends Controller
         ]);
     }
 
-    private function buildIncomingRows(int $organizationId, array $assignedWarehouseIds, $warehouses, ?int $warehouseFilter = null): array
+    private function buildIncomingRows(int $organizationId, array $organizationWarehouseIds, $warehouses, ?int $warehouseFilter = null): array
     {
-        if ($assignedWarehouseIds === []) {
+        if ($organizationWarehouseIds === []) {
             return [];
         }
 
@@ -410,7 +410,7 @@ class WarehouseFulfillmentController extends Controller
             if ($warehouseFilter !== null && $receivingWarehouseId !== $warehouseFilter) {
                 continue;
             }
-            if (! in_array($receivingWarehouseId, $assignedWarehouseIds, true)) {
+            if (! in_array($receivingWarehouseId, $organizationWarehouseIds, true)) {
                 continue;
             }
 
@@ -501,17 +501,17 @@ class WarehouseFulfillmentController extends Controller
             'note' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $assignedIds = $this->operationalContext->assignedWarehouseIds($actor);
+        $organizationWarehouseIds = $this->operationalContext->organizationWarehouseIds($actor);
 
         try {
-            DB::transaction(function () use ($validated, $organizationId, $instruction, $actor, $assignedIds) {
+            DB::transaction(function () use ($validated, $organizationId, $instruction, $actor, $organizationWarehouseIds) {
                 $row = WarehouseFulfillmentInstruction::query()
                     ->whereKey($instruction)
                     ->where('organization_id', $organizationId)
                     ->lockForUpdate()
                     ->firstOrFail();
 
-                if (! in_array((int) $row->warehouse_id, $assignedIds, true)) {
+                if (! in_array((int) $row->warehouse_id, $organizationWarehouseIds, true)) {
                     throw ValidationException::withMessages([
                         'qty' => ['You do not have access to process this warehouse queue.'],
                     ]);
@@ -558,7 +558,7 @@ class WarehouseFulfillmentController extends Controller
                         ]);
                     }
 
-                    if (! in_array($nextWarehouseId, $assignedIds, true)) {
+                    if (! in_array($nextWarehouseId, $organizationWarehouseIds, true)) {
                         throw ValidationException::withMessages([
                             'next_warehouse_id' => ['You cannot forward to this warehouse with your current access.'],
                         ]);
@@ -629,15 +629,15 @@ class WarehouseFulfillmentController extends Controller
             'note' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $assignedIds = $this->operationalContext->assignedWarehouseIds($actor);
+        $organizationWarehouseIds = $this->operationalContext->organizationWarehouseIds($actor);
         $warehouseId = (int) $warehouse;
         $voucherId = (int) $voucher;
 
         try {
             $processed = 0;
 
-            DB::transaction(function () use ($validated, $organizationId, $actor, $assignedIds, $warehouseId, $voucherId, &$processed) {
-                if (! in_array($warehouseId, $assignedIds, true)) {
+            DB::transaction(function () use ($validated, $organizationId, $actor, $organizationWarehouseIds, $warehouseId, $voucherId, &$processed) {
+                if (! in_array($warehouseId, $organizationWarehouseIds, true)) {
                     throw ValidationException::withMessages([
                         'action_type' => ['You do not have access to process this warehouse queue.'],
                     ]);
@@ -659,7 +659,7 @@ class WarehouseFulfillmentController extends Controller
                             'next_warehouse_id' => ['Forward warehouse must be different from current warehouse.'],
                         ]);
                     }
-                    if (! in_array($nextWarehouseId, $assignedIds, true)) {
+                    if (! in_array($nextWarehouseId, $organizationWarehouseIds, true)) {
                         throw ValidationException::withMessages([
                             'next_warehouse_id' => ['You cannot forward to this warehouse with your current access.'],
                         ]);

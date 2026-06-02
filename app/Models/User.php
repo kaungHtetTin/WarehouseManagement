@@ -14,12 +14,6 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
 
-    private const WAREHOUSE_ACCESS_RANK = [
-        'VIEW' => 1,
-        'OPERATE' => 2,
-        'MANAGE' => 3,
-    ];
-
     /**
      * The attributes that are mass assignable.
      *
@@ -92,11 +86,6 @@ class User extends Authenticatable
         return $this->belongsToMany(Warehouse::class, 'user_warehouse_access')->withPivot('access_level');
     }
 
-    public function bypassesWarehouseScope(): bool
-    {
-        return $this->is_platform_admin || $this->hasPermission('warehouses.manage');
-    }
-
     public function canAccessWarehouse(int|Warehouse $warehouse, string $minimumLevel = 'VIEW'): bool
     {
         $warehouseModel = $warehouse instanceof Warehouse
@@ -107,24 +96,7 @@ class User extends Authenticatable
             return false;
         }
 
-        if ($warehouseModel->organization_id !== $this->organization_id) {
-            return false;
-        }
-
-        if ($this->bypassesWarehouseScope()) {
-            return true;
-        }
-
-        $attached = $this->warehouses()->where('warehouses.id', $warehouseModel->id)->first();
-
-        if (! $attached) {
-            return false;
-        }
-
-        $required = self::WAREHOUSE_ACCESS_RANK[$minimumLevel] ?? 1;
-        $granted = self::WAREHOUSE_ACCESS_RANK[$attached->pivot->access_level] ?? 0;
-
-        return $granted >= $required;
+        return $warehouseModel->organization_id === $this->organization_id;
     }
 
     /**

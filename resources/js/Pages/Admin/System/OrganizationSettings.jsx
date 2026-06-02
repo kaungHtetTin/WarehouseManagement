@@ -944,6 +944,8 @@ export default function OrganizationSettings() {
                                                     value={voucherPrintForm.data.contact_phone}
                                                     onChange={(e) => voucherPrintForm.setData('contact_phone', e.target.value)}
                                                     error={Boolean(voucherPrintForm.errors.contact_phone)}
+                                                    helperText={voucherPrintForm.errors.contact_phone || `${voucherPrintForm.data.contact_phone.length} / 50`}
+                                                    inputProps={{ maxLength: 50 }}
                                                 />
                                             </Grid>
                                             <Grid size={{ xs: 12, sm: 6 }}>
@@ -954,6 +956,8 @@ export default function OrganizationSettings() {
                                                     value={voucherPrintForm.data.contact_email}
                                                     onChange={(e) => voucherPrintForm.setData('contact_email', e.target.value)}
                                                     error={Boolean(voucherPrintForm.errors.contact_email)}
+                                                    helperText={voucherPrintForm.errors.contact_email || `${voucherPrintForm.data.contact_email.length} / 50`}
+                                                    inputProps={{ maxLength: 50 }}
                                                 />
                                             </Grid>
                                             <Grid size={{ xs: 12 }}>

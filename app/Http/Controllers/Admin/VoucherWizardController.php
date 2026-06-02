@@ -82,7 +82,7 @@ class VoucherWizardController extends Controller
 
         return Inertia::render('Admin/Operations/VoucherWizard', [
             'voucher' => $voucher,
-            'warehouses' => $this->operationalContext->assignedWarehousesOnly($request->user()),
+            'warehouses' => $this->operationalContext->organizationWarehouses($request->user()),
             'categories' => Category::query()
                 ->where('organization_id', $organizationId)
                 ->orderBy('name')

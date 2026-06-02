@@ -18,7 +18,8 @@ class WarehouseManagementController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
-        $warehouses = $this->scopedWarehouses($user)
+        $warehouses = Warehouse::query()
+            ->where('organization_id', $user->organization_id)
             ->orderBy('city')
             ->orderBy('id')
             ->get(['id', 'organization_id', 'city', 'address', 'updated_at']);
@@ -38,16 +39,12 @@ class WarehouseManagementController extends Controller
             'address' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $warehouse = DB::transaction(function () use ($validated, $organizationId, $actor) {
-            $warehouse = Warehouse::query()->create([
+        $warehouse = DB::transaction(function () use ($validated, $organizationId) {
+            return Warehouse::query()->create([
                 'organization_id' => $organizationId,
                 'city' => $validated['city'],
                 'address' => $validated['address'] ?? null,
             ]);
-
-            $this->autoAssignWarehouseAccess($warehouse, $actor);
-
-            return $warehouse;
         });
 
         AuditLogger::record($actor, 'warehouse.create', $warehouse, [
@@ -100,19 +97,6 @@ class WarehouseManagementController extends Controller
         return Redirect::route('admin.warehouses.index')->with('success', 'Warehouse deleted successfully.');
     }
 
-    private function scopedWarehouses(User $user)
-    {
-        $query = Warehouse::query()->where('organization_id', $user->organization_id);
-
-        if ($user->bypassesWarehouseScope()) {
-            return $query;
-        }
-
-        $ids = $user->warehouses()->pluck('warehouses.id');
-
-        return $query->whereIn('id', $ids);
-    }
-
     private function resolveTenantWarehouse(User $user, string $warehouseId): Warehouse
     {
         abort_if($user->organization_id === null, 404);
@@ -121,29 +105,5 @@ class WarehouseManagementController extends Controller
             ->whereKey($warehouseId)
             ->where('organization_id', $user->organization_id)
             ->firstOrFail();
-    }
-
-    private function autoAssignWarehouseAccess(Warehouse $warehouse, User $actor): void
-    {
-        $organizationId = (int) $actor->organization_id;
-
-        $superAdminIds = User::query()
-            ->where('organization_id', $organizationId)
-            ->whereHas('roles', fn ($query) => $query->where('code', 'super_admin'))
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
-
-        $userIds = collect($superAdminIds)
-            ->push((int) $actor->id)
-            ->unique()
-            ->values()
-            ->all();
-
-        $syncPayload = collect($userIds)
-            ->mapWithKeys(fn (int $id) => [$id => ['access_level' => 'MANAGE']])
-            ->all();
-
-        $warehouse->usersWithAccess()->syncWithoutDetaching($syncPayload);
     }
 }

@@ -42,15 +42,13 @@ const initialForm = {
     status: 'ACTIVE',
     role_ids: [],
     password: '',
-    warehouse_ids: [],
-    warehouse_access_level: 'VIEW',
 };
 
 export default function UsersIndex() {
     const theme = useTheme();
     const isCompactList = useMediaQuery(theme.breakpoints.down('md'));
     const t = useT();
-    const { users = [], roles = [], warehouses = [], admin_app_url: adminAppUrl, flash = {} } = usePage().props;
+    const { users = [], roles = [], admin_app_url: adminAppUrl, flash = {} } = usePage().props;
     const [open, setOpen] = useState(false);
     const [form, setForm] = useState(initialForm);
     const [error, setError] = useState('');
@@ -86,7 +84,6 @@ export default function UsersIndex() {
     };
 
     const openEdit = (user) => {
-        const assigned = user.warehouses || [];
         setForm({
             id: user.id,
             name: user.name ?? '',
@@ -94,8 +91,6 @@ export default function UsersIndex() {
             status: user.status ?? 'ACTIVE',
             role_ids: (user.roles || []).map((role) => role.id),
             password: '',
-            warehouse_ids: assigned.map((w) => w.id),
-            warehouse_access_level: assigned[0]?.pivot?.access_level ?? 'VIEW',
         });
         setError('');
         setOpen(true);
@@ -118,8 +113,6 @@ export default function UsersIndex() {
             email: form.email,
             status: form.status,
             role_ids: form.role_ids,
-            warehouse_ids: form.warehouse_ids,
-            warehouse_access_level: form.warehouse_access_level,
         };
 
         if (!form.id && form.password) {
@@ -360,43 +353,6 @@ export default function UsersIndex() {
                                 ))}
                             </Select>
                         </FormControl>
-                        <FormControl fullWidth>
-                            <InputLabel>{t('iam.users.fields.warehouse_access')}</InputLabel>
-                            <Select
-                                label={t('iam.users.fields.warehouse_access')}
-                                multiple
-                                value={form.warehouse_ids}
-                                onChange={(e) => setForm((prev) => ({ ...prev, warehouse_ids: e.target.value }))}
-                                renderValue={(selected) =>
-                                    selected
-                                        .map((id) => warehouses.find((w) => w.id === id)?.display_name || id)
-                                        .join(', ')
-                                }
-                                disabled={warehouses.length === 0}
-                            >
-                                {warehouses.map((warehouse) => (
-                                    <MenuItem key={warehouse.id} value={warehouse.id}>
-                                        {warehouse.display_name || warehouse.city}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                        <FormControl fullWidth>
-                            <InputLabel>{t('iam.users.fields.warehouse_access_level')}</InputLabel>
-                            <Select
-                                label={t('iam.users.fields.warehouse_access_level')}
-                                value={form.warehouse_access_level}
-                                onChange={(e) => setForm((prev) => ({ ...prev, warehouse_access_level: e.target.value }))}
-                                disabled={form.warehouse_ids.length === 0}
-                            >
-                                <MenuItem value="VIEW">VIEW</MenuItem>
-                                <MenuItem value="OPERATE">OPERATE</MenuItem>
-                                <MenuItem value="MANAGE">MANAGE</MenuItem>
-                            </Select>
-                        </FormControl>
-                        <Typography variant="caption" color="text.secondary">
-                            {t('iam.users.warehouse_access_hint')}
-                        </Typography>
                     </Stack>
                 </DialogContent>
                 <DialogActions>

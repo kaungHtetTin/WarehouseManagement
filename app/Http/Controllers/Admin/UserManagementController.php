@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Role;
 use App\Models\User;
-use App\Models\Warehouse;
 use App\Services\Audit\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -29,16 +28,9 @@ class UserManagementController extends Controller
             ->select(['id', 'name', 'code'])
             ->orderBy('name')
             ->get();
-        $warehouses = Warehouse::query()
-            ->where('organization_id', $user->organization_id)
-            ->orderBy('city')
-            ->orderBy('id')
-            ->get(['id', 'city', 'address']);
-
         return Inertia::render('Admin/Iam/UsersIndex', [
             'users' => $users,
             'roles' => $roles,
-            'warehouses' => $warehouses,
         ]);
     }
 
@@ -60,9 +52,6 @@ class UserManagementController extends Controller
             'role_ids' => ['nullable', 'array'],
             'role_ids.*' => ['integer'],
             'password' => ['nullable', 'string', 'min:8'],
-            'warehouse_ids' => ['nullable', 'array'],
-            'warehouse_ids.*' => ['integer'],
-            'warehouse_access_level' => ['nullable', Rule::in(['VIEW', 'OPERATE', 'MANAGE'])],
         ]);
 
         $newUser = User::query()->create([
@@ -74,13 +63,6 @@ class UserManagementController extends Controller
         ]);
 
         $this->syncTenantRoles($newUser, $validated['role_ids'] ?? [], $organizationId);
-        $this->syncWarehouseAccess(
-            $newUser,
-            $validated['warehouse_ids'] ?? [],
-            $validated['warehouse_access_level'] ?? 'VIEW',
-            $organizationId
-        );
-
         AuditLogger::record($actor, 'iam.user.create', $newUser, [
             'email' => $newUser->email,
         ]);
@@ -118,9 +100,6 @@ class UserManagementController extends Controller
             'status' => ['sometimes', Rule::in(['ACTIVE', 'INACTIVE'])],
             'role_ids' => ['sometimes', 'array'],
             'role_ids.*' => ['integer'],
-            'warehouse_ids' => ['sometimes', 'array'],
-            'warehouse_ids.*' => ['integer'],
-            'warehouse_access_level' => ['sometimes', Rule::in(['VIEW', 'OPERATE', 'MANAGE'])],
         ]);
 
         if (array_key_exists('status', $validated) && $user->id === $actor->id && $validated['status'] === 'INACTIVE') {
@@ -132,15 +111,6 @@ class UserManagementController extends Controller
 
         if (array_key_exists('role_ids', $validated)) {
             $this->syncTenantRoles($user, $validated['role_ids'], $organizationId);
-        }
-
-        if (array_key_exists('warehouse_ids', $validated)) {
-            $this->syncWarehouseAccess(
-                $user,
-                $validated['warehouse_ids'],
-                $validated['warehouse_access_level'] ?? 'VIEW',
-                $organizationId
-            );
         }
 
         AuditLogger::record($actor, 'iam.user.update', $user, [
@@ -204,23 +174,9 @@ class UserManagementController extends Controller
             ->where('organization_id', $organizationId)
             ->with([
                 'roles:id,name,code',
-                'warehouses:id,city,address',
             ])
             ->select(['id', 'organization_id', 'name', 'email', 'status', 'last_login_at', 'created_at'])
             ->latest('id')
             ->get();
-    }
-
-    private function syncWarehouseAccess(User $user, array $warehouseIds, string $accessLevel, int $organizationId): void
-    {
-        $validIds = Warehouse::query()
-            ->where('organization_id', $organizationId)
-            ->whereIn('id', $warehouseIds)
-            ->pluck('id')
-            ->all();
-
-        $syncPayload = collect($validIds)->mapWithKeys(fn (int $id) => [$id => ['access_level' => $accessLevel]])->all();
-
-        $user->warehouses()->sync($syncPayload);
     }
 }

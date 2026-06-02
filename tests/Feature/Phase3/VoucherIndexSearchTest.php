@@ -17,7 +17,7 @@ class VoucherIndexSearchTest extends TestCase
 
     public function test_voucher_index_search_matches_voucher_number_recipient_name_and_phone(): void
     {
-        [$user, $warehouse] = $this->createViewerWithAssignedWarehouse();
+        [$user, $warehouse] = $this->createViewerWithOrganizationWarehouse();
 
         $voucherByNumber = $this->createVoucher($user, $warehouse, [
             'voucher_no' => 'V-MPPKGPCDKIR',
@@ -79,7 +79,7 @@ class VoucherIndexSearchTest extends TestCase
 
     public function test_voucher_index_can_filter_by_source_warehouse(): void
     {
-        [$user, $warehouses] = $this->createViewerWithAssignedWarehouses(2);
+        [$user, $warehouses] = $this->createViewerWithOrganizationWarehouses(2);
         [$sourceWarehouseA, $sourceWarehouseB] = $warehouses;
 
         $voucherFromA = $this->createVoucher($user, $sourceWarehouseA, [
@@ -111,9 +111,9 @@ class VoucherIndexSearchTest extends TestCase
     /**
      * @return array{0: User, 1: Warehouse}
      */
-    private function createViewerWithAssignedWarehouse(): array
+    private function createViewerWithOrganizationWarehouse(): array
     {
-        [$user, $warehouses] = $this->createViewerWithAssignedWarehouses(1);
+        [$user, $warehouses] = $this->createViewerWithOrganizationWarehouses(1);
 
         return [$user, $warehouses[0]];
     }
@@ -144,7 +144,7 @@ class VoucherIndexSearchTest extends TestCase
     /**
      * @return array{0: User, 1: array<int, Warehouse>}
      */
-    private function createViewerWithAssignedWarehouses(int $count): array
+    private function createViewerWithOrganizationWarehouses(int $count): array
     {
         $organization = Organization::factory()->create();
         $warehouses = Warehouse::factory()->count($count)->create([
@@ -168,10 +168,6 @@ class VoucherIndexSearchTest extends TestCase
         ]);
         $role->permissions()->sync([$permission->id]);
         $user->roles()->syncWithoutDetaching([$role->id]);
-        foreach ($warehouses as $warehouse) {
-            $user->warehouses()->attach($warehouse->id, ['access_level' => 'VIEW']);
-        }
-
         return [$user, $warehouses->all()];
     }
 }

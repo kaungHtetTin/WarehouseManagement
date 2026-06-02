@@ -57,7 +57,7 @@ class TripManagementController extends Controller
 
         $actor = $request->user();
 
-        $filterWarehouses = $this->operationalContext->assignedWarehousesOnly($actor);
+        $filterWarehouses = $this->operationalContext->organizationWarehouses($actor);
 
         $allowedDestinationIds = $filterWarehouses->pluck('id')->map(fn ($id) => (int) $id)->all();
 
@@ -130,11 +130,11 @@ class TripManagementController extends Controller
 
         $user = $request->user();
 
-        $assigned = $this->operationalContext->assignedWarehousesOnly($user)->values();
+        $warehouses = $this->operationalContext->organizationWarehouses($user)->values();
 
         return Inertia::render('Admin/Operations/TripCreate', [
-            'operatingWarehouses' => $assigned,
-            'routingWarehouses' => $assigned,
+            'operatingWarehouses' => $warehouses,
+            'routingWarehouses' => $warehouses,
             'defaultDestinationWarehouseId' => $this->operationalContext->resolveCurrentWarehouseId($user, $request),
         ]);
     }
@@ -3470,7 +3470,7 @@ class TripManagementController extends Controller
 
     private function userMayMutateTripSourceWarehouse(User $user, Trip $trip): bool
     {
-        $ids = $this->operationalContext->assignedWarehouseIds($user);
+        $ids = $this->operationalContext->organizationWarehouseIds($user);
 
         return $ids !== [] && in_array((int) $trip->source_warehouse_id, $ids, true);
     }

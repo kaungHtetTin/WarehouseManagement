@@ -38,8 +38,8 @@ class VoucherManagementController extends Controller
         $organizationId = $user->organization_id;
         abort_if($organizationId === null, 404);
 
-        $warehouses = $this->operationalContext->assignedWarehousesOnly($user);
-        $allowedWarehouseIds = $this->operationalContext->assignedWarehouseIds($user);
+        $warehouses = $this->operationalContext->organizationWarehouses($user);
+        $allowedWarehouseIds = $this->operationalContext->organizationWarehouseIds($user);
 
         $rawWarehouseFilter = (string) $request->query('destination_warehouse_id', 'all');
         $warehouseFilter = 'all';

@@ -33,6 +33,37 @@ class WarehouseTenantIsolationTest extends TestCase
         ]);
     }
 
+    public function test_user_with_permission_can_view_all_organization_warehouses_without_assignments(): void
+    {
+        [$organization, $actingUser] = $this->createTenantUser();
+        $this->grantPermission($actingUser, 'warehouses.view');
+
+        $warehouse = Warehouse::factory()->create([
+            'organization_id' => $organization->id,
+        ]);
+
+        $this->actingAs($actingUser)
+            ->get(route('admin.warehouses.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Master/WarehousesIndex')
+                ->has('warehouses', 1)
+                ->where('warehouses.0.id', $warehouse->id)
+                ->etc());
+    }
+
+    public function test_user_can_access_any_organization_warehouse_but_not_another_tenant(): void
+    {
+        [$organization, $actingUser] = $this->createTenantUser();
+        $warehouse = Warehouse::factory()->create([
+            'organization_id' => $organization->id,
+        ]);
+        $foreignWarehouse = Warehouse::factory()->create();
+
+        $this->assertTrue($actingUser->canAccessWarehouse($warehouse, 'MANAGE'));
+        $this->assertFalse($actingUser->canAccessWarehouse($foreignWarehouse));
+    }
+
     public function test_cannot_update_warehouse_from_other_tenant(): void
     {
         [$organization, $actingUser] = $this->createTenantUser();
@@ -67,8 +98,6 @@ class WarehouseTenantIsolationTest extends TestCase
             'email' => 'operator@example.test',
             'status' => 'ACTIVE',
             'role_ids' => [],
-            'warehouse_ids' => [],
-            'warehouse_access_level' => 'VIEW',
             'password' => 'password123',
         ]);
 

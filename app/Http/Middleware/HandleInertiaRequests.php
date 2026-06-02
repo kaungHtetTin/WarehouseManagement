@@ -104,7 +104,7 @@ class HandleInertiaRequests extends Middleware
 
         /** @var OperationalWarehouseContext $ctx */
         $ctx = app(OperationalWarehouseContext::class);
-        $allowedIds = $ctx->assignedWarehouseIds($user);
+        $allowedIds = $ctx->organizationWarehouseIds($user);
         if ($allowedIds === []) {
             return 0;
         }
@@ -153,7 +153,7 @@ class HandleInertiaRequests extends Middleware
 
         /** @var OperationalWarehouseContext $ctx */
         $ctx = app(OperationalWarehouseContext::class);
-        $allowedIds = $ctx->assignedWarehouseIds($user);
+        $allowedIds = $ctx->organizationWarehouseIds($user);
         if ($allowedIds === []) {
             return 0;
         }
@@ -213,7 +213,7 @@ class HandleInertiaRequests extends Middleware
 
         /** @var OperationalWarehouseContext $ctx */
         $ctx = app(OperationalWarehouseContext::class);
-        $allowedIds = $ctx->assignedWarehouseIds($user);
+        $allowedIds = $ctx->organizationWarehouseIds($user);
         if ($allowedIds === []) {
             return 0;
         }
@@ -243,7 +243,7 @@ class HandleInertiaRequests extends Middleware
 
         /** @var OperationalWarehouseContext $ctx */
         $ctx = app(OperationalWarehouseContext::class);
-        $allowedIds = $ctx->assignedWarehouseIds($user);
+        $allowedIds = $ctx->organizationWarehouseIds($user);
         if ($allowedIds === []) {
             return 0;
         }

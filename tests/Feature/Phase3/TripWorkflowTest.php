@@ -83,8 +83,6 @@ class TripWorkflowTest extends TestCase
             'status' => 'ACTIVE',
         ]);
         $this->grantPermissions($user, ['trips.manage', 'trips.view']);
-        $user->warehouses()->attach($destinationWarehouse->id, ['access_level' => 'MANAGE']);
-
         $response = $this->actingAs($user)->post(route('admin.trips.store'), [
             'vehicle_id' => null,
             'vehicle' => [
