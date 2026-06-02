@@ -79,6 +79,36 @@ const SECTION_CARD_SX = {
     boxShadow: 'none',
 };
 
+const OPERATIONAL_SUMMARY_GRID_SX = {
+    display: 'grid',
+    gridTemplateColumns: {
+        xs: 'minmax(0, 1fr)',
+        sm: 'repeat(2, minmax(0, 1fr))',
+        md: 'repeat(3, minmax(0, 1fr))',
+    },
+    gap: '1px',
+    overflow: 'hidden',
+    border: '1px solid',
+    borderColor: 'divider',
+    borderRadius: 1.5,
+    bgcolor: 'divider',
+};
+
+const OPERATIONAL_METADATA_GRID_SX = {
+    ...OPERATIONAL_SUMMARY_GRID_SX,
+    gridTemplateColumns: {
+        xs: 'minmax(0, 1fr)',
+        sm: 'repeat(2, minmax(0, 1fr))',
+        lg: 'repeat(4, minmax(0, 1fr))',
+    },
+};
+
+const OPERATIONAL_SUMMARY_CELL_SX = {
+    minWidth: 0,
+    p: { xs: 1.25, sm: 1.5 },
+    bgcolor: 'background.paper',
+};
+
 function tripProgressActiveStep(status) {
     if (status === 'COMPLETED') {
         return 2;
@@ -374,6 +404,8 @@ export default function TripDetail() {
     }, [trip?.vehicle?.capacity_weight]);
 
     const [selectedVoucherMap, setSelectedVoucherMap] = useState(() => ({}));
+    const [loadableVoucherExpanded, setLoadableVoucherExpanded] = useState(() => ({}));
+    const [operationalStatsExpanded, setOperationalStatsExpanded] = useState(false);
     const [loadBatchProcessing, setLoadBatchProcessing] = useState(false);
 
     useEffect(() => {
@@ -473,6 +505,7 @@ export default function TripDetail() {
     const [departDialogOpen, setDepartDialogOpen] = useState(false);
     const [undoDepartDialogOpen, setUndoDepartDialogOpen] = useState(false);
     const [statusActionSaving, setStatusActionSaving] = useState(false);
+    const [tripActionsAnchorEl, setTripActionsAnchorEl] = useState(null);
     const [itemRowMenu, setItemRowMenu] = useState(null);
     const [itemDeliveryDialog, setItemDeliveryDialog] = useState(null);
     const [itemDeliverySaving, setItemDeliverySaving] = useState(false);
@@ -852,21 +885,16 @@ export default function TripDetail() {
                                 {t('trip_detail.back_to_trips')}
                             </Button>
                             <Button
-                                component="a"
-                                href={`${adminAppUrl}/operations/trips/${trip.id}/manifest`}
-                                target="_blank"
-                                rel="noopener noreferrer"
                                 variant="outlined"
                                 size="small"
-                                startIcon={<ArticleOutlinedIcon />}
+                                startIcon={<MoreVertIcon />}
+                                onClick={(e) => setTripActionsAnchorEl(e.currentTarget)}
+                                aria-controls={tripActionsAnchorEl ? 'trip-actions-menu' : undefined}
+                                aria-haspopup="true"
+                                aria-expanded={Boolean(tripActionsAnchorEl)}
                             >
-                                {t('trip_detail.actions.driver_manifest')}
+                                {t('trip_detail.actions.trip_actions')}
                             </Button>
-                            {canDeleteTrip ? (
-                                <Button variant="outlined" color="error" size="small" startIcon={<DeleteOutlineIcon />} onClick={deleteTrip}>
-                                    {t('trip_detail.actions.delete_trip')}
-                                </Button>
-                            ) : null}
                         </Stack>
                     }
                 >
@@ -891,179 +919,208 @@ export default function TripDetail() {
 
                 <Paper variant="outlined" sx={SECTION_CARD_SX}>
                     <Stack spacing={2}>
-                        <Box>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                                Operational summary
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                Core trip, finance, and assignment details for dispatch review.
-                            </Typography>
-                        </Box>
-                        <Grid container spacing={2.5}>
-                            <Grid item xs={12} sm={6} md={4}>
+                        <Stack
+                            direction={{ xs: 'column', sm: 'row' }}
+                            spacing={1}
+                            sx={{ justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' } }}
+                        >
+                            <Box>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                                    Operational summary
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    Core trip, finance, and assignment details for dispatch review.
+                                </Typography>
+                            </Box>
+                            {Number(tripNetIncomeEligibility?.pending_delivery_lines ?? 0) > 0 ? (
+                                <Chip
+                                    size="small"
+                                    color="warning"
+                                    variant="outlined"
+                                    label={t('trip_detail.net_income.requirements.pending_delivery_lines', {
+                                        count: Number(tripNetIncomeEligibility.pending_delivery_lines),
+                                    })}
+                                />
+                            ) : null}
+                        </Stack>
+                        <Box sx={OPERATIONAL_METADATA_GRID_SX}>
+                            <Box sx={OPERATIONAL_SUMMARY_CELL_SX}>
                                 <Typography variant="caption" color="text.secondary">
                                     {t('trips.labels.vehicle')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
                                     {trip.vehicle ? `${trip.vehicle.vehicle_no} (${trip.vehicle.vehicle_type})` : '—'}
                                 </Typography>
-                            </Grid>
-                            <Grid item xs={12} sm={6} md={4}>
+                            </Box>
+                            <Box sx={OPERATIONAL_SUMMARY_CELL_SX}>
                                 <Typography variant="caption" color="text.secondary">
                                     {t('trips.labels.destination_warehouse')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
                                     {destinationWarehouseName}
                                 </Typography>
-                            </Grid>
-                            <Grid item xs={12} sm={6} md={4}>
+                            </Box>
+                            <Box sx={OPERATIONAL_SUMMARY_CELL_SX}>
                                 <Typography variant="caption" color="text.secondary">
                                     {t('trip_detail.labels.driver')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
                                     {[trip.driver_name, trip.driver_phone].filter(Boolean).join(' · ') || '—'}
                                 </Typography>
-                            </Grid>
-                            <Grid item xs={12} sm={6} md={4}>
-                                <Typography variant="caption" color="text.secondary">
-                                    {t('trip_detail.labels.total_weight')}
-                                </Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
-                                    {formatFixed(tripTotalWeight, 0)}
-                                </Typography>
-                            </Grid>
-                            <Grid item xs={12} sm={6} md={4}>
-                                <Typography variant="caption" color="text.secondary">
-                                    {t('trip_detail.labels.labor_cost')}
-                                </Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
-                                    {formatFixed(tripLaborCost, 0)}
-                                </Typography>
-                            </Grid>
-                            <Grid item xs={12} sm={6} md={4}>
-                                <Typography variant="caption" color="text.secondary">
-                                    {t('trip_detail.labels.trip_extra_costs')}
-                                </Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
-                                    {formatFixed(tripExtraCostTotal, 0)}
-                                </Typography>
-                            </Grid>
-                            <Grid item xs={12} sm={6} md={4}>
-                                <Typography variant="caption" color="text.secondary">
-                                    {t('trip_detail.labels.total_trip_cost')}
-                                </Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
-                                    {formatFixed(tripTotalCost, 0)}
-                                </Typography>
-                            </Grid>
-                            <Grid item xs={12} sm={6} md={4}>
-                                <Typography variant="caption" color="text.secondary">
-                                    {t('trip_detail.labels.voucher_billed')}
-                                </Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
-                                    {formatFixed(voucherFinanceSummary.billedTotal, 0)}
-                                </Typography>
-                            </Grid>
-                            <Grid item xs={12} sm={6} md={4}>
-                                <Typography variant="caption" color="text.secondary">
-                                    {t('trip_detail.labels.voucher_collected')}
-                                </Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
-                                    {formatFixed(voucherFinanceSummary.collectedTotal, 0)}
-                                </Typography>
-                            </Grid>
-                            <Grid item xs={12} sm={6} md={4}>
-                                <Typography variant="caption" color="text.secondary">
-                                    {t('trip_detail.labels.voucher_additional_costs')}
-                                </Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
-                                    {formatFixed(voucherFinanceSummary.additionalCostsTotal, 0)}
-                                </Typography>
-                            </Grid>
-                            <Grid item xs={12} sm={6} md={4}>
-                                <Typography variant="caption" color="text.secondary">
-                                    {t('trip_detail.labels.voucher_outstanding')}
-                                </Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
-                                    {formatFixed(voucherFinanceSummary.outstandingTotal, 0)}
-                                </Typography>
-                            </Grid>
-                            <Grid item xs={12} sm={6} md={4}>
-                                <Typography variant="caption" color="text.secondary">
-                                    {t('trip_detail.labels.net')}
-                                </Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
-                                    {formatFixed(tripNetIncome, 0)}
-                                </Typography>
-                                {canRecordTripNetIncome ? (
-                                    <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap', rowGap: 0.75 }}>
-                                        {tripNetIncomeRecorded ? (
-                                            <Chip size="small" color="success" variant="outlined" label={t('trip_detail.net_income.added_to_ledger')} />
-                                        ) : (
-                                            <Button
-                                                size="small"
-                                                variant="outlined"
-                                                onClick={openNetIncomeDialog}
-                                                disabled={!Number.isFinite(Number(tripNetIncome)) || Number(tripNetIncome) <= 0 || !tripNetIncomeEligible}
-                                            >
-                                                {t('trip_detail.net_income.add_to_ledger')}
-                                            </Button>
-                                        )}
-                                        {!tripNetIncomeEligible && Number(tripNetIncome) > 0 ? (
-                                            <>
-                                                {Number(tripNetIncomeEligibility?.pending_delivery_lines ?? 0) > 0 ? (
-                                                    <Chip
-                                                        size="small"
-                                                        color="warning"
-                                                        variant="outlined"
-                                                        label={t('trip_detail.net_income.requirements.pending_delivery_lines', {
-                                                            count: Number(tripNetIncomeEligibility.pending_delivery_lines),
-                                                        })}
-                                                    />
-                                                ) : null}
-                                                {Number(tripNetIncomeEligibility?.unpaid_vouchers ?? 0) > 0 ? (
-                                                    <Chip
-                                                        size="small"
-                                                        color="warning"
-                                                        variant="outlined"
-                                                        label={t('trip_detail.net_income.requirements.unpaid_vouchers', {
-                                                            count: Number(tripNetIncomeEligibility.unpaid_vouchers),
-                                                        })}
-                                                    />
-                                                ) : null}
-                                            </>
-                                        ) : null}
-                                    </Stack>
-                                ) : null}
-                            </Grid>
+                            </Box>
                             {trip.creator?.name ? (
-                                <Grid item xs={12} sm={6} md={4}>
+                                <Box sx={OPERATIONAL_SUMMARY_CELL_SX}>
                                     <Typography variant="caption" color="text.secondary">
-                                        Created by
+                                        {t('trip_detail.labels.created_by')}
                                     </Typography>
                                     <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
                                         {trip.creator.name}
                                     </Typography>
-                                </Grid>
+                                </Box>
                             ) : null}
-                        </Grid>
-                        {voucherFinanceSummary.voucherCount > 0 ? (
-                            <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap' }}>
-                                <Chip size="small" variant="outlined" label={t('trip_detail.voucher_summary.vouchers', { count: voucherFinanceSummary.voucherCount })} />
-                                {voucherFinanceSummary.statusCounts.PAID > 0 ? (
-                                    <Chip size="small" color="success" variant="outlined" label={t('trip_detail.voucher_summary.paid', { count: voucherFinanceSummary.statusCounts.PAID })} />
-                                ) : null}
-                                {voucherFinanceSummary.statusCounts.PARTIAL > 0 ? (
-                                    <Chip size="small" color="warning" variant="outlined" label={t('trip_detail.voucher_summary.partial', { count: voucherFinanceSummary.statusCounts.PARTIAL })} />
-                                ) : null}
-                                {voucherFinanceSummary.statusCounts.UNPAID > 0 ? (
-                                    <Chip size="small" color="warning" variant="outlined" label={t('trip_detail.voucher_summary.unpaid', { count: voucherFinanceSummary.statusCounts.UNPAID })} />
-                                ) : null}
-                                {voucherFinanceSummary.statusCounts.WAIVED > 0 ? (
-                                    <Chip size="small" variant="outlined" label={t('trip_detail.voucher_summary.waived', { count: voucherFinanceSummary.statusCounts.WAIVED })} />
-                                ) : null}
+                        </Box>
+                        <Box>
+                            <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                                    {t('trip_detail.operational_summary.statistics')}
+                                </Typography>
+                                <Button
+                                    size="small"
+                                    variant="text"
+                                    startIcon={operationalStatsExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                                    onClick={() => setOperationalStatsExpanded((prev) => !prev)}
+                                    aria-expanded={operationalStatsExpanded}
+                                    aria-controls="trip-operational-statistics"
+                                >
+                                    {operationalStatsExpanded
+                                        ? t('trip_detail.operational_summary.hide_statistics')
+                                        : t('trip_detail.operational_summary.show_statistics')}
+                                </Button>
                             </Stack>
-                        ) : null}
+                            <Collapse in={operationalStatsExpanded} timeout="auto" unmountOnExit>
+                                <Stack id="trip-operational-statistics" spacing={1.25} sx={{ pt: 1.25 }}>
+                                    <Box sx={OPERATIONAL_SUMMARY_GRID_SX}>
+                                        <Box sx={OPERATIONAL_SUMMARY_CELL_SX}>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {t('trip_detail.labels.total_weight')}
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
+                                                {formatFixed(tripTotalWeight, 0)}
+                                            </Typography>
+                                        </Box>
+                                        <Box sx={OPERATIONAL_SUMMARY_CELL_SX}>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {t('trip_detail.labels.labor_cost')}
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
+                                                {formatFixed(tripLaborCost, 0)}
+                                            </Typography>
+                                        </Box>
+                                        <Box sx={OPERATIONAL_SUMMARY_CELL_SX}>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {t('trip_detail.labels.trip_extra_costs')}
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
+                                                {formatFixed(tripExtraCostTotal, 0)}
+                                            </Typography>
+                                        </Box>
+                                        <Box sx={OPERATIONAL_SUMMARY_CELL_SX}>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {t('trip_detail.labels.total_trip_cost')}
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
+                                                {formatFixed(tripTotalCost, 0)}
+                                            </Typography>
+                                        </Box>
+                                        <Box sx={OPERATIONAL_SUMMARY_CELL_SX}>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {t('trip_detail.labels.voucher_billed')}
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
+                                                {formatFixed(voucherFinanceSummary.billedTotal, 0)}
+                                            </Typography>
+                                        </Box>
+                                        <Box sx={OPERATIONAL_SUMMARY_CELL_SX}>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {t('trip_detail.labels.voucher_collected')}
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
+                                                {formatFixed(voucherFinanceSummary.collectedTotal, 0)}
+                                            </Typography>
+                                        </Box>
+                                        <Box sx={OPERATIONAL_SUMMARY_CELL_SX}>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {t('trip_detail.labels.voucher_additional_costs')}
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
+                                                {formatFixed(voucherFinanceSummary.additionalCostsTotal, 0)}
+                                            </Typography>
+                                        </Box>
+                                        <Box sx={OPERATIONAL_SUMMARY_CELL_SX}>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {t('trip_detail.labels.voucher_outstanding')}
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
+                                                {formatFixed(voucherFinanceSummary.outstandingTotal, 0)}
+                                            </Typography>
+                                        </Box>
+                                        <Box sx={OPERATIONAL_SUMMARY_CELL_SX}>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {t('trip_detail.labels.net')}
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
+                                                {formatFixed(tripNetIncome, 0)}
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                    {canRecordTripNetIncome ? (
+                                        <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', flexWrap: 'wrap', rowGap: 0.75 }}>
+                                            {!tripNetIncomeEligible
+                                            && Number(tripNetIncome) > 0
+                                            && Number(tripNetIncomeEligibility?.unpaid_vouchers ?? 0) > 0 ? (
+                                                <Chip
+                                                    size="small"
+                                                    color="warning"
+                                                    variant="outlined"
+                                                    label={t('trip_detail.net_income.requirements.unpaid_vouchers', {
+                                                        count: Number(tripNetIncomeEligibility.unpaid_vouchers),
+                                                    })}
+                                                />
+                                            ) : null}
+                                            {tripNetIncomeRecorded ? (
+                                                <Chip size="small" color="success" variant="outlined" label={t('trip_detail.net_income.added_to_ledger')} />
+                                            ) : (
+                                                <Button
+                                                    size="small"
+                                                    variant="outlined"
+                                                    onClick={openNetIncomeDialog}
+                                                    disabled={!Number.isFinite(Number(tripNetIncome)) || Number(tripNetIncome) <= 0 || !tripNetIncomeEligible}
+                                                >
+                                                    {t('trip_detail.net_income.add_to_ledger')}
+                                                </Button>
+                                            )}
+                                        </Stack>
+                                    ) : null}
+                                    {voucherFinanceSummary.voucherCount > 0 ? (
+                                        <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap' }}>
+                                            <Chip size="small" variant="outlined" label={t('trip_detail.voucher_summary.vouchers', { count: voucherFinanceSummary.voucherCount })} />
+                                            {voucherFinanceSummary.statusCounts.PAID > 0 ? (
+                                                <Chip size="small" color="success" variant="outlined" label={t('trip_detail.voucher_summary.paid', { count: voucherFinanceSummary.statusCounts.PAID })} />
+                                            ) : null}
+                                            {voucherFinanceSummary.statusCounts.PARTIAL > 0 ? (
+                                                <Chip size="small" color="warning" variant="outlined" label={t('trip_detail.voucher_summary.partial', { count: voucherFinanceSummary.statusCounts.PARTIAL })} />
+                                            ) : null}
+                                            {voucherFinanceSummary.statusCounts.UNPAID > 0 ? (
+                                                <Chip size="small" color="warning" variant="outlined" label={t('trip_detail.voucher_summary.unpaid', { count: voucherFinanceSummary.statusCounts.UNPAID })} />
+                                            ) : null}
+                                            {voucherFinanceSummary.statusCounts.WAIVED > 0 ? (
+                                                <Chip size="small" variant="outlined" label={t('trip_detail.voucher_summary.waived', { count: voucherFinanceSummary.statusCounts.WAIVED })} />
+                                            ) : null}
+                                        </Stack>
+                                    ) : null}
+                                </Stack>
+                            </Collapse>
+                        </Box>
                     </Stack>
                 </Paper>
 
@@ -1279,28 +1336,26 @@ export default function TripDetail() {
                             {t('trip_detail.cargo.title')}
                         </Typography>
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: { xs: '100%', sm: 'auto' } }}>
-                            {voucherFinanceSummary.voucherCount > 0 ? (
-                                <Button
-                                    size="small"
-                                    variant="outlined"
-                                    startIcon={<PrintIcon />}
-                                    onClick={() => window.open(`${adminAppUrl}/operations/trips/${trip.id}/vouchers/print`, '_blank', 'noopener,noreferrer')}
-                                    sx={{ flexShrink: 0, whiteSpace: { xs: 'normal', sm: 'nowrap' }, alignSelf: { xs: 'stretch', sm: 'auto' } }}
-                                    fullWidth={!isSmUp}
-                                >
-                                    {t('trip_detail.cargo.actions.print_vouchers')}
-                                </Button>
-                            ) : null}
-                            {voucherFinanceSummary.voucherCount > 0 ? (
+                            {canLoadCargo ? (
                                 <Button
                                     size="small"
                                     variant="contained"
-                                    startIcon={<ArticleOutlinedIcon />}
-                                    onClick={() => window.open(`${adminAppUrl}/operations/trips/${trip.id}/overview-slip/print`, '_blank', 'noopener,noreferrer')}
-                                    sx={{ flexShrink: 0, whiteSpace: { xs: 'normal', sm: 'nowrap' }, alignSelf: { xs: 'stretch', sm: 'auto' } }}
+                                    onClick={() => submitLoadBatch(selectedVoucherIds)}
+                                    disabled={loadBatchProcessing || selectedVoucherIds.length === 0 || selectedExceedsVehicleWeight}
                                     fullWidth={!isSmUp}
                                 >
-                                    {t('trip_detail.cargo.actions.print_trip_slip_with_vouchers')}
+                                    {t('trip_detail.load_vouchers.actions.load_selected')}
+                                </Button>
+                            ) : null}
+                            {canLoadCargo ? (
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    onClick={() => submitLoadBatch((loadableVouchers || []).map((r) => r.id))}
+                                    disabled={loadBatchProcessing || (loadableVouchers || []).length === 0 || allExceedsVehicleWeight}
+                                    fullWidth={!isSmUp}
+                                >
+                                    {t('trip_detail.load_vouchers.actions.load_all')}
                                 </Button>
                             ) : null}
                             {canRecordDelivery && hasPendingDelivery ? (
@@ -1328,45 +1383,14 @@ export default function TripDetail() {
                                     {t('trip_detail.load_vouchers.subtitle')}
                                 </Typography>
                             </Box>
-                            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'center' }} justifyContent="space-between" sx={{ mb: 1 }}>
-                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ flexShrink: 0, width: { xs: '100%', md: 'auto' } }} alignItems={{ sm: 'center' }}>
-                                    <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: { sm: 'nowrap' }, flex: { sm: '1 1 auto' } }}>
-                                        {t('trip_detail.load_vouchers.vehicle_max_weight')}{' '}
-                                        <Box component="span" sx={{ fontWeight: 800, color: 'text.primary' }}>{vehicleMaxWeight === null ? '—' : formatFixed(vehicleMaxWeight, 0)}</Box>
-                                        {' · '}
-                                        {t('trip_detail.load_vouchers.selected_weight')}{' '}
-                                        <Box component="span" sx={{ fontWeight: 800, color: selectedExceedsVehicleWeight ? 'error.main' : 'text.primary' }}>{formatFixed(selectedWeightSummary.knownSum, 0)}</Box>
-                                        {selectedWeightSummary.unknownCount > 0 ? ` (+ ${selectedWeightSummary.unknownCount} ${t('trip_detail.load_vouchers.unknown')})` : ''}
-                                    </Typography>
-                                    <Box
-                                        sx={{
-                                            display: 'flex',
-                                            gap: 1,
-                                            flexDirection: { xs: 'column', sm: 'row' },
-                                            justifyContent: { sm: 'flex-end' },
-                                            width: { xs: '100%', sm: 'auto' },
-                                            flexShrink: 0,
-                                        }}
-                                    >
-                                        <Button
-                                            variant="contained"
-                                            onClick={() => submitLoadBatch(selectedVoucherIds)}
-                                            disabled={loadBatchProcessing || selectedVoucherIds.length === 0 || selectedExceedsVehicleWeight}
-                                            fullWidth={!isSmUp}
-                                        >
-                                            {t('trip_detail.load_vouchers.actions.load_selected')}
-                                        </Button>
-                                        <Button
-                                            variant="outlined"
-                                            onClick={() => submitLoadBatch((loadableVouchers || []).map((r) => r.id))}
-                                            disabled={loadBatchProcessing || (loadableVouchers || []).length === 0 || allExceedsVehicleWeight}
-                                            fullWidth={!isSmUp}
-                                        >
-                                            {t('trip_detail.load_vouchers.actions.load_all')}
-                                        </Button>
-                                    </Box>
-                                </Stack>
-                            </Stack>
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 1, whiteSpace: { sm: 'nowrap' } }}>
+                                {t('trip_detail.load_vouchers.vehicle_max_weight')}{' '}
+                                <Box component="span" sx={{ fontWeight: 800, color: 'text.primary' }}>{vehicleMaxWeight === null ? '—' : formatFixed(vehicleMaxWeight, 0)}</Box>
+                                {' · '}
+                                {t('trip_detail.load_vouchers.selected_weight')}{' '}
+                                <Box component="span" sx={{ fontWeight: 800, color: selectedExceedsVehicleWeight ? 'error.main' : 'text.primary' }}>{formatFixed(selectedWeightSummary.knownSum, 0)}</Box>
+                                {selectedWeightSummary.unknownCount > 0 ? ` (+ ${selectedWeightSummary.unknownCount} ${t('trip_detail.load_vouchers.unknown')})` : ''}
+                            </Typography>
 
                             {errors.voucher_ids || errors.voucher_id ? (
                                 <Alert severity="error" sx={{ mb: 1.5 }}>
@@ -1419,40 +1443,97 @@ export default function TripDetail() {
                                                 {(loadableVouchers || []).map((row) => {
                                                     const checked = Boolean(selectedVoucherMap[String(row.id)]);
                                                     const w = row.total_weight;
+                                                    const isOpen = Boolean(loadableVoucherExpanded[row.id]);
                                                     return (
-                                                        <TableRow key={row.id} hover>
-                                                            <TableCell sx={{ minWidth: 240 }}>
-                                                                <Stack spacing={0.25} sx={{ minWidth: 0 }}>
-                                                                    <Typography variant="body2" sx={{ fontWeight: 800 }} noWrap title={row.recipient_name || undefined}>
-                                                                        {row.recipient_name || '—'}
-                                                                    </Typography>
-                                                                    <Typography variant="caption" color="text.secondary" noWrap title={row.voucher_no || undefined}>
-                                                                        <Link href={`${adminAppUrl}/operations/vouchers/${row.id}`}>{row.voucher_no || '—'}</Link>
-                                                                    </Typography>
-                                                                </Stack>
-                                                            </TableCell>
-                                                            <TableCell align="right">{w === null || w === undefined ? '—' : formatFixed(w, 0)}</TableCell>
-                                                            <TableCell align="right">{row.lines ?? 0}</TableCell>
-                                                            <TableCell align="right">
-                                                                <Checkbox
-                                                                    size="small"
-                                                                    disabled={loadBatchProcessing}
-                                                                    checked={checked}
-                                                                    onChange={(e) => {
-                                                                        const nextChecked = e.target.checked;
-                                                                        setSelectedVoucherMap((prev) => {
-                                                                            const next = { ...(prev || {}) };
-                                                                            if (nextChecked) {
-                                                                                next[String(row.id)] = true;
-                                                                            } else {
-                                                                                delete next[String(row.id)];
+                                                        <Fragment key={row.id}>
+                                                            <TableRow hover>
+                                                                <TableCell sx={{ minWidth: 240 }}>
+                                                                    <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ minWidth: 0 }}>
+                                                                        <IconButton
+                                                                            size="small"
+                                                                            disableRipple
+                                                                            onClick={() =>
+                                                                                setLoadableVoucherExpanded((prev) => ({
+                                                                                    ...prev,
+                                                                                    [row.id]: !Boolean(prev[row.id]),
+                                                                                }))
                                                                             }
-                                                                            return next;
-                                                                        });
-                                                                    }}
-                                                                />
-                                                            </TableCell>
-                                                        </TableRow>
+                                                                            aria-label={isOpen ? t('trip_detail.cargo.actions.collapse_lines') : t('trip_detail.cargo.actions.expand_lines')}
+                                                                            sx={{
+                                                                                mt: 0.1,
+                                                                                width: 28,
+                                                                                height: 28,
+                                                                                flex: '0 0 28px',
+                                                                                borderRadius: 1,
+                                                                                '&:hover': { bgcolor: 'action.hover' },
+                                                                            }}
+                                                                        >
+                                                                            {isOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                                                                        </IconButton>
+                                                                        <Stack spacing={0.25} sx={{ minWidth: 0 }}>
+                                                                            <Typography variant="body2" sx={{ fontWeight: 800 }} noWrap title={row.recipient_name || undefined}>
+                                                                                {row.recipient_name || '—'}
+                                                                            </Typography>
+                                                                            <Typography variant="caption" color="text.secondary" noWrap title={row.voucher_no || undefined}>
+                                                                                <Link href={`${adminAppUrl}/operations/vouchers/${row.id}`}>{row.voucher_no || '—'}</Link>
+                                                                            </Typography>
+                                                                        </Stack>
+                                                                    </Stack>
+                                                                </TableCell>
+                                                                <TableCell align="right">{w === null || w === undefined ? '—' : formatFixed(w, 0)}</TableCell>
+                                                                <TableCell align="right">{row.lines ?? 0}</TableCell>
+                                                                <TableCell align="right">
+                                                                    <Checkbox
+                                                                        size="small"
+                                                                        disabled={loadBatchProcessing}
+                                                                        checked={checked}
+                                                                        onChange={(e) => {
+                                                                            const nextChecked = e.target.checked;
+                                                                            setSelectedVoucherMap((prev) => {
+                                                                                const next = { ...(prev || {}) };
+                                                                                if (nextChecked) {
+                                                                                    next[String(row.id)] = true;
+                                                                                } else {
+                                                                                    delete next[String(row.id)];
+                                                                                }
+                                                                                return next;
+                                                                            });
+                                                                        }}
+                                                                    />
+                                                                </TableCell>
+                                                            </TableRow>
+                                                            <TableRow>
+                                                                <TableCell colSpan={4} sx={{ py: 0, borderBottom: isOpen ? undefined : 0 }}>
+                                                                    <Collapse in={isOpen} timeout="auto" unmountOnExit>
+                                                                        <Box sx={{ py: 1.25, pl: 5, pr: 1 }}>
+                                                                            <Stack spacing={0.5} sx={{ minWidth: 0 }}>
+                                                                                {(row.line_rows || []).map((ln, idx) => (
+                                                                                    <Fragment key={ln.id}>
+                                                                                        <Grid container columnSpacing={2} rowSpacing={0.75} alignItems="center">
+                                                                                            <Grid item xs={1.5}>
+                                                                                                <Chip size="small" label={ln.line_no != null ? `L${ln.line_no}` : '—'} variant="outlined" />
+                                                                                            </Grid>
+                                                                                            <Grid item xs={7.5} sx={{ minWidth: 0 }}>
+                                                                                                <Typography variant="body2" sx={{ fontWeight: 800 }} noWrap title={ln.product_name || undefined}>
+                                                                                                    {ln.product_name || '—'}
+                                                                                                </Typography>
+                                                                                            </Grid>
+                                                                                            <Grid item xs={3} sx={{ textAlign: 'right' }}>
+                                                                                                <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                                                                                                    {formatInt(ln.remaining_qty)}
+                                                                                                    {ln.unit ? ` ${ln.unit}` : ''}
+                                                                                                </Typography>
+                                                                                            </Grid>
+                                                                                        </Grid>
+                                                                                        {idx !== (row.line_rows || []).length - 1 ? <Divider /> : null}
+                                                                                    </Fragment>
+                                                                                ))}
+                                                                            </Stack>
+                                                                        </Box>
+                                                                    </Collapse>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        </Fragment>
                                                     );
                                                 })}
                                             </TableBody>
@@ -1487,6 +1568,7 @@ export default function TripDetail() {
                                         {(loadableVouchers || []).map((row) => {
                                             const checked = Boolean(selectedVoucherMap[String(row.id)]);
                                             const w = row.total_weight;
+                                            const isOpen = Boolean(loadableVoucherExpanded[row.id]);
                                             return (
                                                 <Paper key={row.id} variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
                                                     <Stack spacing={1}>
@@ -1501,23 +1583,45 @@ export default function TripDetail() {
                                                                     </Link>
                                                                 </Typography>
                                                             </Box>
-                                                            <Checkbox
-                                                                size="small"
-                                                                disabled={loadBatchProcessing}
-                                                                checked={checked}
-                                                                onChange={(e) => {
-                                                                    const nextChecked = e.target.checked;
-                                                                    setSelectedVoucherMap((prev) => {
-                                                                        const next = { ...(prev || {}) };
-                                                                        if (nextChecked) {
-                                                                            next[String(row.id)] = true;
-                                                                        } else {
-                                                                            delete next[String(row.id)];
-                                                                        }
-                                                                        return next;
-                                                                    });
-                                                                }}
-                                                            />
+                                                            <Stack direction="row" spacing={0.5} alignItems="center" flexShrink={0}>
+                                                                <IconButton
+                                                                    size="small"
+                                                                    disableRipple
+                                                                    aria-label={isOpen ? t('trip_detail.cargo.actions.collapse_lines') : t('trip_detail.cargo.actions.expand_lines')}
+                                                                    onClick={() =>
+                                                                        setLoadableVoucherExpanded((prev) => ({
+                                                                            ...prev,
+                                                                            [row.id]: !Boolean(prev[row.id]),
+                                                                        }))
+                                                                    }
+                                                                    sx={{
+                                                                        width: 28,
+                                                                        height: 28,
+                                                                        flex: '0 0 28px',
+                                                                        borderRadius: 1,
+                                                                        '&:hover': { bgcolor: 'action.hover' },
+                                                                    }}
+                                                                >
+                                                                    {isOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                                                                </IconButton>
+                                                                <Checkbox
+                                                                    size="small"
+                                                                    disabled={loadBatchProcessing}
+                                                                    checked={checked}
+                                                                    onChange={(e) => {
+                                                                        const nextChecked = e.target.checked;
+                                                                        setSelectedVoucherMap((prev) => {
+                                                                            const next = { ...(prev || {}) };
+                                                                            if (nextChecked) {
+                                                                                next[String(row.id)] = true;
+                                                                            } else {
+                                                                                delete next[String(row.id)];
+                                                                            }
+                                                                            return next;
+                                                                        });
+                                                                    }}
+                                                                />
+                                                            </Stack>
                                                         </Stack>
                                                         <Stack direction="row" justifyContent="space-between" spacing={1}>
                                                             <Typography variant="body2" color="text.secondary">
@@ -1535,6 +1639,27 @@ export default function TripDetail() {
                                                                 {row.lines ?? 0}
                                                             </Typography>
                                                         </Stack>
+                                                        <Collapse in={isOpen} timeout="auto" unmountOnExit>
+                                                            <Divider sx={{ my: 0.5 }} />
+                                                            <Stack spacing={0.75} sx={{ pt: 0.5 }}>
+                                                                {(row.line_rows || []).map((ln) => (
+                                                                    <Stack key={ln.id} direction="row" justifyContent="space-between" alignItems="flex-start" gap={1.5}>
+                                                                        <Box sx={{ minWidth: 0 }}>
+                                                                            <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
+                                                                                <Chip size="small" label={ln.line_no != null ? `L${ln.line_no}` : '—'} variant="outlined" />
+                                                                                <Typography variant="body2" sx={{ fontWeight: 800, minWidth: 0 }} noWrap title={ln.product_name || undefined}>
+                                                                                    {ln.product_name || '—'}
+                                                                                </Typography>
+                                                                            </Stack>
+                                                                        </Box>
+                                                                        <Typography variant="body2" sx={{ fontWeight: 800, flexShrink: 0 }}>
+                                                                            {formatInt(ln.remaining_qty)}
+                                                                            {ln.unit ? ` ${ln.unit}` : ''}
+                                                                        </Typography>
+                                                                    </Stack>
+                                                                ))}
+                                                            </Stack>
+                                                        </Collapse>
                                                     </Stack>
                                                 </Paper>
                                             );
@@ -1778,6 +1903,68 @@ export default function TripDetail() {
                         </Stack>
                     )}
                 </Paper>
+
+                <Menu
+                    id="trip-actions-menu"
+                    open={Boolean(tripActionsAnchorEl)}
+                    anchorEl={tripActionsAnchorEl}
+                    onClose={() => setTripActionsAnchorEl(null)}
+                    anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                    transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                >
+                    <MenuItem
+                        onClick={() => {
+                            setTripActionsAnchorEl(null);
+                            window.open(`${adminAppUrl}/operations/trips/${trip.id}/manifest`, '_blank', 'noopener,noreferrer');
+                        }}
+                    >
+                        <ListItemIcon sx={{ minWidth: 36 }}>
+                            <ArticleOutlinedIcon fontSize="small" />
+                        </ListItemIcon>
+                        {t('trip_detail.actions.driver_manifest')}
+                    </MenuItem>
+                    {voucherFinanceSummary.voucherCount > 0 ? (
+                        <MenuItem
+                            onClick={() => {
+                                setTripActionsAnchorEl(null);
+                                window.open(`${adminAppUrl}/operations/trips/${trip.id}/vouchers/print`, '_blank', 'noopener,noreferrer');
+                            }}
+                        >
+                            <ListItemIcon sx={{ minWidth: 36 }}>
+                                <PrintIcon fontSize="small" />
+                            </ListItemIcon>
+                            {t('trip_detail.cargo.actions.print_vouchers')}
+                        </MenuItem>
+                    ) : null}
+                    {voucherFinanceSummary.voucherCount > 0 ? (
+                        <MenuItem
+                            onClick={() => {
+                                setTripActionsAnchorEl(null);
+                                window.open(`${adminAppUrl}/operations/trips/${trip.id}/overview-slip/print`, '_blank', 'noopener,noreferrer');
+                            }}
+                        >
+                            <ListItemIcon sx={{ minWidth: 36 }}>
+                                <ArticleOutlinedIcon fontSize="small" />
+                            </ListItemIcon>
+                            {t('trip_detail.cargo.actions.print_trip_slip_with_vouchers')}
+                        </MenuItem>
+                    ) : null}
+                    {canDeleteTrip ? <Divider /> : null}
+                    {canDeleteTrip ? (
+                        <MenuItem
+                            sx={{ color: 'error.main' }}
+                            onClick={() => {
+                                setTripActionsAnchorEl(null);
+                                deleteTrip();
+                            }}
+                        >
+                            <ListItemIcon sx={{ minWidth: 36, color: 'inherit' }}>
+                                <DeleteOutlineIcon fontSize="small" />
+                            </ListItemIcon>
+                            {t('trip_detail.actions.delete_trip')}
+                        </MenuItem>
+                    ) : null}
+                </Menu>
 
                 <Menu
                     open={Boolean(voucherRowMenu?.anchorEl)}

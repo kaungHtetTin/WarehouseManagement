@@ -1,40 +1,115 @@
-import AdminLayout from '@/Layouts/AdminLayout';
-import DashboardDecor from '@/Components/Dashboard/DashboardDecor';
-import KpiStatCard from '@/Components/Dashboard/KpiStatCard';
 import PageHeader from '@/Components/PageHeader';
-import { Head, Link, usePage } from '@inertiajs/react';
+import AdminLayout from '@/Layouts/AdminLayout';
 import { useT } from '@/i18n';
-import {
-    Box,
-    Button,
-    Card,
-    CardContent,
-    Chip,
-    Grid,
-    Stack,
-    Typography,
-    useTheme,
-} from '@mui/material';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
     AddCircleOutlineOutlined as AddIcon,
     AccountBalanceWalletOutlined as LedgerIcon,
     AltRouteOutlined as TripIcon,
-    CheckCircleOutlineOutlined as ReadyIcon,
-    CategoryOutlined as CategoryIcon,
-    PendingActionsOutlined as PendingIcon,
+    ArrowForwardOutlined as ArrowIcon,
+    HistoryOutlined as ActivityLogIcon,
     ReceiptLongOutlined as VoucherIcon,
-    SettingsOutlined as SettingsIcon,
-    StorefrontOutlined as MerchantIcon,
-    TimeToLeaveOutlined as VehicleIcon,
     WarehouseOutlined as WarehouseIcon,
 } from '@mui/icons-material';
-import { dashboardTokens } from '@/theme/adminDashboardTheme';
+import { Box, Button, Chip, Paper, Stack, Typography } from '@mui/material';
+
+const operationGridColumns = {
+    xs: 'minmax(0, 1fr) auto',
+    sm: 'minmax(0, 1fr) 90px 116px',
+};
+
+function OperationRow({ item }) {
+    return (
+        <Box
+            component={Link}
+            href={item.href}
+            sx={{
+                display: 'grid',
+                gridTemplateColumns: operationGridColumns,
+                gap: 1.5,
+                alignItems: 'center',
+                px: { xs: 1.5, sm: 2 },
+                py: 1.35,
+                color: 'text.primary',
+                textDecoration: 'none',
+                borderTop: 1,
+                borderColor: 'divider',
+                transition: 'background-color 0.15s ease',
+                '&:hover': { bgcolor: 'action.hover' },
+            }}
+        >
+            <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
+                <Box
+                    sx={{
+                        width: 36,
+                        height: 36,
+                        display: 'grid',
+                        flexShrink: 0,
+                        placeItems: 'center',
+                        borderRadius: 1.5,
+                        bgcolor: 'action.hover',
+                        color: `${item.tone}.main`,
+                        '& svg': { fontSize: 20 },
+                    }}
+                >
+                    {item.icon}
+                </Box>
+                <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                        {item.title}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                        {item.subtitle}
+                    </Typography>
+                </Box>
+            </Stack>
+
+            <Typography variant="h6" sx={{ justifySelf: 'end', fontWeight: 900, color: `${item.tone}.main` }}>
+                {item.value}
+            </Typography>
+
+            <Typography
+                variant="caption"
+                color="primary.main"
+                sx={{ display: { xs: 'none', sm: 'block' }, justifySelf: 'end', fontWeight: 800 }}
+            >
+                {item.openLabel}
+            </Typography>
+        </Box>
+    );
+}
+
+function WorkspaceLink({ item }) {
+    return (
+        <Box
+            component={Link}
+            href={item.href}
+            sx={{
+                display: 'grid',
+                gridTemplateColumns: '32px minmax(0, 1fr) auto',
+                gap: 1,
+                alignItems: 'center',
+                px: 1.5,
+                py: 1.25,
+                color: 'text.primary',
+                textDecoration: 'none',
+                borderTop: 1,
+                borderColor: 'divider',
+                transition: 'background-color 0.15s ease',
+                '&:hover': { bgcolor: 'action.hover' },
+            }}
+        >
+            <Box sx={{ display: 'grid', placeItems: 'center', color: 'primary.main', '& svg': { fontSize: 20 } }}>{item.icon}</Box>
+            <Typography variant="body2" sx={{ minWidth: 0, fontWeight: 700 }}>
+                {item.label}
+            </Typography>
+            <ArrowIcon sx={{ color: 'text.disabled', fontSize: 17 }} />
+        </Box>
+    );
+}
 
 export default function Dashboard() {
     const pageProps = usePage().props;
-    const theme = useTheme();
-    const dark = theme.palette.mode === 'dark';
-    const tokens = dark ? dashboardTokens.dark : dashboardTokens.light;
     const t = useT();
     const adminAppUrl = pageProps.admin_app_url;
     const permissionCodes = pageProps.auth?.permission_codes ?? [];
@@ -48,482 +123,132 @@ export default function Dashboard() {
     const canViewTrips = canAny('trips.view', 'trips.manage');
     const canManageTrips = can('trips.manage');
     const canViewFinance = canAny('finance.view', 'finance.manage');
-    const canViewInventory = canAny('inventory.view', 'inventory.manage');
     const canViewWarehouses = canAny('warehouses.view', 'warehouses.manage');
-    const canManageSettings = can('public_page.manage');
 
-    const vouchersPending = Number(navCounts.vouchers_pending ?? 0);
-    const tripsPending = Number(navCounts.trips_pending ?? 0);
-    const totalAttention = vouchersPending + tripsPending;
-
-    const stats = [
+    const operations = [
         canViewVouchers
             ? {
                   title: t('dashboard.ops.vouchers_pending'),
-                  value: vouchersPending,
                   subtitle: t('dashboard.ops.vouchers_pending_sub'),
-                  tone: vouchersPending > 0 ? 'warning' : 'success',
-                  icon: <PendingIcon />,
+                  openLabel: t('dashboard.table.open_list'),
+                  value: Number(navCounts.vouchers_pending ?? 0),
                   href: `${adminAppUrl}/operations/vouchers`,
+                  icon: <VoucherIcon />,
+                  tone: 'warning',
               }
             : null,
         canViewTrips
             ? {
                   title: t('dashboard.ops.active_trips'),
-                  value: tripsPending,
                   subtitle: t('dashboard.ops.active_trips_sub'),
-                  tone: 'primary',
-                  icon: <TripIcon />,
+                  openLabel: t('dashboard.table.open_list'),
+                  value: Number(navCounts.trips_pending ?? 0),
                   href: `${adminAppUrl}/operations/trips`,
-              }
-            : null,
-    ].filter(Boolean);
-
-    const quickActions = [
-        canManageVouchers
-            ? {
-                  title: t('dashboard.quick_links.create_voucher.title'),
-                  description: t('dashboard.quick_links.create_voucher.description'),
-                  href: `${adminAppUrl}/operations/vouchers/create`,
-                  icon: <AddIcon />,
-              }
-            : null,
-        canManageTrips
-            ? {
-                  title: t('dashboard.quick_links.create_trip.title'),
-                  description: t('dashboard.quick_links.create_trip.description'),
-                  href: `${adminAppUrl}/operations/trips/create`,
                   icon: <TripIcon />,
-              }
-            : null,
-        canViewFinance
-            ? {
-                  title: t('dashboard.quick_links.finance_reports.title'),
-                  description: t('dashboard.quick_links.finance_reports.description'),
-                  href: `${adminAppUrl}/finance/reports`,
-                  icon: <LedgerIcon />,
-              }
-            : null,
-        canViewFinance
-            ? {
-                  title: t('dashboard.quick_links.finance_ledger.title'),
-                  description: t('dashboard.quick_links.finance_ledger.view'),
-                  href: `${adminAppUrl}/finance/ledger`,
-                  icon: <LedgerIcon />,
-              }
-            : null,
-        canViewInventory
-            ? {
-                  title: t('nav.merchants'),
-                  description: t('dashboard.quick_links.merchants.description'),
-                  href: `${adminAppUrl}/master/merchants`,
-                  icon: <MerchantIcon />,
-              }
-            : null,
-        canViewInventory
-            ? {
-                  title: t('nav.vehicles'),
-                  description: t('dashboard.quick_links.vehicles.description'),
-                  href: `${adminAppUrl}/master/vehicles`,
-                  icon: <VehicleIcon />,
-              }
-            : null,
-        canViewWarehouses
-            ? {
-                  title: t('dashboard.quick_links.warehouses.title'),
-                  description: t('dashboard.quick_links.warehouses.description'),
-                  href: `${adminAppUrl}/master/warehouses`,
-                  icon: <WarehouseIcon />,
-              }
-            : null,
-        can('vouchers.manage')
-            ? {
-                  title: t('nav.voucher_cost_categories'),
-                  description: t('dashboard.quick_links.voucher_cost_categories.description'),
-                  href: `${adminAppUrl}/master/voucher-additional-cost-categories`,
-                  icon: <CategoryIcon />,
-              }
-            : null,
-        canManageTrips
-            ? {
-                  title: t('nav.trip_cost_categories'),
-                  description: t('dashboard.quick_links.trip_cost_categories.description'),
-                  href: `${adminAppUrl}/master/trip-cost-categories`,
-                  icon: <CategoryIcon />,
-              }
-            : null,
-        canManageSettings
-            ? {
-                  title: t('nav.settings'),
-                  description: t('dashboard.quick_links.settings.description'),
-                  href: `${adminAppUrl}/system/organization-settings`,
-                  icon: <SettingsIcon />,
+                  tone: 'primary',
               }
             : null,
     ].filter(Boolean);
 
-    const workspaceLinks = [
-        canViewVouchers
-            ? { label: t('nav.vouchers'), description: t('dashboard.workspace.vouchers'), href: `${adminAppUrl}/operations/vouchers`, icon: <VoucherIcon /> }
-            : null,
-        canViewTrips
-            ? { label: t('nav.trips'), description: t('dashboard.workspace.trips'), href: `${adminAppUrl}/operations/trips`, icon: <TripIcon /> }
-            : null,
-        canViewFinance
-            ? { label: t('nav.finance'), description: t('dashboard.workspace.finance'), href: `${adminAppUrl}/finance/ledger`, icon: <LedgerIcon /> }
-            : null,
-        canViewInventory
-            ? { label: t('nav.merchants'), description: t('dashboard.quick_links.merchants.description'), href: `${adminAppUrl}/master/merchants`, icon: <MerchantIcon /> }
-            : null,
-        canViewWarehouses
-            ? { label: t('dashboard.quick_links.warehouses.title'), description: t('dashboard.workspace.warehouses'), href: `${adminAppUrl}/master/warehouses`, icon: <WarehouseIcon /> }
-            : null,
+    const workspaces = [
+        canViewVouchers ? { label: t('nav.vouchers'), href: `${adminAppUrl}/operations/vouchers`, icon: <VoucherIcon /> } : null,
+        canViewTrips ? { label: t('nav.trips'), href: `${adminAppUrl}/operations/trips`, icon: <TripIcon /> } : null,
+        canViewFinance ? { label: t('nav.finance_ledger'), href: `${adminAppUrl}/finance/ledger`, icon: <LedgerIcon /> } : null,
+        canViewFinance ? { label: t('nav.finance_reports'), href: `${adminAppUrl}/finance/reports`, icon: <LedgerIcon /> } : null,
+        canViewWarehouses ? { label: t('nav.warehouses'), href: `${adminAppUrl}/master/warehouses`, icon: <WarehouseIcon /> } : null,
+        can('activity_logs.view') ? { label: t('nav.activity_logs'), href: `${adminAppUrl}/system/activity-logs`, icon: <ActivityLogIcon /> } : null,
     ].filter(Boolean);
 
-    const alerts = [
-        canViewVouchers && vouchersPending > 0
-            ? { title: t('dashboard.ops.vouchers_pending'), detail: t('dashboard.alerts.vouchers'), href: `${adminAppUrl}/operations/vouchers`, tone: 'warning' }
-            : null,
-        canViewTrips && tripsPending > 0
-            ? { title: t('dashboard.ops.active_trips'), detail: t('dashboard.alerts.trips'), href: `${adminAppUrl}/operations/trips`, tone: 'primary' }
-            : null,
-    ].filter(Boolean);
-
-    const todayFocus = [
-        canManageVouchers
-            ? {
-                  title: vouchersPending > 0 ? 'Review pending vouchers' : 'Create a new voucher',
-                  detail:
-                      vouchersPending > 0
-                          ? `${vouchersPending} voucher${vouchersPending === 1 ? '' : 's'} currently need attention.`
-                          : 'Start a new shipment flow and keep today moving.',
-                  href: vouchersPending > 0 ? `${adminAppUrl}/operations/vouchers` : `${adminAppUrl}/operations/vouchers/create`,
-                  tone: vouchersPending > 0 ? 'warning.main' : 'primary.main',
-              }
-            : null,
-        canManageTrips
-            ? {
-                  title: tripsPending > 0 ? 'Check active trips' : 'Plan the next trip',
-                  detail:
-                      tripsPending > 0
-                          ? `${tripsPending} trip${tripsPending === 1 ? '' : 's'} are still active or waiting for updates.`
-                          : 'Prepare dispatch capacity before the next loading cycle.',
-                  href: tripsPending > 0 ? `${adminAppUrl}/operations/trips` : `${adminAppUrl}/operations/trips/create`,
-                  tone: 'primary.main',
-              }
-            : null,
-        canViewFinance
-            ? {
-                  title: 'Review finance movement',
-                  detail: "Open the ledger and validate today's operational financial entries.",
-                  href: `${adminAppUrl}/finance/ledger`,
-                  tone: 'success.main',
-              }
-            : null,
-    ].filter(Boolean);
-
-    const workspaceSummary = [
-        { label: 'Attention items', value: totalAttention, tone: totalAttention > 0 ? 'warning.main' : 'success.main' },
-        { label: 'Quick actions', value: quickActions.length, tone: 'primary.main' },
-        { label: 'Workspaces', value: workspaceLinks.length, tone: 'secondary.main' },
-    ];
+    const totalAttention = operations.reduce((total, operation) => total + operation.value, 0);
 
     return (
         <AdminLayout title={t('dashboard.title')}>
             <Head title={t('dashboard.title')} />
-            <DashboardDecor dark={dark} />
 
-            <Box sx={{ position: 'relative', zIndex: 1, pb: { xs: 9, md: 0 } }}>
+            <Box sx={{ pb: { xs: 9, md: 0 } }}>
                 <PageHeader
-                    eyebrow={t('dashboard.hero.badge')}
-                    title={t('dashboard.hero.title')}
+                    title={t('dashboard.title')}
                     subtitle={t('dashboard.subtitle')}
-                    sx={{
-                        mb: 3,
-                        position: 'relative',
-                        overflow: 'hidden',
-                        background: tokens.gradientPrimary,
-                        color: '#fff',
-                        border: 'none',
-                        boxShadow: '0 20px 50px rgba(79, 70, 229, 0.30)',
-                        '& .MuiTypography-root': { color: '#fff' },
-                        '& .MuiTypography-body2': { color: 'rgba(255,255,255,0.92)' },
-                    }}
                     actions={
-                        <Stack direction="row" spacing={1} sx={{ justifyContent: { xs: 'flex-start', md: 'flex-end' }, flexWrap: 'wrap', gap: 1 }}>
-                            <Chip
-                                icon={<ReadyIcon sx={{ color: '#fff !important' }} />}
-                                label={totalAttention > 0 ? t('dashboard.hero.needs_attention') : t('dashboard.hero.all_clear')}
-                                sx={{ bgcolor: 'rgba(255,255,255,0.18)', color: '#fff', fontWeight: 800 }}
-                            />
-                            {canViewVouchers ? <Chip label={t('nav.vouchers')} sx={{ bgcolor: 'rgba(255,255,255,0.18)', color: '#fff' }} /> : null}
-                            {canViewTrips ? <Chip label={t('nav.trips')} sx={{ bgcolor: 'rgba(255,255,255,0.18)', color: '#fff' }} /> : null}
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                            {canManageVouchers ? (
+                                <Button component={Link} href={`${adminAppUrl}/operations/vouchers/create`} variant="contained" startIcon={<AddIcon />}>
+                                    {t('dashboard.quick_links.create_voucher.title')}
+                                </Button>
+                            ) : null}
+                            {canManageTrips ? (
+                                <Button component={Link} href={`${adminAppUrl}/operations/trips/create`} variant="outlined" startIcon={<TripIcon />}>
+                                    {t('dashboard.quick_links.create_trip.title')}
+                                </Button>
+                            ) : null}
                         </Stack>
                     }
                 />
 
-                {stats.length > 0 ? (
-                    <Grid container spacing={1.5} sx={{ mb: 3 }}>
-                        {stats.map((stat) => (
-                            <Grid key={stat.title} item xs={12} sm={6} lg={3}>
-                                <KpiStatCard
-                                    title={stat.title}
-                                    value={stat.value}
-                                    subtitle={stat.subtitle}
-                                    tone={stat.tone}
-                                    icon={stat.icon}
-                                    href={stat.href}
-                                />
-                            </Grid>
-                        ))}
-                    </Grid>
-                ) : null}
-
-                <Grid container spacing={1.5} sx={{ mb: 3 }}>
-                    <Grid item xs={12} lg={8}>
-                        <Card sx={{ height: '100%' }}>
-                            <CardContent sx={{ p: { xs: 1.75, sm: 2 } }}>
-                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" sx={{ mb: 2 }}>
-                                    <Box>
-                                        <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                                            Today's Focus
-                                        </Typography>
-                                        <Typography variant="body2" color="text.secondary">
-                                            Prioritized shortcuts based on operational attention and available permissions.
-                                        </Typography>
-                                    </Box>
-                                    <Chip
-                                        label={totalAttention > 0 ? `${totalAttention} needs attention` : 'All clear'}
-                                        color={totalAttention > 0 ? 'warning' : 'success'}
-                                        variant={totalAttention > 0 ? 'filled' : 'outlined'}
-                                    />
-                                </Stack>
-                                <Grid container spacing={1.5}>
-                                    {todayFocus.map((item) => (
-                                        <Grid key={item.title} item xs={12} md={4}>
-                                            <Button
-                                                component={Link}
-                                                href={item.href}
-                                                variant="outlined"
-                                                fullWidth
-                                                sx={{
-                                                    justifyContent: 'flex-start',
-                                                    alignItems: 'flex-start',
-                                                    textAlign: 'left',
-                                                    p: 1.25,
-                                                    height: '100%',
-                                                    borderRadius: 2,
-                                                }}
-                                            >
-                                                <Stack spacing={1} sx={{ alignItems: 'flex-start' }}>
-                                                    <Typography variant="body2" sx={{ fontWeight: 800, color: item.tone }}>
-                                                        {item.title}
-                                                    </Typography>
-                                                    <Typography variant="caption" color="text.secondary">
-                                                        {item.detail}
-                                                    </Typography>
-                                                </Stack>
-                                            </Button>
-                                        </Grid>
-                                    ))}
-                                </Grid>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-
-                    <Grid item xs={12} lg={4}>
-                        <Card sx={{ height: '100%' }}>
-                            <CardContent sx={{ p: { xs: 1.75, sm: 2 } }}>
-                                <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                                    Workspace Snapshot
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                    A quick view of how much action is available from this dashboard.
-                                </Typography>
-                                <Stack spacing={1}>
-                                    {workspaceSummary.map((item) => (
-                                        <Box
-                                            key={item.label}
-                                            sx={{
-                                                p: 1.25,
-                                                borderRadius: 2,
-                                                bgcolor: 'action.hover',
-                                                border: 1,
-                                                borderColor: 'divider',
-                                            }}
-                                        >
-                                            <Typography variant="caption" color="text.secondary">
-                                                {item.label}
-                                            </Typography>
-                                            <Typography variant="h5" sx={{ fontWeight: 900, color: item.tone }}>
-                                                {item.value}
-                                            </Typography>
-                                        </Box>
-                                    ))}
-                                </Stack>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                </Grid>
-
-                <Grid container spacing={1.5}>
-                    <Grid item xs={12} lg={7}>
-                        <Card sx={{ height: '100%' }}>
-                            <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
-                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" sx={{ mb: 2 }}>
-                                    <Box>
-                                        <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                                            {t('dashboard.quick_access.title')}
-                                        </Typography>
-                                        <Typography variant="body2" color="text.secondary">
-                                            {t('dashboard.quick_access.subtitle')}
-                                        </Typography>
-                                    </Box>
-                                </Stack>
-                                <Grid container spacing={1.5}>
-                                    {quickActions.map((action) => (
-                                        <Grid key={action.title} item xs={12} sm={6}>
-                                            <Button
-                                                component={Link}
-                                                href={action.href}
-                                                variant="outlined"
-                                                fullWidth
-                                                sx={{
-                                                    justifyContent: 'flex-start',
-                                                    alignItems: 'flex-start',
-                                                    textAlign: 'left',
-                                                    p: 1.5,
-                                                    height: '100%',
-                                                    borderRadius: 3,
-                                                }}
-                                            >
-                                                <Stack direction="row" spacing={1.25} alignItems="flex-start">
-                                                    <Box sx={{ color: 'primary.main', pt: 0.15 }}>{action.icon}</Box>
-                                                    <Box>
-                                                        <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                                                            {action.title}
-                                                        </Typography>
-                                                        <Typography variant="caption" color="text.secondary">
-                                                            {action.description}
-                                                        </Typography>
-                                                    </Box>
-                                                </Stack>
-                                            </Button>
-                                        </Grid>
-                                    ))}
-                                </Grid>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-
-                    <Grid item xs={12} lg={5}>
-                        <Card sx={{ height: '100%' }}>
-                            <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: 'minmax(0, 1.45fr) minmax(280px, 0.75fr)' }, gap: 1.5, mt: 1.5 }}>
+                    <Paper variant="outlined" sx={{ overflow: 'hidden', borderRadius: 1.5 }}>
+                        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ px: { xs: 1.5, sm: 2 }, py: 1.5 }}>
+                            <Box>
                                 <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
                                     {t('dashboard.notifications.title')}
                                 </Typography>
-                                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                <Typography variant="caption" color="text.secondary">
                                     {t('dashboard.notifications.subtitle')}
                                 </Typography>
-                                <Stack spacing={1.25}>
-                                    {alerts.length > 0 ? (
-                                        alerts.map((alert) => (
-                                            <Button
-                                                key={alert.title}
-                                                component={Link}
-                                                href={alert.href}
-                                                variant="text"
-                                                fullWidth
-                                                sx={{
-                                                    justifyContent: 'flex-start',
-                                                    p: 1.25,
-                                                    borderRadius: 2,
-                                                    bgcolor: 'action.hover',
-                                                    textAlign: 'left',
-                                                }}
-                                            >
-                                                <Box sx={{ width: '100%' }}>
-                                                    <Typography variant="body2" sx={{ fontWeight: 800, color: `${alert.tone}.main` }}>
-                                                        {alert.title}
-                                                    </Typography>
-                                                    <Typography variant="caption" color="text.secondary">
-                                                        {alert.detail}
-                                                    </Typography>
-                                                </Box>
-                                            </Button>
-                                        ))
-                                    ) : (
-                                        <Box sx={{ p: 2, borderRadius: 3, bgcolor: 'action.hover', textAlign: 'center' }}>
-                                            <ReadyIcon color="success" />
-                                            <Typography variant="body2" sx={{ fontWeight: 800, mt: 0.75 }}>
-                                                {t('dashboard.notify.all_clear')}
-                                            </Typography>
-                                        </Box>
-                                    )}
-                                </Stack>
-                            </CardContent>
-                        </Card>
-                    </Grid>
+                            </Box>
+                            <Chip
+                                size="small"
+                                color={totalAttention > 0 ? 'warning' : 'success'}
+                                variant={totalAttention > 0 ? 'filled' : 'outlined'}
+                                label={totalAttention > 0 ? `${totalAttention} ${t('dashboard.hero.needs_attention')}` : t('dashboard.hero.all_clear')}
+                            />
+                        </Stack>
 
-                    <Grid item xs={12}>
-                        <Card>
-                            <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
-                                <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                                    {t('dashboard.workspace.title')}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                    {t('dashboard.workspace.subtitle')}
-                                </Typography>
-                                <Grid container spacing={1.5}>
-                                    {workspaceLinks.map((item) => (
-                                        <Grid key={item.label} item xs={12} sm={6} lg={4}>
-                                            <Button
-                                                component={Link}
-                                                href={item.href}
-                                                fullWidth
-                                                sx={{
-                                                    justifyContent: 'flex-start',
-                                                    p: 1.5,
-                                                    borderRadius: 3,
-                                                    color: 'text.primary',
-                                                    bgcolor: 'background.paper',
-                                                    border: 1,
-                                                    borderColor: 'divider',
-                                                    '&:hover': { bgcolor: 'action.hover', borderColor: 'primary.main' },
-                                                }}
-                                            >
-                                                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ width: '100%' }}>
-                                                    <Box
-                                                        sx={{
-                                                            width: 42,
-                                                            height: 42,
-                                                            borderRadius: 2.5,
-                                                            display: 'grid',
-                                                            placeItems: 'center',
-                                                            background: tokens.gradientPrimary,
-                                                            color: '#fff',
-                                                            flexShrink: 0,
-                                                        }}
-                                                    >
-                                                        {item.icon}
-                                                    </Box>
-                                                    <Box sx={{ minWidth: 0, textAlign: 'left' }}>
-                                                        <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                                                            {item.label}
-                                                        </Typography>
-                                                        <Typography variant="caption" color="text.secondary">
-                                                            {item.description}
-                                                        </Typography>
-                                                    </Box>
-                                                </Stack>
-                                            </Button>
-                                        </Grid>
-                                    ))}
-                                </Grid>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                </Grid>
+                        <Box
+                            sx={{
+                                display: { xs: 'none', sm: 'grid' },
+                                gridTemplateColumns: operationGridColumns,
+                                gap: 1.5,
+                                px: 2,
+                                py: 0.75,
+                                borderTop: 1,
+                                borderColor: 'divider',
+                                bgcolor: 'action.hover',
+                            }}
+                        >
+                            <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 800 }}>
+                                {t('dashboard.table.operation')}
+                            </Typography>
+                            <Typography variant="overline" color="text.secondary" sx={{ justifySelf: 'end', fontWeight: 800 }}>
+                                {t('dashboard.table.count')}
+                            </Typography>
+                            <Typography variant="overline" color="text.secondary" sx={{ justifySelf: 'end', fontWeight: 800 }}>
+                                {t('dashboard.table.action')}
+                            </Typography>
+                        </Box>
+
+                        {operations.map((operation) => (
+                            <OperationRow key={operation.title} item={operation} />
+                        ))}
+                    </Paper>
+
+                    <Paper variant="outlined" sx={{ overflow: 'hidden', borderRadius: 1.5 }}>
+                        <Box sx={{ px: 1.5, py: 1.5 }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                                {t('dashboard.workspace.title')}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                {t('dashboard.workspace.subtitle')}
+                            </Typography>
+                        </Box>
+
+                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))', lg: 'minmax(0, 1fr)' } }}>
+                            {workspaces.map((workspace) => (
+                                <WorkspaceLink key={workspace.href} item={workspace} />
+                            ))}
+                        </Box>
+                    </Paper>
+                </Box>
             </Box>
         </AdminLayout>
     );

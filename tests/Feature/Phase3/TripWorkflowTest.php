@@ -186,6 +186,19 @@ class TripWorkflowTest extends TestCase
         );
 
         $this->actingAs($user)
+            ->get(route('admin.trips.show', $trip))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Operations/TripDetail')
+                ->has('loadable_vouchers', 2)
+                ->where('loadable_vouchers.0.voucher_no', 'V-TRIP02')
+                ->has('loadable_vouchers.0.line_rows', 1)
+                ->where('loadable_vouchers.0.line_rows.0.line_no', 1)
+                ->where('loadable_vouchers.0.line_rows.0.product_name', $product->name)
+                ->where('loadable_vouchers.0.line_rows.0.unit', 'piece')
+                ->where('loadable_vouchers.0.line_rows.0.remaining_qty', '1.000'));
+
+        $this->actingAs($user)
             ->post(route('admin.trips.vouchers.load', $trip), ['voucher_id' => $voucher1->id])
             ->assertRedirect(route('admin.trips.show', $trip));
 

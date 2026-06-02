@@ -15,7 +15,6 @@ import {
     DialogTitle,
     Divider,
     FormControl,
-    Grid,
     IconButton,
     InputLabel,
     MenuItem,
@@ -40,13 +39,6 @@ import {
 } from '@mui/icons-material';
 import { Fragment, useMemo, useState } from 'react';
 
-const PAYMENT_LABELS = {
-    UNPAID: 'Unpaid',
-    PARTIAL: 'Partial',
-    PAID: 'Paid',
-    WAIVED: 'Waived',
-};
-
 function freightTotalFromItems(items) {
     if (!items?.length) {
         return null;
@@ -60,12 +52,6 @@ function freightTotalFromItems(items) {
     }
     return Math.round(sum * 100) / 100;
 }
-
-const PAYMENT_METHOD_LABELS = {
-    CASH: 'Cash',
-    TRANSFER: 'Transfer',
-    OTHER: 'Other',
-};
 
 const ADDITIONAL_COST_ICON_BUTTON_SX = {
     width: 32,
@@ -111,97 +97,34 @@ function formatQty(value) {
     return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(rounded);
 }
 
-function destinationFieldOneLine(value) {
-    if (value == null || String(value).trim() === '') return '';
-    return String(value)
-        .split(/\r?\n/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .join(', ');
-}
+function KeyValueRows({ rows }) {
+    return (rows || []).map((r, idx) => {
+        const raw = r?.value;
+        const isEmpty =
+            raw == null ||
+            raw === '' ||
+            (typeof raw === 'string' && raw.trim() === '');
+        const value = isEmpty ? '—' : raw;
 
-function formatLineDestination(it) {
-    const addr = [
-        destinationFieldOneLine(it.to_address_line1),
-        destinationFieldOneLine(it.to_address_line2),
-        it.to_township,
-        it.to_city,
-        it.to_region,
-        it.to_postal_code,
-    ]
-        .filter((x) => x != null && String(x).trim() !== '')
-        .join(', ');
-    const recv = [it.recipient_name, it.recipient_phone].filter((x) => x != null && String(x).trim() !== '').join(' · ');
-    if (addr && recv) return `${addr} · ${recv}`;
-    if (addr) return addr;
-    if (recv) return recv;
-    if (it.to_city) return String(it.to_city);
-    return '—';
-}
-
-function formatDefaultDestinationPreview(v) {
-    if (!v) return '—';
-    return formatLineDestination({
-        to_address_line1: v.default_to_address_line1,
-        to_address_line2: v.default_to_address_line2,
-        to_township: v.default_to_township,
-        to_city: v.default_to_city,
-        to_region: v.default_to_region,
-        to_postal_code: v.default_to_postal_code,
-        recipient_name: v.default_recipient_name,
-        recipient_phone: v.default_recipient_phone,
+        return (
+            <TableRow key={`${r?.label ?? 'row'}-${idx}`} hover>
+                <TableCell width={180} sx={{ color: 'text.secondary' }}>
+                    {r?.label}
+                </TableCell>
+                <TableCell
+                    sx={{
+                        fontWeight: 600,
+                        wordBreak: 'break-word',
+                        overflowWrap: 'anywhere',
+                        whiteSpace: r?.preWrap ? 'pre-wrap' : 'normal',
+                        ...((r?.valueSx ?? {}) || {}),
+                    }}
+                >
+                    {value}
+                </TableCell>
+            </TableRow>
+        );
     });
-}
-
-function DetailField({ label, value }) {
-    return (
-        <Box sx={{ flex: '1 1 160px', minWidth: 0 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                {label}
-            </Typography>
-            <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
-                {value != null && value !== '' ? value : '—'}
-            </Typography>
-        </Box>
-    );
-}
-
-function KeyValueTable({ rows }) {
-    return (
-        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-            <Table size="small">
-                <TableBody>
-                    {(rows || []).map((r, idx) => {
-                        const raw = r?.value;
-                        const isEmpty =
-                            raw == null ||
-                            raw === '' ||
-                            (typeof raw === 'string' && raw.trim() === '');
-                        const value = isEmpty ? '—' : raw;
-
-                        return (
-                            <TableRow key={idx} hover>
-                                <TableCell width={180} sx={{ color: 'text.secondary' }}>
-                                    {r?.label}
-                                </TableCell>
-                                <TableCell
-                                    sx={{
-                                        fontWeight: 600,
-                                        wordBreak: 'break-word',
-                                        overflowWrap: 'anywhere',
-                                        whiteSpace: r?.preWrap ? 'pre-wrap' : 'normal',
-                                        ...((r?.valueSx ?? {}) || {}),
-                                    }}
-                                >
-                                    {value}
-                                </TableCell>
-                            </TableRow>
-                        );
-                    })}
-                </TableBody>
-            </Table>
-        </TableContainer>
-    );
 }
 
 function statusChipColor(status) {
@@ -210,6 +133,31 @@ function statusChipColor(status) {
     if (status === 'CANCELLED') return 'error';
     if (status === 'DELIVERED' || status === 'CLOSED') return 'success';
     return 'primary';
+}
+
+function PaymentMetricCard({ label, value, helper, tone = 'text.primary' }) {
+    return (
+        <Paper
+            variant="outlined"
+            sx={{
+                p: 1.5,
+                borderRadius: 1.5,
+                boxShadow: 'none',
+                height: '100%',
+                bgcolor: 'background.paper',
+            }}
+        >
+            <Typography variant="caption" color="text.secondary">
+                {label}
+            </Typography>
+            <Typography variant="h6" sx={{ mt: 0.5, fontWeight: 900, color: tone }}>
+                {value}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, lineHeight: 1.45 }}>
+                {helper}
+            </Typography>
+        </Paper>
+    );
 }
 
 function LineCard({ item, lineNo, canEdit, onEdit }) {
@@ -246,6 +194,89 @@ function LineCard({ item, lineNo, canEdit, onEdit }) {
     );
 }
 
+function VoucherLines({ voucher, canEdit, onEdit }) {
+    const t = useT();
+    return (
+        <Stack spacing={1.5}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                {t('voucher_detail.lines.items_and_freight_title')}
+            </Typography>
+            <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+                <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5 }}>
+                    <Table size="small">
+                        <TableHead>
+                            <TableRow sx={{ bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>
+                                <TableCell width={48}>#</TableCell>
+                                <TableCell>{t('voucher_detail.lines.table.product')}</TableCell>
+                                <TableCell>{t('voucher_detail.lines.table.qty')}</TableCell>
+                                <TableCell>{t('voucher_detail.lines.table.unit')}</TableCell>
+                                <TableCell>{t('voucher_detail.lines.table.from')}</TableCell>
+                                <TableCell align="right">{t('voucher_detail.lines.table.freight')}</TableCell>
+                                <TableCell align="center">{t('voucher_detail.lines.table.fragile')}</TableCell>
+                                {canEdit ? <TableCell align="right" width={56} /> : null}
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {(voucher.items || []).length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={canEdit ? 8 : 7}>
+                                        <Typography variant="body2" color="text.secondary">
+                                            {t('voucher_detail.lines.empty')}
+                                        </Typography>
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                (voucher.items || []).map((it, idx) => (
+                                    <TableRow key={it.id}>
+                                        <TableCell>{idx + 1}</TableCell>
+                                        <TableCell sx={{ fontWeight: 600 }}>{it.product?.name ?? '—'}</TableCell>
+                                        <TableCell>{formatQty(it.qty)}</TableCell>
+                                        <TableCell>{it.unit}</TableCell>
+                                        <TableCell>{it.from_warehouse?.display_name ?? '—'}</TableCell>
+                                        <TableCell align="right">{formatMoneyAmount(it.freight_amount)}</TableCell>
+                                        <TableCell align="center">{it.is_fragile ? t('ui.yes') : '—'}</TableCell>
+                                        {canEdit ? (
+                                            <TableCell align="right">
+                                                <IconButton size="small" aria-label={t('voucher_detail.lines.actions.edit_line')} onClick={() => onEdit?.(it)}>
+                                                    <EditIcon fontSize="small" />
+                                                </IconButton>
+                                            </TableCell>
+                                        ) : null}
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            </Box>
+            <Stack spacing={1.25} sx={{ display: { xs: 'flex', md: 'none' } }}>
+                {(voucher.items || []).length === 0 ? (
+                    <Typography variant="body2" color="text.secondary">
+                        {t('voucher_detail.lines.empty')}
+                    </Typography>
+                ) : (
+                    (voucher.items || []).map((it, idx) => (
+                        <LineCard key={it.id} item={it} lineNo={idx + 1} canEdit={canEdit} onEdit={onEdit} />
+                    ))
+                )}
+            </Stack>
+            {voucher.remark ? (
+                <>
+                    <Divider />
+                    <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontWeight: 700 }}>
+                            {t('voucher_detail.remark')}
+                        </Typography>
+                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                            {voucher.remark}
+                        </Typography>
+                    </Box>
+                </>
+            ) : null}
+        </Stack>
+    );
+}
+
 export default function VoucherDetail() {
     const pageProps = usePage().props;
     const t = useT();
@@ -260,6 +291,7 @@ export default function VoucherDetail() {
 
     const [paymentOpen, setPaymentOpen] = useState(false);
     const [costsOpen, setCostsOpen] = useState(false);
+    const [voucherInformationExpanded, setVoucherInformationExpanded] = useState(false);
     const [expandedPaymentId, setExpandedPaymentId] = useState(null);
     const [lineEditOpen, setLineEditOpen] = useState(false);
     const [lineEditItem, setLineEditItem] = useState(null);
@@ -483,30 +515,33 @@ export default function VoucherDetail() {
         return freightTotalFromItems(voucher.items) ?? 0;
     }, [voucher?.items]);
 
-    const summaryCards = [
+    const paymentBalance = useMemo(() => {
+        if (clientPayableTotal == null) return null;
+        return Math.max(0, Math.round((clientPayableTotal - paymentsTotal) * 100) / 100);
+    }, [clientPayableTotal, paymentsTotal]);
+
+    const paymentSummaryCards = [
         {
-            label: 'Payment',
-            value: paymentLabels[voucher?.payment_status] ?? voucher?.payment_status ?? '—',
-            helper: `${formatMoneyAmount(paymentsTotal)} recorded`,
-            tone: voucher?.payment_status === 'UNPAID' || voucher?.payment_status === 'PARTIAL' ? 'warning.main' : 'success.main',
-        },
-        {
-            label: 'Voucher value',
+            label: t('voucher_detail.fields.client_payable'),
             value: formatMoneyAmount(clientPayableTotal),
-            helper: `${voucher?.items?.length ?? 0} lines`,
+            helper: `${voucher?.items?.length ?? 0} ${t('voucher_detail.lines.title').toLowerCase()}`,
             tone: 'primary.main',
         },
         {
-            label: 'Destination',
-            value: voucher?.default_to_warehouse?.display_name ?? '—',
-            helper: formatDefaultDestinationPreview(voucher),
-            tone: 'text.primary',
+            label: t('voucher_detail.fields.paid'),
+            value: formatMoneyAmount(paymentsTotal),
+            helper: paymentLabels[voucher?.payment_status] ?? voucher?.payment_status ?? '—',
+            tone: paymentsTotal > 0 ? 'success.main' : 'text.primary',
         },
         {
-            label: 'Merchant',
-            value: voucher?.merchant?.name ?? '—',
-            helper: voucher?.merchant?.phone ?? 'No phone available',
-            tone: 'text.primary',
+            label: t('voucher_detail.fields.balance'),
+            value: formatMoneyAmount(paymentBalance),
+            helper: paymentBalance == null
+                ? '—'
+                : paymentBalance > 0
+                  ? t('voucher_detail.payments.balance_open')
+                  : t('voucher_detail.payments.balance_clear'),
+            tone: paymentBalance == null ? 'text.secondary' : paymentBalance > 0 ? 'warning.main' : 'success.main',
         },
     ];
 
@@ -520,6 +555,37 @@ export default function VoucherDetail() {
             </AdminLayout>
         );
     }
+
+    const primaryVoucherInformationRows = [
+        { label: t('voucher_detail.default_delivery.recipient_name'), value: voucher.default_recipient_name },
+        { label: t('voucher_detail.default_delivery.recipient_phone'), value: voucher.default_recipient_phone },
+        {
+            label: t('voucher_detail.default_delivery.to_warehouse'),
+            value: voucher.default_to_warehouse?.display_name || null,
+        },
+    ];
+    const additionalVoucherInformationRows = [
+        {
+            label: t('voucher_detail.default_delivery.destination_address'),
+            value: voucher.default_to_address_line1,
+            preWrap: true,
+        },
+        {
+            label: t('voucher_detail.default_delivery.destination_remark'),
+            value: voucher.default_destination_remark,
+            preWrap: true,
+        },
+        { label: t('voucher_detail.information.merchant_name'), value: voucher.merchant?.name },
+        { label: t('voucher_detail.information.merchant_phone'), value: voucher.merchant?.phone },
+        {
+            label: t('voucher_detail.fields.date'),
+            value: typeof voucher.voucher_date === 'string' ? voucher.voucher_date.slice(0, 10) : voucher.voucher_date,
+        },
+        { label: t('voucher_detail.fields.source_warehouse'), value: voucher.source_warehouse?.display_name || '—' },
+        { label: t('voucher_detail.fields.total_qty'), value: voucher.total_qty != null ? String(voucher.total_qty) : null },
+        { label: t('voucher_detail.fields.weight'), value: voucher.total_weight != null ? String(Math.round(Number(voucher.total_weight))) : null },
+        { label: t('voucher_detail.fields.created_by'), value: voucher.creator?.name },
+    ];
 
     return (
         <AdminLayout title={layoutTitle}>
@@ -549,6 +615,11 @@ export default function VoucherDetail() {
                             >
                                 {t('voucher_detail.back_to_vouchers')}
                             </Button>
+                            {canManageVoucherDetails ? (
+                                <Button size="small" variant="outlined" startIcon={<EditIcon />} onClick={openDetailsEdit}>
+                                    {t('voucher_detail.actions.edit_details')}
+                                </Button>
+                            ) : null}
                             <Button
                                 component="a"
                                 href={`${adminAppUrl}/operations/vouchers/${voucher.id}/print`}
@@ -561,93 +632,153 @@ export default function VoucherDetail() {
                             </Button>
                         </Stack>
                     }
-                >
-                    <Grid container spacing={1.5}>
-                        {summaryCards.map((item) => (
-                            <Grid key={item.label} item xs={12} sm={6} lg={3}>
-                                <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, boxShadow: 'none', height: '100%' }}>
-                                    <Typography variant="caption" color="text.secondary">
-                                        {item.label}
-                                    </Typography>
-                                    <Typography variant="subtitle1" sx={{ mt: 0.5, fontWeight: 800, color: item.tone }}>
-                                        {item.value}
-                                    </Typography>
-                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, lineHeight: 1.5 }}>
-                                        {item.helper}
-                                    </Typography>
-                                </Paper>
-                            </Grid>
-                        ))}
-                    </Grid>
-                </PageHeader>
+                />
+
+                <Paper variant="outlined" sx={SECTION_CARD_SX}>
+                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, flex: '1 1 auto' }}>
+                            {t('voucher_detail.information.title')}
+                        </Typography>
+                        {canManageVoucherDetails ? (
+                            <IconButton size="small" aria-label={t('voucher_detail.actions.edit_details')} onClick={openDetailsEdit}>
+                                <EditIcon fontSize="small" />
+                            </IconButton>
+                        ) : null}
+                    </Stack>
+                    <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5 }}>
+                        <Table size="small">
+                            <TableBody>
+                                <KeyValueRows rows={primaryVoucherInformationRows} />
+                                <TableRow>
+                                    <TableCell colSpan={2} sx={{ py: 0.5 }}>
+                                        <Button
+                                            size="small"
+                                            variant="text"
+                                            startIcon={voucherInformationExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                                            onClick={() => setVoucherInformationExpanded((prev) => !prev)}
+                                            aria-expanded={voucherInformationExpanded}
+                                            aria-controls="voucher-additional-information"
+                                        >
+                                            {voucherInformationExpanded
+                                                ? t('voucher_detail.information.hide_more')
+                                                : t('voucher_detail.information.show_more')}
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            </TableBody>
+                            {voucherInformationExpanded ? (
+                                <TableBody id="voucher-additional-information">
+                                    <KeyValueRows rows={additionalVoucherInformationRows} />
+                                </TableBody>
+                            ) : null}
+                        </Table>
+                    </TableContainer>
+                </Paper>
 
                 <Box
                     sx={{
                         display: 'grid',
-                        gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+                        gridTemplateColumns: 'minmax(0, 1fr)',
                         gap: 2.5,
                         alignItems: 'start',
                     }}
                 >
-                    <Paper variant="outlined" sx={SECTION_CARD_SX}>
-                        <Stack spacing={2}>
-                            <Stack direction="row" alignItems="center" flexWrap="wrap" gap={1}>
-                                <Typography variant="h6" sx={{ fontWeight: 700, letterSpacing: '-0.02em', flex: '1 1 auto', minWidth: 0 }}>
-                                    {voucher.voucher_no}
-                                </Typography>
-                                <Chip size="small" label={voucher.status} color={statusChipColor(voucher.status)} variant="outlined" />
-                                <Chip
-                                    size="small"
-                                    label={paymentLabels[voucher.payment_status] ?? voucher.payment_status}
-                                    variant="outlined"
-                                />
-                                {canManageVoucherDetails ? (
-                                    <Button size="small" variant="outlined" startIcon={<EditIcon />} onClick={openDetailsEdit}>
-                                        {t('voucher_detail.actions.edit_details')}
-                                    </Button>
-                                ) : null}
-                            </Stack>
-                            <Typography variant="body2" color="text.secondary">
-                                {t('voucher_detail.read_only_hint')}
-                            </Typography>
-                            <Divider />
-                            <KeyValueTable
-                                rows={[
-                                    {
-                                        label: t('voucher_detail.fields.date'),
-                                        value: typeof voucher.voucher_date === 'string' ? voucher.voucher_date.slice(0, 10) : voucher.voucher_date,
-                                    },
-                                    { label: t('voucher_detail.fields.source_warehouse'), value: voucher.source_warehouse?.display_name || '—' },
-                                    { label: t('voucher_detail.fields.total_qty'), value: voucher.total_qty != null ? String(voucher.total_qty) : null },
-                                    { label: t('voucher_detail.fields.weight'), value: voucher.total_weight != null ? String(Math.round(Number(voucher.total_weight))) : null },
-                                    { label: t('voucher_detail.fields.client_payable'), value: formatMoneyAmount(clientPayableTotal) },
-                                    { label: t('voucher_detail.fields.additional_costs_internal'), value: formatMoneyAmount(additionalCostsTotal) },
-                                    { label: t('voucher_detail.fields.created_by'), value: voucher.creator?.name },
-                                ]}
-                            />
-                        </Stack>
+                    <Paper
+                        variant="outlined"
+                        sx={{
+                            ...SECTION_CARD_SX,
+                            gridColumn: { md: '1' },
+                            gridRow: { md: '2' },
+                            order: { xs: 2, md: 2 },
+                        }}
+                    >
+                        <VoucherLines voucher={voucher} canEdit={canManageVoucherLines} onEdit={openLineEdit} />
                     </Paper>
 
-                    <Paper variant="outlined" sx={SECTION_CARD_SX}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>
-                            {t('voucher_detail.payments.title')}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                            {t('voucher_detail.payments.total_recorded')} {formatMoneyAmount(paymentsTotal)}{' '}
-                            {(voucher.payments && voucher.payments[0]?.currency) || 'MMK'}
-                            {clientPayableTotal != null ? (
-                                <>
-                                    {' '}
-                                    · {t('voucher_detail.payments.expected_client_payment')} {formatMoneyAmount(clientPayableTotal)}
-                                </>
+                    <Paper
+                        variant="outlined"
+                        sx={{
+                            ...SECTION_CARD_SX,
+                            gridColumn: { md: '1' },
+                            gridRow: { md: '1' },
+                            order: { xs: 1, md: 1 },
+                            borderColor: paymentBalance > 0 ? 'primary.light' : 'divider',
+                            bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'background.paper' : 'rgba(79, 70, 229, 0.025)'),
+                        }}
+                    >
+                        <Stack
+                            direction={{ xs: 'column', sm: 'row' }}
+                            spacing={1.5}
+                            alignItems={{ sm: 'flex-start' }}
+                            justifyContent="space-between"
+                            sx={{ mb: 1.5 }}
+                        >
+                            <Box>
+                                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                    <Typography variant="h6" sx={{ fontWeight: 900, letterSpacing: '-0.02em' }}>
+                                        {t('voucher_detail.payments.workspace_title')}
+                                    </Typography>
+                                    <Chip
+                                        size="small"
+                                        label={paymentLabels[voucher.payment_status] ?? voucher.payment_status}
+                                        color={voucher.payment_status === 'UNPAID' || voucher.payment_status === 'PARTIAL' ? 'warning' : 'success'}
+                                        variant="outlined"
+                                    />
+                                </Stack>
+                                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                    {t('voucher_detail.payments.workspace_hint')}
+                                </Typography>
+                            </Box>
+                            {canRecordVoucherPayments ? (
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                    {voucher.payment_status === 'WAIVED' ? (
+                                        <Button size="small" variant="outlined" onClick={() => setWaived(false)}>
+                                            {t('voucher_detail.payments.actions.unwaive')}
+                                        </Button>
+                                    ) : (paymentsTotal <= 0.005 && voucher.payment_status !== 'PAID') ? (
+                                        <Button size="small" variant="outlined" color="warning" onClick={() => setWaived(true)}>
+                                            {t('voucher_detail.payments.actions.waive')}
+                                        </Button>
+                                    ) : null}
+                                    {voucher.payment_status !== 'PAID' && voucher.payment_status !== 'WAIVED' ? (
+                                        <Button size="small" variant="contained" onClick={openPaymentDialog} disabled={clientPayableTotal == null}>
+                                            {t('voucher_detail.payments.actions.record_payment')}
+                                        </Button>
+                                    ) : null}
+                                </Stack>
                             ) : null}
-                        </Typography>
+                        </Stack>
+                        <Box
+                            sx={{
+                                display: 'grid',
+                                gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' },
+                                gap: 1.25,
+                                mb: 2,
+                            }}
+                        >
+                            {paymentSummaryCards.map((item) => (
+                                <PaymentMetricCard key={item.label} {...item} />
+                            ))}
+                        </Box>
                         {!canRecordVoucherPayments ? (
                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
                                 {t('voucher_detail.payments.permission_hint')}
                             </Typography>
                         ) : null}
-                        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5, mb: 2 }}>
+                        <Divider sx={{ mb: 2 }} />
+                        <Box
+                            sx={{
+                                display: 'grid',
+                                gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 0.85fr) minmax(0, 1.15fr)' },
+                                gap: 2,
+                                alignItems: 'start',
+                            }}
+                        >
+                            <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>
+                                    {t('voucher_detail.payments.breakdown_section_title')}
+                                </Typography>
+                        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5 }}>
                             <Table size="small">
                                 <TableHead>
                                     <TableRow sx={{ bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>
@@ -656,14 +787,6 @@ export default function VoucherDetail() {
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                    <TableRow hover>
-                                        <TableCell>
-                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                                {t('voucher_detail.payments.breakdown.payment_status')}
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell>{paymentLabels[voucher.payment_status] ?? voucher.payment_status ?? '—'}</TableCell>
-                                    </TableRow>
                                     <TableRow hover>
                                         <TableCell>
                                             <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -724,33 +847,19 @@ export default function VoucherDetail() {
                                             </TableCell>
                                         </TableRow>
                                     ) : null}
-                                    <TableRow hover>
-                                        <TableCell sx={{ fontWeight: 700 }}>{t('voucher_detail.fields.client_payable')}</TableCell>
-                                        <TableCell sx={{ fontWeight: 700 }}>{formatMoneyAmount(clientPayableTotal)}</TableCell>
-                                    </TableRow>
                                 </TableBody>
                             </Table>
                         </TableContainer>
-                        {canRecordVoucherPayments ? (
-                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-                                <Stack direction="row" spacing={1}>
-                                    {voucher.payment_status === 'WAIVED' ? (
-                                        <Button size="small" variant="outlined" onClick={() => setWaived(false)}>
-                                            {t('voucher_detail.payments.actions.unwaive')}
-                                        </Button>
-                                    ) : (paymentsTotal <= 0.005 && voucher.payment_status !== 'PAID') ? (
-                                        <Button size="small" variant="outlined" color="warning" onClick={() => setWaived(true)}>
-                                            {t('voucher_detail.payments.actions.waive')}
-                                        </Button>
-                                    ) : null}
-                                    {voucher.payment_status !== 'PAID' && voucher.payment_status !== 'WAIVED' ? (
-                                        <Button size="small" variant="outlined" onClick={openPaymentDialog} disabled={clientPayableTotal == null}>
-                                            {t('voucher_detail.payments.actions.record_payment')}
-                                        </Button>
-                                    ) : null}
-                                </Stack>
                             </Box>
-                        ) : null}
+                            <Box sx={{ minWidth: 0 }}>
+                                <Stack direction="row" justifyContent="space-between" alignItems="baseline" spacing={1} sx={{ mb: 1 }}>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                                        {t('voucher_detail.payments.history_title')}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                        {t('voucher_detail.payments.history_count', { count: (voucher.payments || []).length })}
+                                    </Typography>
+                                </Stack>
                         {(voucher.payments || []).length === 0 ? (
                             <Typography variant="body2" color="text.secondary">
                                 {t('voucher_detail.payments.empty')}
@@ -826,121 +935,10 @@ export default function VoucherDetail() {
                                 </Table>
                             </TableContainer>
                         )}
+                            </Box>
+                        </Box>
                     </Paper>
 
-                    <Paper variant="outlined" sx={SECTION_CARD_SX}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>
-                            {t('voucher_detail.merchant.title')}
-                        </Typography>
-                        <KeyValueTable
-                            rows={[
-                                { label: t('voucher_detail.merchant.name'), value: voucher.merchant?.name },
-                                { label: t('voucher_detail.merchant.phone'), value: voucher.merchant?.phone },
-                            ]}
-                        />
-                    </Paper>
-
-                    <Paper variant="outlined" sx={SECTION_CARD_SX}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>
-                            {t('voucher_detail.default_delivery.title')}
-                        </Typography>
-                        <KeyValueTable
-                            rows={[
-                                {
-                                    label: t('voucher_detail.default_delivery.to_warehouse'),
-                                    value: voucher.default_to_warehouse?.display_name || null,
-                                },
-                                {
-                                    label: t('voucher_detail.default_delivery.destination_address'),
-                                    value: voucher.default_to_address_line1,
-                                    preWrap: true,
-                                },
-                                {
-                                    label: t('voucher_detail.default_delivery.destination_remark'),
-                                    value: voucher.default_destination_remark,
-                                    preWrap: true,
-                                },
-                                { label: t('voucher_detail.default_delivery.recipient_name'), value: voucher.default_recipient_name },
-                                { label: t('voucher_detail.default_delivery.recipient_phone'), value: voucher.default_recipient_phone },
-                            ]}
-                        />
-                    </Paper>
-                </Box>
-
-                {voucher.remark ? (
-                    <Paper variant="outlined" sx={SECTION_CARD_SX}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-                            {t('voucher_detail.remark')}
-                        </Typography>
-                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                            {voucher.remark}
-                        </Typography>
-                    </Paper>
-                ) : null}
-
-                <Box>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
-                        {t('voucher_detail.lines.title')}
-                    </Typography>
-                    <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-                        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5 }}>
-                            <Table size="small">
-                                <TableHead>
-                                    <TableRow sx={{ bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'grey.50') }}>
-                                        <TableCell width={48}>#</TableCell>
-                                        <TableCell>{t('voucher_detail.lines.table.product')}</TableCell>
-                                        <TableCell>{t('voucher_detail.lines.table.qty')}</TableCell>
-                                        <TableCell>{t('voucher_detail.lines.table.unit')}</TableCell>
-                                        <TableCell>{t('voucher_detail.lines.table.from')}</TableCell>
-                                        <TableCell align="right">{t('voucher_detail.lines.table.freight')}</TableCell>
-                                        <TableCell align="center">{t('voucher_detail.lines.table.fragile')}</TableCell>
-                                        {canManageVoucherLines ? <TableCell align="right" width={56} /> : null}
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {(voucher.items || []).length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={canManageVoucherLines ? 8 : 7}>
-                                                <Typography variant="body2" color="text.secondary">
-                                                    {t('voucher_detail.lines.empty')}
-                                                </Typography>
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : (
-                                        (voucher.items || []).map((it, idx) => (
-                                        <TableRow key={it.id}>
-                                            <TableCell>{idx + 1}</TableCell>
-                                            <TableCell sx={{ fontWeight: 600 }}>{it.product?.name ?? '—'}</TableCell>
-                                            <TableCell>{formatQty(it.qty)}</TableCell>
-                                            <TableCell>{it.unit}</TableCell>
-                                            <TableCell>{it.from_warehouse?.display_name ?? '—'}</TableCell>
-                                            <TableCell align="right">{formatMoneyAmount(it.freight_amount)}</TableCell>
-                                            <TableCell align="center">{it.is_fragile ? t('ui.yes') : '—'}</TableCell>
-                                            {canManageVoucherLines ? (
-                                                <TableCell align="right">
-                                                    <IconButton size="small" aria-label={t('voucher_detail.lines.actions.edit_line')} onClick={() => openLineEdit(it)}>
-                                                        <EditIcon fontSize="small" />
-                                                    </IconButton>
-                                                </TableCell>
-                                            ) : null}
-                                        </TableRow>
-                                        ))
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
-                    </Box>
-                    <Stack spacing={1.25} sx={{ display: { xs: 'flex', md: 'none' } }}>
-                        {(voucher.items || []).length === 0 ? (
-                            <Typography variant="body2" color="text.secondary">
-                                {t('voucher_detail.lines.empty')}
-                            </Typography>
-                        ) : (
-                            (voucher.items || []).map((it, idx) => (
-                                <LineCard key={it.id} item={it} lineNo={idx + 1} canEdit={canManageVoucherLines} onEdit={openLineEdit} />
-                            ))
-                        )}
-                    </Stack>
                 </Box>
 
                 <Dialog open={detailsEditOpen} onClose={closeDetailsEdit} fullWidth maxWidth="sm">

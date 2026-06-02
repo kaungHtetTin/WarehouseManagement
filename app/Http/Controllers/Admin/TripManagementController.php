@@ -2840,10 +2840,6 @@ class TripManagementController extends Controller
         if (filled($voucher->default_recipient_phone)) {
             $bits[] = $voucher->default_recipient_phone;
         }
-        $wh = $voucher->defaultToWarehouse;
-        if ($wh !== null && filled($wh->display_name ?? null)) {
-            $bits[] = (string) $wh->display_name;
-        }
         $addrParts = array_filter([
             $voucher->default_to_address_line1,
             $voucher->default_to_address_line2,
@@ -3175,7 +3171,7 @@ class TripManagementController extends Controller
     }
 
     /**
-     * @return list<array{id:int,voucher_no:string,merchant_name:string|null,recipient_name:string|null,total_weight:float|null,remaining_qty:string,lines:int}>
+     * @return list<array{id:int,voucher_no:string,merchant_name:string|null,recipient_name:string|null,total_weight:float|null,remaining_qty:string,lines:int,line_rows:list<array{id:int,line_no:int,product_name:string,unit:string|null,remaining_qty:string}>}>
      */
     private function loadableVouchers(Trip $trip, int $organizationId): array
     {
@@ -3194,6 +3190,7 @@ class TripManagementController extends Controller
                 ->whereIn('status', self::VOUCHER_STATUSES_ALLOWING_TRIP_LOAD)
                 ->where('default_to_warehouse_id', $destinationWarehouseId))
             ->with([
+                'product:id,name,unit',
                 'voucher:id,voucher_no,merchant_id,total_weight,default_recipient_name',
                 'voucher.merchant:id,name',
             ])
@@ -3255,10 +3252,18 @@ class TripManagementController extends Controller
                     'total_weight' => $vi->voucher->total_weight !== null ? (float) $vi->voucher->total_weight : null,
                     'remaining' => 0.0,
                     'lines' => 0,
+                    'line_rows' => [],
                 ];
             }
             $byVoucher[$vid]['remaining'] = (float) $byVoucher[$vid]['remaining'] + (float) $remaining;
             $byVoucher[$vid]['lines'] = (int) $byVoucher[$vid]['lines'] + 1;
+            $byVoucher[$vid]['line_rows'][] = [
+                'id' => (int) $vi->id,
+                'line_no' => (int) $vi->line_no,
+                'product_name' => (string) ($vi->product?->name ?? '—'),
+                'unit' => $vi->product?->unit ?? $vi->unit,
+                'remaining_qty' => number_format($remaining, 3, '.', ''),
+            ];
         }
 
         $out = array_values($byVoucher);
@@ -3273,6 +3278,7 @@ class TripManagementController extends Controller
                 'total_weight' => $row['total_weight'] ?? null,
                 'remaining_qty' => number_format(max(0, (float) $row['remaining']), 3, '.', ''),
                 'lines' => (int) $row['lines'],
+                'line_rows' => $row['line_rows'],
             ];
         }, $out);
     }

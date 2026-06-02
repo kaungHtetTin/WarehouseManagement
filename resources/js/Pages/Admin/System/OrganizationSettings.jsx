@@ -6,34 +6,41 @@ import {
     Avatar,
     Box,
     Button,
-    Checkbox,
+    Chip,
     CircularProgress,
     Dialog,
     DialogActions,
     DialogContent,
     DialogTitle,
     Divider,
-    FormControlLabel,
     Grid,
     IconButton,
-    MenuItem,
     Paper,
     Slider,
     Stack,
+    Switch,
     TextField,
     Typography,
 } from '@mui/material';
 import {
+    ArticleOutlined as ContentIcon,
+    BrandingWatermarkOutlined as BrandingIcon,
+    CheckCircleOutlined as CheckIcon,
     Close as CloseIcon,
+    CloudUploadOutlined as UploadIcon,
+    ContactPhoneOutlined as ContactIcon,
+    DescriptionOutlined as DocumentIcon,
+    PrintOutlined as PrintIcon,
     ReceiptLong as VoucherIcon,
     Save as SaveIcon,
+    TuneOutlined as TuneIcon,
 } from '@mui/icons-material';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatPrintDate } from '@/utils/printing/dateFormat';
 
 const sectionCardSx = {
-    p: { xs: 1.75, sm: 2 },
-    borderRadius: 2,
+    p: { xs: 2, sm: 2.5 },
+    borderRadius: 3,
     border: '1px solid',
     borderColor: 'divider',
     boxShadow: 'none',
@@ -44,6 +51,113 @@ function SettingsCard({ children, sx }) {
         <Paper elevation={0} sx={[sectionCardSx, sx]}>
             {children}
         </Paper>
+    );
+}
+
+function SettingsSectionTitle({ icon, title, description }) {
+    return (
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
+            <Avatar
+                sx={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 2.25,
+                    bgcolor: 'rgba(79,70,229,0.10)',
+                    color: 'primary.main',
+                }}
+            >
+                {icon}
+            </Avatar>
+            <Box sx={{ minWidth: 0 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 900, lineHeight: 1.25 }}>
+                    {title}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                    {description}
+                </Typography>
+            </Box>
+        </Stack>
+    );
+}
+
+function PresetOption({ active, title, description, icon, onClick }) {
+    return (
+        <Paper
+            component="button"
+            type="button"
+            elevation={0}
+            onClick={onClick}
+            sx={{
+                width: '100%',
+                p: 1.5,
+                textAlign: 'left',
+                cursor: 'pointer',
+                borderRadius: 2.25,
+                border: '1px solid',
+                borderColor: active ? 'primary.main' : 'divider',
+                bgcolor: active ? 'rgba(79,70,229,0.06)' : 'background.paper',
+                color: 'text.primary',
+                transition: 'border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease',
+                boxShadow: active ? '0 0 0 3px rgba(79,70,229,0.08)' : 'none',
+                '&:hover': {
+                    borderColor: active ? 'primary.main' : 'text.disabled',
+                    bgcolor: active ? 'rgba(79,70,229,0.08)' : 'action.hover',
+                },
+            }}
+        >
+            <Stack direction="row" spacing={1.25} sx={{ alignItems: 'flex-start' }}>
+                <Avatar
+                    sx={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 2,
+                        bgcolor: active ? 'primary.main' : 'action.selected',
+                        color: active ? 'primary.contrastText' : 'text.secondary',
+                    }}
+                >
+                    {icon}
+                </Avatar>
+                <Box sx={{ minWidth: 0, flex: 1 }}>
+                    <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 900 }}>
+                            {title}
+                        </Typography>
+                        {active ? <CheckIcon color="primary" sx={{ fontSize: 19 }} /> : null}
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35, lineHeight: 1.45 }}>
+                        {description}
+                    </Typography>
+                </Box>
+            </Stack>
+        </Paper>
+    );
+}
+
+function PreferenceSwitch({ title, description, checked, onChange }) {
+    return (
+        <Stack
+            direction="row"
+            spacing={1}
+            sx={{
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                p: 1.25,
+                border: '1px solid',
+                borderColor: 'divider',
+                borderRadius: 2,
+                bgcolor: checked ? 'rgba(79,70,229,0.035)' : 'background.paper',
+            }}
+        >
+            <Box sx={{ minWidth: 0 }}>
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                    {title}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25, lineHeight: 1.35 }}>
+                    {description}
+                </Typography>
+            </Box>
+            <Switch checked={checked} onChange={onChange} inputProps={{ 'aria-label': title }} />
+        </Stack>
     );
 }
 
@@ -187,7 +301,7 @@ function VoucherPrintLivePreview({ voucher, template }) {
                                 <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
                                     {[contactPhone ? `Phone: ${contactPhone}` : null, contactEmail ? `Email: ${contactEmail}` : null, contactAddress || null]
                                         .filter(Boolean)
-                                        .join(' � ')}
+                                        .join(' | ')}
                                 </Typography>
                             ) : null}
 
@@ -608,236 +722,348 @@ export default function OrganizationSettings() {
 
     return (
         <AdminLayout title="Settings">
-            <Head title="Settings" />
+            <Head title="Voucher preset" />
             <Stack spacing={2.5}>
                 {flash.success && <Alert severity="success">{flash.success}</Alert>}
                 {flash.error && <Alert severity="error">{flash.error}</Alert>}
 
                 <PageHeader
-                    title="Voucher Print Settings"
-                    subtitle={`Configure the voucher print template for ${organization?.name || 'your organization'}.`}
+                    eyebrow="Settings / Voucher"
+                    title="Voucher preset"
+                    subtitle={`Set the default printed voucher style for ${organization?.name || 'your organization'}. Changes are reflected in the preview before you save.`}
                     actions={
                         <Button
                             variant="contained"
-                            size="small"
+                            fullWidth
                             disabled={voucherPrintForm.processing}
                             onClick={submitVoucherPrint}
                             startIcon={voucherPrintForm.processing ? <CircularProgress size={16} /> : <SaveIcon fontSize="small" />}
+                            sx={{ px: 2.25 }}
                         >
-                            Save
+                            Save preset
                         </Button>
                     }
-                />
+                >
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.75, sm: 2.5 }}>
+                        {[
+                            ['1', 'Choose print format'],
+                            ['2', 'Add voucher identity'],
+                            ['3', 'Review live preview'],
+                        ].map(([number, label]) => (
+                            <Stack key={number} direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+                                <Avatar sx={{ width: 22, height: 22, bgcolor: 'rgba(79,70,229,0.10)', color: 'primary.main', fontSize: 11, fontWeight: 900 }}>
+                                    {number}
+                                </Avatar>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                                    {label}
+                                </Typography>
+                            </Stack>
+                        ))}
+                    </Stack>
+                </PageHeader>
 
                 <Box component="form" onSubmit={submitVoucherPrint} noValidate>
-                    <Grid container spacing={1.5}>
-                        <Grid size={{ xs: 12, md: 7 }}>
-                            <SettingsCard>
-                                <Stack spacing={1.5}>
-                                    <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
-                                        <Avatar
-                                            sx={{
-                                                width: 36,
-                                                height: 36,
-                                                borderRadius: 2.25,
-                                                bgcolor: 'rgba(59,130,246,0.10)',
-                                                color: '#3B82F6',
-                                            }}
-                                        >
-                                            <VoucherIcon fontSize="small" />
-                                        </Avatar>
-                                        <Box>
-                                            <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>
-                                                Voucher Print Template
-                                            </Typography>
-                                            <Typography variant="caption" color="text.secondary">
-                                                Customize the printed voucher frame.
-                                            </Typography>
-                                        </Box>
-                                    </Stack>
-
-                                    <Divider />
-                                    <TextField
-                                        select
-                                        label="Paper size"
-                                        value={voucherPrintForm.data.paper_size}
-                                        onChange={(e) => voucherPrintForm.setData('paper_size', e.target.value)}
-                                        error={Boolean(voucherPrintForm.errors.paper_size)}
-                                        helperText={voucherPrintForm.errors.paper_size || 'A4 for office printer, Receipt 80mm for thermal printer.'}
-                                    >
-                                        <MenuItem value="A4">A4</MenuItem>
-                                        <MenuItem value="RECEIPT_80">Receipt 80mm</MenuItem>
-                                    </TextField>
-
-                                    <TextField
-                                        required
-                                        label="Header title"
-                                        value={voucherPrintForm.data.header_title}
-                                        onChange={(e) => voucherPrintForm.setData('header_title', e.target.value)}
-                                        error={Boolean(voucherPrintForm.errors.header_title)}
-                                        helperText={voucherPrintForm.errors.header_title || 'Example: Warehouse & Transport'}
-                                    />
-                                    <TextField
-                                        label="Header subtitle"
-                                        value={voucherPrintForm.data.header_subtitle}
-                                        onChange={(e) => voucherPrintForm.setData('header_subtitle', e.target.value)}
-                                        error={Boolean(voucherPrintForm.errors.header_subtitle)}
-                                        helperText={voucherPrintForm.errors.header_subtitle || 'Example: Voucher'}
-                                    />
-
-                                    <FormControlLabel
-                                        control={
-                                            <Checkbox
-                                                checked={voucherPrintForm.data.show_logo}
-                                                onChange={(e) => voucherPrintForm.setData('show_logo', e.target.checked)}
-                                            />
-                                        }
-                                        label="Show logo"
-                                    />
-                                    <input
-                                        ref={voucherPrintLogoFileInputRef}
-                                        type="file"
-                                        accept="image/*"
-                                        style={{ display: 'none' }}
-                                        onChange={onVoucherPrintLogoFileChange}
-                                    />
-                                    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-                                        <IconButton
-                                            onClick={openVoucherPrintLogoPicker}
-                                            disabled={voucherPrintLogoUploadForm.processing}
-                                            sx={{
-                                                width: 72,
-                                                height: 72,
-                                                borderRadius: 2.5,
-                                                border: '1px dashed',
-                                                borderColor: 'divider',
-                                                bgcolor: 'rgba(15,23,42,0.02)',
-                                                overflow: 'hidden',
-                                                p: 0,
-                                                flexShrink: 0,
-                                                '&:hover': { borderColor: 'primary.main', bgcolor: 'rgba(59,130,246,0.06)' },
-                                            }}
-                                        >
-                                            {safeStr(voucherPrintForm.data.logo_url) ? (
-                                                <Box
-                                                    component="img"
-                                                    src={safeStr(voucherPrintForm.data.logo_url)}
-                                                    alt="Voucher logo"
-                                                    sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    <Grid container spacing={2}>
+                        <Grid size={{ xs: 12, lg: 7 }}>
+                            <Stack spacing={2}>
+                                <SettingsCard>
+                                    <Stack spacing={1.75}>
+                                        <SettingsSectionTitle
+                                            icon={<PrintIcon fontSize="small" />}
+                                            title="Print format"
+                                            description="Choose the paper layout used for every voucher."
+                                        />
+                                        <Divider />
+                                        <Grid container spacing={1.25}>
+                                            <Grid size={{ xs: 12, sm: 6 }}>
+                                                <PresetOption
+                                                    active={voucherPrintForm.data.paper_size === 'A4'}
+                                                    title="A4 document"
+                                                    description="Best for office printers and full-page voucher records."
+                                                    icon={<DocumentIcon fontSize="small" />}
+                                                    onClick={() => voucherPrintForm.setData('paper_size', 'A4')}
                                                 />
-                                            ) : (
-                                                <VoucherIcon sx={{ color: 'text.disabled' }} />
-                                            )}
-                                        </IconButton>
-                                        <Box sx={{ minWidth: 0 }}>
-                                            <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                                                Upload voucher logo
+                                            </Grid>
+                                            <Grid size={{ xs: 12, sm: 6 }}>
+                                                <PresetOption
+                                                    active={voucherPrintForm.data.paper_size === 'RECEIPT_80'}
+                                                    title="Receipt 80mm"
+                                                    description="Compact thermal format for counter and dispatch printing."
+                                                    icon={<VoucherIcon fontSize="small" />}
+                                                    onClick={() => voucherPrintForm.setData('paper_size', 'RECEIPT_80')}
+                                                />
+                                            </Grid>
+                                        </Grid>
+                                        {voucherPrintForm.errors.paper_size ? (
+                                            <Typography variant="caption" color="error">
+                                                {voucherPrintForm.errors.paper_size}
                                             </Typography>
-                                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                                                Upload and crop 1:1
-                                            </Typography>
-                                            {voucherPrintLogoUploadForm.errors.logo ? (
-                                                <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
-                                                    {voucherPrintLogoUploadForm.errors.logo}
-                                                </Typography>
-                                            ) : null}
-                                        </Box>
+                                        ) : null}
                                     </Stack>
-                                    <TextField
-                                        label="Logo URL"
-                                        value={voucherPrintForm.data.logo_url}
-                                        onChange={(e) => voucherPrintForm.setData('logo_url', e.target.value)}
-                                        error={Boolean(voucherPrintForm.errors.logo_url)}
-                                        helperText={voucherPrintForm.errors.logo_url || 'Optional'}
-                                    />
+                                </SettingsCard>
 
-                                    <Divider />
-
-                                    <FormControlLabel
-                                        control={
-                                            <Checkbox
-                                                checked={voucherPrintForm.data.show_contact}
-                                                onChange={(e) => voucherPrintForm.setData('show_contact', e.target.checked)}
-                                            />
-                                        }
-                                        label="Show contact"
-                                    />
-                                    <Grid container spacing={1.5}>
-                                        <Grid size={{ xs: 12, sm: 6 }}>
-                                            <TextField
-                                                label="Phone"
-                                                value={voucherPrintForm.data.contact_phone}
-                                                onChange={(e) => voucherPrintForm.setData('contact_phone', e.target.value)}
-                                                error={Boolean(voucherPrintForm.errors.contact_phone)}
-                                            />
+                                <SettingsCard>
+                                    <Stack spacing={1.75}>
+                                        <SettingsSectionTitle
+                                            icon={<BrandingIcon fontSize="small" />}
+                                            title="Voucher identity"
+                                            description="Apply your organization name, subtitle, and logo."
+                                        />
+                                        <Divider />
+                                        <Grid container spacing={1.5}>
+                                            <Grid size={{ xs: 12, sm: 7 }}>
+                                                <TextField
+                                                    required
+                                                    fullWidth
+                                                    label="Header title"
+                                                    value={voucherPrintForm.data.header_title}
+                                                    onChange={(e) => voucherPrintForm.setData('header_title', e.target.value)}
+                                                    error={Boolean(voucherPrintForm.errors.header_title)}
+                                                    helperText={voucherPrintForm.errors.header_title || 'Main organization or service name'}
+                                                />
+                                            </Grid>
+                                            <Grid size={{ xs: 12, sm: 5 }}>
+                                                <TextField
+                                                    fullWidth
+                                                    label="Header subtitle"
+                                                    value={voucherPrintForm.data.header_subtitle}
+                                                    onChange={(e) => voucherPrintForm.setData('header_subtitle', e.target.value)}
+                                                    error={Boolean(voucherPrintForm.errors.header_subtitle)}
+                                                    helperText={voucherPrintForm.errors.header_subtitle || 'Example: Delivery voucher'}
+                                                />
+                                            </Grid>
                                         </Grid>
-                                        <Grid size={{ xs: 12, sm: 6 }}>
-                                            <TextField
-                                                label="Email"
-                                                value={voucherPrintForm.data.contact_email}
-                                                onChange={(e) => voucherPrintForm.setData('contact_email', e.target.value)}
-                                                error={Boolean(voucherPrintForm.errors.contact_email)}
-                                            />
+
+                                        <PreferenceSwitch
+                                            title="Display logo"
+                                            description="Show your uploaded logo beside the voucher heading."
+                                            checked={voucherPrintForm.data.show_logo}
+                                            onChange={(e) => voucherPrintForm.setData('show_logo', e.target.checked)}
+                                        />
+
+                                        <input
+                                            ref={voucherPrintLogoFileInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            style={{ display: 'none' }}
+                                            onChange={onVoucherPrintLogoFileChange}
+                                        />
+                                        <Paper
+                                            variant="outlined"
+                                            sx={{
+                                                p: 1.5,
+                                                borderRadius: 2.25,
+                                                borderStyle: 'dashed',
+                                                bgcolor: 'rgba(15,23,42,0.018)',
+                                            }}
+                                        >
+                                            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { xs: 'flex-start', sm: 'center' } }}>
+                                                <IconButton
+                                                    onClick={openVoucherPrintLogoPicker}
+                                                    disabled={voucherPrintLogoUploadForm.processing}
+                                                    sx={{
+                                                        width: 74,
+                                                        height: 74,
+                                                        borderRadius: 2,
+                                                        border: '1px solid',
+                                                        borderColor: 'divider',
+                                                        bgcolor: 'background.paper',
+                                                        overflow: 'hidden',
+                                                        p: 0,
+                                                        flexShrink: 0,
+                                                        '&:hover': { borderColor: 'primary.main', bgcolor: 'rgba(79,70,229,0.05)' },
+                                                    }}
+                                                >
+                                                    {safeStr(voucherPrintForm.data.logo_url) ? (
+                                                        <Box
+                                                            component="img"
+                                                            src={safeStr(voucherPrintForm.data.logo_url)}
+                                                            alt="Voucher logo"
+                                                            sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                        />
+                                                    ) : (
+                                                        <BrandingIcon sx={{ color: 'text.disabled' }} />
+                                                    )}
+                                                </IconButton>
+                                                <Box sx={{ minWidth: 0, flex: 1 }}>
+                                                    <Typography variant="body2" sx={{ fontWeight: 900 }}>
+                                                        Voucher logo
+                                                    </Typography>
+                                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+                                                        Upload an image and crop it to a square. PNG, JPG, or WebP up to 2 MB.
+                                                    </Typography>
+                                                    {voucherPrintLogoUploadForm.errors.logo ? (
+                                                        <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
+                                                            {voucherPrintLogoUploadForm.errors.logo}
+                                                        </Typography>
+                                                    ) : null}
+                                                </Box>
+                                                <Button
+                                                    variant="outlined"
+                                                    size="small"
+                                                    startIcon={<UploadIcon fontSize="small" />}
+                                                    onClick={openVoucherPrintLogoPicker}
+                                                    disabled={voucherPrintLogoUploadForm.processing}
+                                                    sx={{ flexShrink: 0 }}
+                                                >
+                                                    Upload logo
+                                                </Button>
+                                            </Stack>
+                                        </Paper>
+                                        <TextField
+                                            fullWidth
+                                            label="Or use image URL"
+                                            value={voucherPrintForm.data.logo_url}
+                                            onChange={(e) => voucherPrintForm.setData('logo_url', e.target.value)}
+                                            error={Boolean(voucherPrintForm.errors.logo_url)}
+                                            helperText={voucherPrintForm.errors.logo_url || 'Optional direct image URL'}
+                                        />
+                                    </Stack>
+                                </SettingsCard>
+
+                                <SettingsCard>
+                                    <Stack spacing={1.75}>
+                                        <SettingsSectionTitle
+                                            icon={<ContactIcon fontSize="small" />}
+                                            title="Contact details"
+                                            description="Include the contact information recipients may need."
+                                        />
+                                        <Divider />
+                                        <PreferenceSwitch
+                                            title="Display contact details"
+                                            description="Add phone, email, and address below the voucher header."
+                                            checked={voucherPrintForm.data.show_contact}
+                                            onChange={(e) => voucherPrintForm.setData('show_contact', e.target.checked)}
+                                        />
+                                        <Grid container spacing={1.5}>
+                                            <Grid size={{ xs: 12, sm: 6 }}>
+                                                <TextField
+                                                    fullWidth
+                                                    disabled={!voucherPrintForm.data.show_contact}
+                                                    label="Phone"
+                                                    value={voucherPrintForm.data.contact_phone}
+                                                    onChange={(e) => voucherPrintForm.setData('contact_phone', e.target.value)}
+                                                    error={Boolean(voucherPrintForm.errors.contact_phone)}
+                                                />
+                                            </Grid>
+                                            <Grid size={{ xs: 12, sm: 6 }}>
+                                                <TextField
+                                                    fullWidth
+                                                    disabled={!voucherPrintForm.data.show_contact}
+                                                    label="Email"
+                                                    value={voucherPrintForm.data.contact_email}
+                                                    onChange={(e) => voucherPrintForm.setData('contact_email', e.target.value)}
+                                                    error={Boolean(voucherPrintForm.errors.contact_email)}
+                                                />
+                                            </Grid>
+                                            <Grid size={{ xs: 12 }}>
+                                                <TextField
+                                                    fullWidth
+                                                    disabled={!voucherPrintForm.data.show_contact}
+                                                    label="Address"
+                                                    value={voucherPrintForm.data.contact_address}
+                                                    onChange={(e) => voucherPrintForm.setData('contact_address', e.target.value)}
+                                                    error={Boolean(voucherPrintForm.errors.contact_address)}
+                                                    multiline
+                                                    minRows={2}
+                                                />
+                                            </Grid>
                                         </Grid>
-                                        <Grid size={{ xs: 12 }}>
-                                            <TextField
-                                                label="Address"
-                                                value={voucherPrintForm.data.contact_address}
-                                                onChange={(e) => voucherPrintForm.setData('contact_address', e.target.value)}
-                                                error={Boolean(voucherPrintForm.errors.contact_address)}
-                                                multiline
-                                                minRows={2}
-                                            />
-                                        </Grid>
-                                    </Grid>
+                                    </Stack>
+                                </SettingsCard>
 
-                                    <Divider />
-
-                                    <TextField
-                                        label="Footer note"
-                                        value={voucherPrintForm.data.footer_note}
-                                        onChange={(e) => voucherPrintForm.setData('footer_note', e.target.value)}
-                                        error={Boolean(voucherPrintForm.errors.footer_note)}
-                                        helperText={voucherPrintForm.errors.footer_note || 'Optional'}
-                                    />
-
-                                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-                                        <FormControlLabel
-                                            control={
-                                                <Checkbox
+                                <SettingsCard>
+                                    <Stack spacing={1.75}>
+                                        <SettingsSectionTitle
+                                            icon={<ContentIcon fontSize="small" />}
+                                            title="Optional content"
+                                            description="Control the extra details printed at the end of the voucher."
+                                        />
+                                        <Divider />
+                                        <TextField
+                                            fullWidth
+                                            label="Footer note"
+                                            value={voucherPrintForm.data.footer_note}
+                                            onChange={(e) => voucherPrintForm.setData('footer_note', e.target.value)}
+                                            error={Boolean(voucherPrintForm.errors.footer_note)}
+                                            helperText={voucherPrintForm.errors.footer_note || 'Example: Thank you for choosing our delivery service.'}
+                                        />
+                                        <Grid container spacing={1.25}>
+                                            <Grid size={{ xs: 12, sm: 6 }}>
+                                                <PreferenceSwitch
+                                                    title="Payment status"
+                                                    description="Print the voucher payment state."
                                                     checked={voucherPrintForm.data.show_payment_status}
                                                     onChange={(e) => voucherPrintForm.setData('show_payment_status', e.target.checked)}
                                                 />
-                                            }
-                                            label="Show payment status"
-                                        />
-                                        <FormControlLabel
-                                            control={
-                                                <Checkbox
+                                            </Grid>
+                                            <Grid size={{ xs: 12, sm: 6 }}>
+                                                <PreferenceSwitch
+                                                    title="Signature boxes"
+                                                    description="Leave room for hand-off signatures."
                                                     checked={voucherPrintForm.data.show_signature_boxes}
                                                     onChange={(e) => voucherPrintForm.setData('show_signature_boxes', e.target.checked)}
                                                 />
-                                            }
-                                            label="Show signature boxes"
+                                            </Grid>
+                                        </Grid>
+                                    </Stack>
+                                </SettingsCard>
+
+                                <Paper
+                                    variant="outlined"
+                                    sx={{
+                                        p: 1.5,
+                                        borderRadius: 2.5,
+                                        bgcolor: voucherPrintForm.isDirty ? 'rgba(79,70,229,0.045)' : 'background.paper',
+                                    }}
+                                >
+                                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between' }}>
+                                        <Box>
+                                            <Typography variant="body2" sx={{ fontWeight: 900 }}>
+                                                {voucherPrintForm.isDirty ? 'Your preset has unsaved changes' : 'Voucher preset is up to date'}
+                                            </Typography>
+                                            <Typography variant="caption" color="text.secondary">
+                                                Save to apply this preset to future voucher prints.
+                                            </Typography>
+                                        </Box>
+                                        <Button
+                                            type="submit"
+                                            variant="contained"
+                                            disabled={voucherPrintForm.processing}
+                                            startIcon={voucherPrintForm.processing ? <CircularProgress size={16} /> : <SaveIcon fontSize="small" />}
+                                            sx={{ flexShrink: 0 }}
+                                        >
+                                            Save preset
+                                        </Button>
+                                    </Stack>
+                                </Paper>
+                            </Stack>
+                        </Grid>
+                        <Grid size={{ xs: 12, lg: 5 }}>
+                            <SettingsCard sx={{ position: { lg: 'sticky' }, top: { lg: 16 } }}>
+                                <Stack spacing={1.5}>
+                                    <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                                        <Box>
+                                            <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>
+                                                Live preview
+                                            </Typography>
+                                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                                                Review the voucher while you customize it.
+                                            </Typography>
+                                        </Box>
+                                        <Chip
+                                            size="small"
+                                            icon={<TuneIcon sx={{ fontSize: '16px !important' }} />}
+                                            label={voucherPrintForm.data.paper_size === 'RECEIPT_80' ? '80mm' : 'A4'}
+                                            color="primary"
+                                            variant="outlined"
                                         />
                                     </Stack>
-                                </Stack>
-                            </SettingsCard>
-                        </Grid>
-                        <Grid size={{ xs: 12, md: 5 }}>
-                            <SettingsCard>
-                                <Stack spacing={1.5}>
-                                    <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                                        Preview
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Updates instantly as you change the fields.
-                                    </Typography>
                                     <Box
                                         sx={{
-                                            bgcolor: 'grey.50',
-                                            borderRadius: 2,
-                                            p: voucherPrintForm.data.paper_size === 'RECEIPT_80' ? 0.75 : 1.25,
+                                            bgcolor: 'rgba(15,23,42,0.035)',
+                                            borderRadius: 2.5,
+                                            p: voucherPrintForm.data.paper_size === 'RECEIPT_80' ? 1 : 1.5,
                                             border: '1px solid',
                                             borderColor: 'divider',
                                             overflowX: 'auto',
@@ -845,6 +1071,12 @@ export default function OrganizationSettings() {
                                     >
                                         <VoucherPrintLivePreview voucher={voucherPrintPreviewVoucher} template={voucherPrintPreviewTemplate} />
                                     </Box>
+                                    <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+                                        <CheckIcon color="success" sx={{ fontSize: 17 }} />
+                                        <Typography variant="caption" color="text.secondary">
+                                            Preview updates instantly. Saving publishes the preset.
+                                        </Typography>
+                                    </Stack>
                                 </Stack>
                             </SettingsCard>
                         </Grid>
@@ -865,7 +1097,21 @@ export default function OrganizationSettings() {
                     },
                 }}
             >
-                <DialogTitle>Crop voucher logo (1:1)</DialogTitle>
+                <DialogTitle>
+                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Box>
+                            <Typography variant="h6" sx={{ fontWeight: 900 }}>
+                                Crop voucher logo
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                Reposition the image inside the square frame.
+                            </Typography>
+                        </Box>
+                        <IconButton onClick={closeCropper} disabled={cropUploading} aria-label="Close crop dialog">
+                            <CloseIcon />
+                        </IconButton>
+                    </Stack>
+                </DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 1 }}>
                         <Box
@@ -911,8 +1157,8 @@ export default function OrganizationSettings() {
                                 valueLabelFormat={(v) => `${Math.round(v * 100)}%`}
                             />
                         </Stack>
-                        <Typography variant="caption" color="text.secondary">
-                            Drag to reposition
+                        <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
+                            Drag the image to reposition it.
                         </Typography>
                     </Stack>
                 </DialogContent>
@@ -921,7 +1167,7 @@ export default function OrganizationSettings() {
                         Cancel
                     </Button>
                     <Button variant="contained" onClick={uploadCroppedImage} disabled={!img || cropUploading}>
-                        Save logo
+                        {cropUploading ? 'Uploading...' : 'Use logo'}
                     </Button>
                 </DialogActions>
             </Dialog>
