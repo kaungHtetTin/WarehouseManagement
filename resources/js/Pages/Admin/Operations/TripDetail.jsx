@@ -73,6 +73,13 @@ const TRIP_ITEM_STATUS_COLOR = {
     RETURNED: 'error',
 };
 
+const VOUCHER_PAYMENT_STATUS_COLOR = {
+    PAID: 'success',
+    PARTIAL: 'warning',
+    UNPAID: 'warning',
+    WAIVED: 'default',
+};
+
 const SECTION_CARD_SX = {
     p: { xs: 1.75, sm: 2 },
     borderRadius: 2,
@@ -231,6 +238,20 @@ function formatVoucherDestination(vi) {
     return bits.length ? bits.join(' · ') : '—';
 }
 
+function voucherPaymentStatusLabel(status, t) {
+    const normalized = String(status ?? 'UNPAID').toUpperCase();
+    const translationKeys = {
+        PAID: 'vouchers.payment_status.paid',
+        PARTIAL: 'vouchers.payment_status.partial',
+        UNPAID: 'vouchers.payment_status.unpaid',
+        WAIVED: 'vouchers.payment_status.waived',
+    };
+
+    return t('vouchers.chip.payment_status', {
+        payment_status: translationKeys[normalized] ? t(translationKeys[normalized]) : normalized,
+    });
+}
+
 export default function TripDetail() {
     const theme = useTheme();
     const isSmUp = useMediaQuery(theme.breakpoints.up('sm'));
@@ -244,6 +265,7 @@ export default function TripDetail() {
     /** Load / edit / remove cargo lines while trip is active (includes departed / in transit). */
     const canLoadCargo = pageProps.can_load_cargo ?? pageProps.can_manage_cargo ?? false;
     const canRecordDelivery = pageProps.can_record_delivery ?? false;
+    const canRecordVoucherPayments = pageProps.can_record_voucher_payments ?? false;
     const canManageTripCosts = pageProps.can_manage_trip_costs ?? false;
     const canRecordTripNetIncome = pageProps.can_record_trip_net_income ?? false;
     const tripNetIncomeRecorded = pageProps.trip_net_income_recorded ?? false;
@@ -530,6 +552,8 @@ export default function TripDetail() {
                 m.set(voucherId, {
                     voucher_id: voucherId,
                     voucher_no: v.voucher_no ?? '—',
+                    payment_status: v.payment_status ?? 'UNPAID',
+                    total_amount: v.total_amount ?? null,
                     recipient_label: formatVoucherRecipient(v),
                     destination: formatVoucherDestination(vi),
                     lines: 0,
@@ -1717,32 +1741,33 @@ export default function TripDetail() {
                                                                 {isOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
                                                             </IconButton>
                                                             <Stack spacing={0.35} sx={{ minWidth: 0, flex: '1 1 auto' }}>
-                                                                <Stack direction="row" spacing={1} alignItems="baseline" sx={{ minWidth: 0 }}>
+                                                                {row.voucher_id ? (
                                                                     <Typography
+                                                                        component={Link}
+                                                                        href={`${adminAppUrl}/operations/vouchers/${row.voucher_id}`}
                                                                         variant="body2"
                                                                         sx={{
-                                                                            fontWeight: 800,
+                                                                            width: 'fit-content',
+                                                                            maxWidth: '100%',
+                                                                            color: 'primary.main',
+                                                                            fontWeight: 900,
                                                                             lineHeight: 1.2,
-                                                                            minWidth: 0,
+                                                                            textDecoration: 'none',
+                                                                            '&:hover': { textDecoration: 'underline' },
                                                                         }}
                                                                         noWrap
-                                                                        title={recipientLabel || undefined}
-                                                                    >
-                                                                        {recipientLabel || '—'}
-                                                                    </Typography>
-                                                                    <Typography
-                                                                        variant="caption"
-                                                                        color="text.secondary"
-                                                                        sx={{ flexShrink: 0 }}
                                                                         title={voucherNo !== '—' ? voucherNo : undefined}
                                                                     >
-                                                                        {row.voucher_id ? (
-                                                                            <Link href={`${adminAppUrl}/operations/vouchers/${row.voucher_id}`}>{voucherNo}</Link>
-                                                                        ) : (
-                                                                            voucherNo
-                                                                        )}
+                                                                        {voucherNo}
                                                                     </Typography>
-                                                                </Stack>
+                                                                ) : (
+                                                                    <Typography variant="body2" sx={{ fontWeight: 900, lineHeight: 1.2 }} noWrap>
+                                                                        {voucherNo}
+                                                                    </Typography>
+                                                                )}
+                                                                <Typography variant="caption" color="text.secondary" noWrap title={recipientLabel || undefined}>
+                                                                    {recipientLabel || '—'}
+                                                                </Typography>
                                                                 {dest !== '—' ? (
                                                                     <Typography
                                                                         variant="caption"
@@ -1764,12 +1789,20 @@ export default function TripDetail() {
                                                     </TableCell>
                                                     <TableCell align="right">{row.lines}</TableCell>
                                                     <TableCell>
-                                                        <Chip
-                                                            size="small"
-                                                            label={row.status}
-                                                            color={TRIP_ITEM_STATUS_COLOR[row.status] ?? 'default'}
-                                                            variant="outlined"
-                                                        />
+                                                        <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                                                            <Chip
+                                                                size="small"
+                                                                label={row.status}
+                                                                color={TRIP_ITEM_STATUS_COLOR[row.status] ?? 'default'}
+                                                                variant="outlined"
+                                                            />
+                                                            <Chip
+                                                                size="small"
+                                                                label={voucherPaymentStatusLabel(row.payment_status, t)}
+                                                                color={VOUCHER_PAYMENT_STATUS_COLOR[row.payment_status] ?? 'default'}
+                                                                variant="outlined"
+                                                            />
+                                                        </Stack>
                                                     </TableCell>
                                                     {showCargoActionsColumn ? (
                                                         <TableCell align="right">
@@ -1829,9 +1862,28 @@ export default function TripDetail() {
                                     <Paper key={row.voucher_id} variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
                                         <Stack spacing={1.25}>
                                             <Stack direction="row" alignItems="flex-start" justifyContent="space-between" gap={1}>
-                                                <Typography variant="subtitle2" sx={{ fontWeight: 700, wordBreak: 'break-word', flex: '1 1 auto', minWidth: 0 }}>
-                                                    {row.recipient_label || '—'}
-                                                </Typography>
+                                                {row.voucher_id ? (
+                                                    <Typography
+                                                        component={Link}
+                                                        href={`${adminAppUrl}/operations/vouchers/${row.voucher_id}`}
+                                                        variant="subtitle2"
+                                                        sx={{
+                                                            color: 'primary.main',
+                                                            fontWeight: 900,
+                                                            wordBreak: 'break-word',
+                                                            flex: '1 1 auto',
+                                                            minWidth: 0,
+                                                            textDecoration: 'none',
+                                                            '&:hover': { textDecoration: 'underline' },
+                                                        }}
+                                                    >
+                                                        {row.voucher_no ?? '—'}
+                                                    </Typography>
+                                                ) : (
+                                                    <Typography variant="subtitle2" sx={{ fontWeight: 900, wordBreak: 'break-word', flex: '1 1 auto', minWidth: 0 }}>
+                                                        {row.voucher_no ?? '—'}
+                                                    </Typography>
+                                                )}
                                                 <Stack direction="row" spacing={0.5} alignItems="center" flexShrink={0}>
                                                     <Chip
                                                         size="small"
@@ -1868,8 +1920,16 @@ export default function TripDetail() {
                                                 </Stack>
                                             </Stack>
                                             <Typography variant="body2" color="text.secondary">
-                                                {row.voucher_no ?? '—'} · {row.lines} line{row.lines === 1 ? '' : 's'}
+                                                {row.recipient_label || '—'} · {row.lines} line{row.lines === 1 ? '' : 's'}
                                             </Typography>
+                                            <Box>
+                                                <Chip
+                                                    size="small"
+                                                    label={voucherPaymentStatusLabel(row.payment_status, t)}
+                                                    color={VOUCHER_PAYMENT_STATUS_COLOR[row.payment_status] ?? 'default'}
+                                                    variant="outlined"
+                                                />
+                                            </Box>
                                             {dest !== '—' ? (
                                                 <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word', lineHeight: 1.45 }}>
                                                     {dest}
@@ -1984,6 +2044,23 @@ export default function TripDetail() {
                     >
                         {t('trip_detail.cargo.actions.print_voucher')}
                     </MenuItem>
+                    {canRecordVoucherPayments &&
+                    voucherRowMenu?.row?.voucher_id &&
+                    voucherRowMenu?.row?.payment_status !== 'PAID' &&
+                    voucherRowMenu?.row?.payment_status !== 'WAIVED' &&
+                    voucherRowMenu?.row?.total_amount != null ? (
+                        <MenuItem
+                            onClick={() => {
+                                const r = voucherRowMenu?.row;
+                                setVoucherRowMenu(null);
+                                if (!r?.voucher_id) return;
+                                if (!window.confirm(t('vouchers.confirm.mark_paid', { voucher_no: r.voucher_no }))) return;
+                                router.post(`${adminAppUrl}/operations/vouchers/${r.voucher_id}/mark-paid`, {}, { preserveScroll: true });
+                            }}
+                        >
+                            {t('vouchers.actions.mark_as_paid')}
+                        </MenuItem>
+                    ) : null}
                     {canRecordDelivery && voucherRowMenu?.row?.remaining_sum > 0.0001 ? (
                         <MenuItem
                             onClick={() => {

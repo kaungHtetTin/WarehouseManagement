@@ -1,5 +1,6 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import PageHeader from '@/Components/PageHeader';
+import PaginationBar from '@/Components/PaginationBar';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
 import {
@@ -41,7 +42,7 @@ export default function MerchantsIndex() {
     const theme = useTheme();
     const isCompactList = useMediaQuery(theme.breakpoints.down('md'));
     const t = useT();
-    const { merchants = [], admin_app_url: adminAppUrl, flash = {}, auth } = usePage().props;
+    const { merchants = { data: [], current_page: 1, last_page: 1, total: 0, per_page: 25 }, admin_app_url: adminAppUrl, flash = {}, auth } = usePage().props;
     const [open, setOpen] = useState(false);
     const [form, setForm] = useState(initialForm);
     const [error, setError] = useState('');
@@ -50,6 +51,7 @@ export default function MerchantsIndex() {
     const [selectedRow, setSelectedRow] = useState(null);
     const canManage = (auth?.permission_codes ?? []).includes('inventory.manage');
     const openTableActionMenu = Boolean(tableActionAnchorEl);
+    const merchantRows = Array.isArray(merchants.data) ? merchants.data : [];
 
     const handleTableActionOpen = (event, row) => {
         setTableActionAnchorEl(event.currentTarget);
@@ -139,7 +141,7 @@ export default function MerchantsIndex() {
 
                 {isCompactList ? (
                     <Stack spacing={1.25}>
-                        {merchants.map((row) => (
+                        {merchantRows.map((row) => (
                             <Paper key={row.id} variant="outlined" sx={{ p: 1.25, borderRadius: 2, boxShadow: 'none' }}>
                                 <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
                                     <Box sx={{ minWidth: 0, flex: 1 }}>
@@ -172,7 +174,7 @@ export default function MerchantsIndex() {
                                 </Stack>
                             </Paper>
                         ))}
-                        {merchants.length === 0 && (
+                        {merchantRows.length === 0 && (
                             <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, boxShadow: 'none' }}>
                                 <Typography variant="body2" color="text.secondary">
                                     {t('master.merchants.empty')}
@@ -193,7 +195,7 @@ export default function MerchantsIndex() {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {merchants.map((row) => (
+                                {merchantRows.map((row) => (
                                     <TableRow key={row.id} hover>
                                         <TableCell>{row.name}</TableCell>
                                         <TableCell>{row.phone || '—'}</TableCell>
@@ -208,7 +210,7 @@ export default function MerchantsIndex() {
                                         </TableCell>
                                     </TableRow>
                                 ))}
-                                {merchants.length === 0 && (
+                                {merchantRows.length === 0 && (
                                     <TableRow>
                                         <TableCell colSpan={5}>
                                             <Typography variant="body2" color="text.secondary">
@@ -221,6 +223,13 @@ export default function MerchantsIndex() {
                         </Table>
                     </Paper>
                 )}
+
+                <PaginationBar
+                    pagination={merchants}
+                    itemLabel="merchants"
+                    onPageChange={(page) => router.get(`${adminAppUrl}/master/merchants`, { page, per_page: merchants.per_page ?? 25 }, { preserveScroll: true })}
+                    onPerPageChange={(perPage) => router.get(`${adminAppUrl}/master/merchants`, { page: 1, per_page: perPage }, { preserveScroll: true })}
+                />
 
                 <Menu
                     anchorEl={tableActionAnchorEl}

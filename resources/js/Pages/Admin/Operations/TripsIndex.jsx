@@ -1,5 +1,6 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import PageHeader from '@/Components/PageHeader';
+import PaginationBar from '@/Components/PaginationBar';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
 import {
@@ -28,7 +29,7 @@ import {
     useTheme,
 } from '@mui/material';
 import { Add as AddIcon, MoreVert as MoreVertIcon } from '@mui/icons-material';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 
 const TRIP_STATUS_COLOR = {
     PLANNED: 'default',
@@ -54,37 +55,47 @@ export default function TripsIndex() {
     const t = useT();
     const pageProps = usePage().props;
     const {
-        trips = [],
+        trips = { data: [], current_page: 1, last_page: 1, total: 0, per_page: 25 },
         admin_app_url: adminAppUrl,
         flash = {},
         auth,
         trip_destination_filter: tripDestinationFilter = 'all',
+        trip_status_filter: statusFilter = 'all',
         trip_filter_warehouses: tripFilterWarehouses = [],
+        trip_summary: tripSummary = {},
     } = pageProps;
     const permissionCodes = auth?.permission_codes ?? [];
     const canManage = permissionCodes.includes('trips.manage');
     const [tableActionAnchorEl, setTableActionAnchorEl] = useState(null);
     const [selectedRow, setSelectedRow] = useState(null);
-    const [statusFilter, setStatusFilter] = useState('all');
     const openTableActionMenu = Boolean(tableActionAnchorEl);
 
-    const rows = useMemo(() => trips ?? [], [trips]);
-    const visibleRows = useMemo(() => {
-        if (statusFilter === 'all') return rows;
-        return rows.filter((row) => row?.status === statusFilter);
-    }, [rows, statusFilter]);
-    const summaryCounts = useMemo(() => {
-        const active = rows.filter((row) => ['PLANNED', 'LOADING', 'DEPARTED', 'AT_STOP'].includes(row?.status)).length;
-        const completed = rows.filter((row) => row?.status === 'COMPLETED').length;
-        const cancelled = rows.filter((row) => row?.status === 'CANCELLED').length;
-        const loading = rows.filter((row) => row?.status === 'LOADING').length;
-        return { active, completed, cancelled, loading };
-    }, [rows]);
+    const rows = Array.isArray(trips.data) ? trips.data : [];
+    const applyFilters = (overrides = {}) => {
+        router.get(
+            `${adminAppUrl}/operations/trips`,
+            {
+                destination_warehouse_id: tripDestinationFilter,
+                status: statusFilter,
+                per_page: trips.per_page ?? 25,
+                page: 1,
+                ...overrides,
+            },
+            { preserveScroll: true },
+        );
+    };
+    const clearFilters = () => {
+        router.get(
+            `${adminAppUrl}/operations/trips`,
+            { destination_warehouse_id: 'all', status: 'all', per_page: trips.per_page ?? 25 },
+            { preserveScroll: true },
+        );
+    };
     const summaryCards = [
-        { label: 'Visible trips', value: visibleRows.length, helper: `${rows.length} in current warehouse view`, tone: 'primary.main' },
-        { label: 'Active', value: summaryCounts.active, helper: 'Planned, loading, or in transit', tone: summaryCounts.active > 0 ? 'warning.main' : 'text.primary' },
-        { label: 'Loading', value: summaryCounts.loading, helper: 'Need cargo or departure action', tone: summaryCounts.loading > 0 ? 'info.main' : 'text.primary' },
-        { label: 'Completed', value: summaryCounts.completed, helper: `${summaryCounts.cancelled} cancelled`, tone: 'success.main' },
+        { label: 'Visible trips', value: trips.total ?? rows.length, helper: `${tripSummary.total ?? rows.length} in current warehouse view`, tone: 'primary.main' },
+        { label: 'Active', value: tripSummary.active ?? 0, helper: 'Planned, loading, or in transit', tone: (tripSummary.active ?? 0) > 0 ? 'warning.main' : 'text.primary' },
+        { label: 'Loading', value: tripSummary.loading ?? 0, helper: 'Need cargo or departure action', tone: (tripSummary.loading ?? 0) > 0 ? 'info.main' : 'text.primary' },
+        { label: 'Completed', value: tripSummary.completed ?? 0, helper: `${tripSummary.cancelled ?? 0} cancelled`, tone: 'success.main' },
     ];
     const statusPresets = [
         { key: 'all', label: 'All' },
@@ -167,10 +178,7 @@ export default function TripsIndex() {
                                     size="small"
                                     variant="outlined"
                                     onClick={() => {
-                                        setStatusFilter('all');
-                                        if (tripDestinationFilter !== 'all') {
-                                            router.get(`${adminAppUrl}/operations/trips`, { destination_warehouse_id: 'all' }, { preserveScroll: true });
-                                        }
+                                        clearFilters();
                                     }}
                                 >
                                     Clear filters
@@ -232,7 +240,7 @@ export default function TripsIndex() {
                                     label={preset.label}
                                     color={statusFilter === preset.key ? 'primary' : 'default'}
                                     variant={statusFilter === preset.key ? 'filled' : 'outlined'}
-                                    onClick={() => setStatusFilter(preset.key)}
+                                    onClick={() => applyFilters({ status: preset.key })}
                                 />
                             ))}
                         </Stack>
@@ -246,11 +254,7 @@ export default function TripsIndex() {
                                     value={tripDestinationFilter}
                                     onChange={(e) => {
                                         const v = e.target.value;
-                                        router.get(
-                                            `${adminAppUrl}/operations/trips`,
-                                            { destination_warehouse_id: v },
-                                            { preserveScroll: true },
-                                        );
+                                        applyFilters({ destination_warehouse_id: v });
                                     }}
                                 >
                                     <MenuItem value="all">{t('filters.all')}</MenuItem>
@@ -268,10 +272,10 @@ export default function TripsIndex() {
                                 {tripDestinationFilter !== 'all' ? (
                                     <Chip
                                         label={`Warehouse: ${warehouseLabel(tripFilterWarehouses.find((w) => String(w.id) === String(tripDestinationFilter)))}`}
-                                        onDelete={() => router.get(`${adminAppUrl}/operations/trips`, { destination_warehouse_id: 'all' }, { preserveScroll: true })}
+                                        onDelete={() => applyFilters({ destination_warehouse_id: 'all' })}
                                     />
                                 ) : null}
-                                {statusFilter !== 'all' ? <Chip label={`Status: ${statusFilter}`} onDelete={() => setStatusFilter('all')} /> : null}
+                                {statusFilter !== 'all' ? <Chip label={`Status: ${statusFilter}`} onDelete={() => applyFilters({ status: 'all' })} /> : null}
                             </Stack>
                         ) : null}
                     </Stack>
@@ -292,7 +296,7 @@ export default function TripsIndex() {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {visibleRows.map((row) => (
+                                {rows.map((row) => (
                                     <TableRow
                                         key={row.id}
                                         hover
@@ -333,7 +337,7 @@ export default function TripsIndex() {
                                         </TableCell>
                                     </TableRow>
                                 ))}
-                                {visibleRows.length === 0 && (
+                                {rows.length === 0 && (
                                     <TableRow>
                                         <TableCell colSpan={5}>
                                             <Stack spacing={1.5} alignItems="center" sx={{ py: 3 }}>
@@ -349,10 +353,7 @@ export default function TripsIndex() {
                                                             size="small"
                                                             variant="outlined"
                                                             onClick={() => {
-                                                                setStatusFilter('all');
-                                                                if (tripDestinationFilter !== 'all') {
-                                                                    router.get(`${adminAppUrl}/operations/trips`, { destination_warehouse_id: 'all' }, { preserveScroll: true });
-                                                                }
+                                                                clearFilters();
                                                             }}
                                                         >
                                                             Clear filters
@@ -373,7 +374,7 @@ export default function TripsIndex() {
                     </Paper>
                 ) : (
                     <Stack spacing={1.5}>
-                        {visibleRows.map((row) => (
+                        {rows.map((row) => (
                             <Paper
                                 key={row.id}
                                 variant="outlined"
@@ -423,7 +424,7 @@ export default function TripsIndex() {
                                 </Stack>
                             </Paper>
                         ))}
-                        {visibleRows.length === 0 && (
+                        {rows.length === 0 && (
                             <Paper variant="outlined" sx={{ ...SECTION_CARD_SX, p: 3, textAlign: 'center' }}>
                                 <Stack spacing={1.5} alignItems="center">
                                     <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
@@ -438,10 +439,7 @@ export default function TripsIndex() {
                                                 size="small"
                                                 variant="outlined"
                                                 onClick={() => {
-                                                    setStatusFilter('all');
-                                                    if (tripDestinationFilter !== 'all') {
-                                                        router.get(`${adminAppUrl}/operations/trips`, { destination_warehouse_id: 'all' }, { preserveScroll: true });
-                                                    }
+                                                    clearFilters();
                                                 }}
                                             >
                                                 Clear filters
@@ -458,6 +456,13 @@ export default function TripsIndex() {
                         )}
                     </Stack>
                 )}
+
+                <PaginationBar
+                    pagination={trips}
+                    itemLabel="trips"
+                    onPageChange={(page) => applyFilters({ page })}
+                    onPerPageChange={(perPage) => applyFilters({ per_page: perPage, page: 1 })}
+                />
 
                 <Menu
                     anchorEl={tableActionAnchorEl}

@@ -69,6 +69,15 @@ class TripManagementController extends Controller
                 $selectedFilter = (string) $candidate;
             }
         }
+        $rawStatusFilter = (string) $request->query('status', 'all');
+        $normalizedStatusFilter = $rawStatusFilter === 'all' ? 'all' : strtoupper($rawStatusFilter);
+        $statusFilter = in_array($normalizedStatusFilter, ['all', 'PLANNED', 'LOADING', 'DEPARTED', 'AT_STOP', 'COMPLETED', 'CANCELLED'], true)
+            ? $normalizedStatusFilter
+            : 'all';
+        $perPage = (int) $request->query('per_page', 25);
+        if (! in_array($perPage, [10, 25, 50, 100], true)) {
+            $perPage = 25;
+        }
 
         $trips = Trip::query()
             ->where('organization_id', $organizationId);
@@ -83,18 +92,34 @@ class TripManagementController extends Controller
             $trips->where('source_warehouse_id', (int) $selectedFilter);
         }
 
+        $summaryQuery = clone $trips;
+        $summary = [
+            'total' => (clone $summaryQuery)->count(),
+            'active' => (clone $summaryQuery)->whereIn('status', ['PLANNED', 'LOADING', 'DEPARTED', 'AT_STOP'])->count(),
+            'loading' => (clone $summaryQuery)->where('status', 'LOADING')->count(),
+            'completed' => (clone $summaryQuery)->where('status', 'COMPLETED')->count(),
+            'cancelled' => (clone $summaryQuery)->where('status', 'CANCELLED')->count(),
+        ];
+
+        if ($statusFilter !== 'all') {
+            $trips->where('status', $statusFilter);
+        }
+
         $trips = $trips
             ->with([
                 'vehicle:id,vehicle_no',
                 'sourceWarehouse:id,city,address',
             ])
             ->orderByDesc('id')
-            ->get();
+            ->paginate($perPage)
+            ->withQueryString();
 
         return Inertia::render('Admin/Operations/TripsIndex', [
             'trips' => $trips,
             'trip_destination_filter' => $selectedFilter,
+            'trip_status_filter' => $statusFilter,
             'trip_filter_warehouses' => $filterWarehouses->values(),
+            'trip_summary' => $summary,
         ]);
     }
 
@@ -427,6 +452,7 @@ class TripManagementController extends Controller
             'can_manage_cargo' => $canManageCargo,
             'can_load_cargo' => $canLoadCargo,
             'can_record_delivery' => $canRecordDelivery,
+            'can_record_voucher_payments' => (bool) ($user && $user->hasPermission('payments.manage')),
             'can_manage_trip_costs' => $canManageTripCosts,
             'can_record_trip_net_income' => (bool) ($user && $user->hasPermission('finance.manage')),
             'can_delete_trip' => (bool) ($user && $user->hasPermission('trips.manage') && in_array($model->status, ['PLANNED', 'CANCELLED'], true)),

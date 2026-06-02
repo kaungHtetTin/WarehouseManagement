@@ -17,11 +17,17 @@ class MerchantManagementController extends Controller
     public function index(Request $request): Response
     {
         $organizationId = $request->user()->organization_id;
+        abort_if($organizationId === null, 404);
+        $perPage = (int) $request->query('per_page', 25);
+        if (! in_array($perPage, [10, 25, 50, 100], true)) {
+            $perPage = 25;
+        }
 
         $merchants = Merchant::query()
             ->where('organization_id', $organizationId)
             ->orderBy('name')
-            ->get(['id', 'organization_id', 'name', 'phone', 'nrc_or_id', 'address', 'updated_at']);
+            ->paginate($perPage, ['id', 'organization_id', 'name', 'phone', 'nrc_or_id', 'address', 'updated_at'])
+            ->withQueryString();
 
         return Inertia::render('Admin/Master/MerchantsIndex', [
             'merchants' => $merchants,

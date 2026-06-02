@@ -49,9 +49,9 @@ class VoucherIndexSearchTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->component('Admin/Operations/VouchersIndex')
                 ->where('voucher_search_filter', 'V-MPPKGPCDKIR')
-                ->has('vouchers', 1)
-                ->where('vouchers.0.id', $voucherByNumber->id)
-                ->where('vouchers.0.voucher_no', $voucherByNumber->voucher_no)
+                ->has('vouchers.data', 1)
+                ->where('vouchers.data.0.id', $voucherByNumber->id)
+                ->where('vouchers.data.0.voucher_no', $voucherByNumber->voucher_no)
                 ->etc());
 
         $this->actingAs($user)
@@ -60,9 +60,9 @@ class VoucherIndexSearchTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->component('Admin/Operations/VouchersIndex')
                 ->where('voucher_search_filter', 'Ko Search')
-                ->has('vouchers', 1)
-                ->where('vouchers.0.id', $voucherByName->id)
-                ->where('vouchers.0.default_recipient_name', $voucherByName->default_recipient_name)
+                ->has('vouchers.data', 1)
+                ->where('vouchers.data.0.id', $voucherByName->id)
+                ->where('vouchers.data.0.default_recipient_name', $voucherByName->default_recipient_name)
                 ->etc());
 
         $this->actingAs($user)
@@ -71,9 +71,9 @@ class VoucherIndexSearchTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->component('Admin/Operations/VouchersIndex')
                 ->where('voucher_search_filter', '09987654321')
-                ->has('vouchers', 1)
-                ->where('vouchers.0.id', $voucherByPhone->id)
-                ->where('vouchers.0.default_recipient_phone', $voucherByPhone->default_recipient_phone)
+                ->has('vouchers.data', 1)
+                ->where('vouchers.data.0.id', $voucherByPhone->id)
+                ->where('vouchers.data.0.default_recipient_phone', $voucherByPhone->default_recipient_phone)
                 ->etc());
     }
 
@@ -102,9 +102,9 @@ class VoucherIndexSearchTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->component('Admin/Operations/VouchersIndex')
                 ->where('voucher_source_warehouse_filter', (string) $sourceWarehouseB->id)
-                ->has('vouchers', 1)
-                ->where('vouchers.0.id', $voucherFromB->id)
-                ->where('vouchers.0.voucher_no', $voucherFromB->voucher_no)
+                ->has('vouchers.data', 1)
+                ->where('vouchers.data.0.id', $voucherFromB->id)
+                ->where('vouchers.data.0.voucher_no', $voucherFromB->voucher_no)
                 ->etc());
     }
 

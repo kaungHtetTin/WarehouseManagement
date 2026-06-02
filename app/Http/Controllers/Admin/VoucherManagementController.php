@@ -71,6 +71,10 @@ class VoucherManagementController extends Controller
         $voucherDateFilter = preg_match('/^\d{4}-\d{2}-\d{2}$/', $rawVoucherDateFilter) === 1
             ? $rawVoucherDateFilter
             : '';
+        $perPage = (int) $request->query('per_page', 25);
+        if (! in_array($perPage, [10, 25, 50, 100], true)) {
+            $perPage = 25;
+        }
 
         $query = Voucher::query()
             ->where('organization_id', $organizationId);
@@ -162,6 +166,15 @@ class VoucherManagementController extends Controller
                 });
         }
 
+        $summary = [
+            'action_needed' => (clone $query)
+                ->where('status', '!=', 'DRAFT')
+                ->whereIn('payment_status', ['UNPAID', 'PARTIAL'])
+                ->count(),
+            'drafts' => (clone $query)->where('status', 'DRAFT')->count(),
+            'delivered' => (clone $query)->whereIn('status', ['DELIVERED', 'CLOSED'])->count(),
+        ];
+
         $vouchers = $query
             ->with([
                 'merchant:id,name',
@@ -173,7 +186,8 @@ class VoucherManagementController extends Controller
             ])
             ->orderByDesc('voucher_date')
             ->orderByDesc('id')
-            ->get();
+            ->paginate($perPage)
+            ->withQueryString();
 
         return Inertia::render('Admin/Operations/VouchersIndex', [
             'vouchers' => $vouchers,
@@ -184,6 +198,7 @@ class VoucherManagementController extends Controller
             'voucher_status_filter' => $statusFilter,
             'voucher_search_filter' => $searchFilter,
             'voucher_date_filter' => $voucherDateFilter,
+            'voucher_summary' => $summary,
         ]);
     }
 

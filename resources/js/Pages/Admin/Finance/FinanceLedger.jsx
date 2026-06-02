@@ -1,5 +1,6 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import PageHeader from '@/Components/PageHeader';
+import PaginationBar from '@/Components/PaginationBar';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
 import {
@@ -31,8 +32,8 @@ import {
     useMediaQuery,
     useTheme,
 } from '@mui/material';
-import { Add as AddIcon, DeleteOutlineOutlined as DeleteIcon, EditOutlined as EditIcon, FilterAltOutlined as FilterIcon, MoreVert as MoreVertIcon } from '@mui/icons-material';
-import { Fragment, useCallback, useMemo, useState } from 'react';
+import { Add as AddIcon, DeleteOutlineOutlined as DeleteIcon, EditOutlined as EditIcon, MoreVert as MoreVertIcon } from '@mui/icons-material';
+import { useCallback, useMemo, useState } from 'react';
 
 function formatMoney(amount, currency) {
     if (amount == null || amount === '' || !Number.isFinite(Number(amount))) {
@@ -61,7 +62,8 @@ export default function FinanceLedger() {
     const adminAppUrl = pageProps.admin_app_url;
     const flash = pageProps.flash ?? {};
 
-    const entries = pageProps.entries ?? [];
+    const entriesPage = pageProps.entries ?? { data: [], current_page: 1, last_page: 1, total: 0, per_page: 25 };
+    const entries = Array.isArray(entriesPage.data) ? entriesPage.data : [];
     const totals = pageProps.totals ?? { income: 0, expense: 0, net: 0 };
     const categories = pageProps.categories ?? [];
     const canManageFinance = pageProps.can_manage_finance ?? false;
@@ -81,12 +83,14 @@ export default function FinanceLedger() {
                     to,
                     direction,
                     category_id: categoryId,
+                    per_page: entriesPage.per_page ?? 25,
+                    page: 1,
                     ...patch,
                 },
                 { preserveScroll: true },
             );
         },
-        [adminAppUrl, from, to, direction, categoryId],
+        [adminAppUrl, from, to, direction, categoryId, entriesPage.per_page],
     );
 
     const effectiveCategories = useMemo(() => {
@@ -304,10 +308,6 @@ export default function FinanceLedger() {
                                 </Select>
                             </FormControl>
                         </Stack>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                            <FilterIcon fontSize="inherit" />
-                            {t('finance.ledger.filters.limit_hint')}
-                        </Typography>
                     </Stack>
                 </PageHeader>
 
@@ -431,6 +431,13 @@ export default function FinanceLedger() {
                         ) : null}
                     </Stack>
                 )}
+
+                <PaginationBar
+                    pagination={entriesPage}
+                    itemLabel="entries"
+                    onPageChange={(page) => applyFilters({ page })}
+                    onPerPageChange={(perPage) => applyFilters({ per_page: perPage, page: 1 })}
+                />
 
                 <Menu
                     anchorEl={rowMenu?.anchorEl}

@@ -1,5 +1,6 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import PageHeader from '@/Components/PageHeader';
+import PaginationBar from '@/Components/PaginationBar';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
 import {
@@ -28,14 +29,14 @@ import {
     useTheme,
 } from '@mui/material';
 import { Add as AddIcon, MoreVert as MoreVertIcon, NotificationsActiveOutlined as NotificationsIcon } from '@mui/icons-material';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function VouchersIndex() {
     const theme = useTheme();
     const isCompactList = useMediaQuery(theme.breakpoints.down('md'));
     const t = useT();
     const {
-        vouchers = [],
+        vouchers = { data: [], current_page: 1, last_page: 1, total: 0, per_page: 25 },
         warehouses = [],
         voucher_warehouse_filter: voucherWarehouseFilter = 'all',
         voucher_source_warehouse_filter: voucherSourceWarehouseFilter = 'all',
@@ -43,6 +44,7 @@ export default function VouchersIndex() {
         voucher_status_filter: voucherStatusFilter = 'all',
         voucher_search_filter: voucherSearchFilter = '',
         voucher_date_filter: voucherDateFilter = '',
+        voucher_summary: voucherSummary = {},
         admin_app_url: adminAppUrl,
         flash = {},
         auth,
@@ -57,6 +59,7 @@ export default function VouchersIndex() {
     const canRecordVoucherPayments = permissionCodes.includes('payments.manage');
     const openTableActionMenu = Boolean(tableActionAnchorEl);
     const todayDate = new Date().toISOString().slice(0, 10);
+    const voucherRows = Array.isArray(vouchers.data) ? vouchers.data : [];
 
     useEffect(() => {
         setSearchInput(voucherSearchFilter);
@@ -72,6 +75,8 @@ export default function VouchersIndex() {
                 status: voucherStatusFilter,
                 search: searchInput.trim(),
                 voucher_date: voucherDateFilter,
+                per_page: vouchers.per_page ?? 25,
+                page: 1,
                 ...overrides,
             },
             { preserveScroll: true },
@@ -89,6 +94,7 @@ export default function VouchersIndex() {
                 status: 'all',
                 search: '',
                 voucher_date: '',
+                per_page: vouchers.per_page ?? 25,
             },
             { preserveScroll: true },
         );
@@ -154,9 +160,9 @@ export default function VouchersIndex() {
         row?.total_amount != null;
     const canUseRowActions = (row) => canManage || canMarkAsPaid(row);
 
-    const actionNeededCount = useMemo(() => vouchers.filter((r) => needsAction(r)).length, [vouchers]);
-    const draftCount = useMemo(() => vouchers.filter((row) => row?.status === 'DRAFT').length, [vouchers]);
-    const deliveredCount = useMemo(() => vouchers.filter((row) => row?.status === 'DELIVERED' || row?.status === 'CLOSED').length, [vouchers]);
+    const actionNeededCount = Number(voucherSummary.action_needed ?? 0);
+    const draftCount = Number(voucherSummary.drafts ?? 0);
+    const deliveredCount = Number(voucherSummary.delivered ?? 0);
     const hasActiveFilters = Boolean(
         searchInput.trim() ||
             voucherWarehouseFilter !== 'all' ||
@@ -206,7 +212,7 @@ export default function VouchersIndex() {
     ];
 
     const summaryCards = [
-        { label: 'Results', value: vouchers.length, tone: 'primary.main' },
+        { label: 'Results', value: vouchers.total ?? voucherRows.length, tone: 'primary.main' },
         { label: 'Need action', value: actionNeededCount, tone: actionNeededCount > 0 ? 'warning.main' : 'success.main' },
         { label: 'Drafts', value: draftCount, tone: 'text.primary' },
         { label: 'Delivered', value: deliveredCount, tone: 'success.main' },
@@ -436,7 +442,7 @@ export default function VouchersIndex() {
 
                 {isCompactList ? (
                     <Stack spacing={1.25}>
-                        {vouchers.map((row) => (
+                        {voucherRows.map((row) => (
                             <Paper
                                 key={row.id}
                                 variant="outlined"
@@ -496,7 +502,7 @@ export default function VouchersIndex() {
                                 </Stack>
                             </Paper>
                         ))}
-                        {vouchers.length === 0 && (
+                        {voucherRows.length === 0 && (
                             <Paper variant="outlined" sx={{ p: 3, borderRadius: 1.5, boxShadow: 'none', textAlign: 'center' }}>
                                 <Stack spacing={1.5} alignItems="center">
                                     <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
@@ -536,7 +542,7 @@ export default function VouchersIndex() {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {vouchers.map((row) => (
+                                {voucherRows.map((row) => (
                                     <TableRow
                                         key={row.id}
                                         hover
@@ -583,7 +589,7 @@ export default function VouchersIndex() {
                                         </TableCell>
                                     </TableRow>
                                 ))}
-                                {vouchers.length === 0 && (
+                                {voucherRows.length === 0 && (
                                     <TableRow>
                                         <TableCell colSpan={7}>
                                             <Stack spacing={1.5} alignItems="center" sx={{ py: 3 }}>
@@ -613,6 +619,13 @@ export default function VouchersIndex() {
                         </Table>
                     </Paper>
                 )}
+
+                <PaginationBar
+                    pagination={vouchers}
+                    itemLabel="vouchers"
+                    onPageChange={(page) => applyFilters({ page })}
+                    onPerPageChange={(perPage) => applyFilters({ per_page: perPage, page: 1 })}
+                />
 
                 <Menu
                     anchorEl={tableActionAnchorEl}

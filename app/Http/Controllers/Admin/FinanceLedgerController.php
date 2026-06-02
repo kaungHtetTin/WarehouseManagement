@@ -160,6 +160,10 @@ class FinanceLedgerController extends Controller
         if ($categoryFilter !== 'all' && $categoryFilter !== '') {
             $selectedCategoryId = (int) $categoryFilter;
         }
+        $perPage = (int) $request->query('per_page', 25);
+        if (! in_array($perPage, [10, 25, 50, 100], true)) {
+            $perPage = 25;
+        }
 
         $query = FinanceEntry::query()
             ->where('organization_id', $organizationId);
@@ -181,15 +185,14 @@ class FinanceLedgerController extends Controller
         $incomeTotal = round((float) (clone $query)->where('direction', 'INCOME')->sum('amount'), 2);
         $expenseTotal = round((float) (clone $query)->where('direction', 'EXPENSE')->sum('amount'), 2);
 
-        $rows = (clone $query)
+        $entries = (clone $query)
             ->with([
                 'category:id,name,scope,direction',
                 'creator:id,name',
             ])
             ->orderByDesc('occurred_at')
             ->orderByDesc('id')
-            ->limit(500)
-            ->get([
+            ->paginate($perPage, [
                 'id',
                 'organization_id',
                 'direction',
@@ -204,9 +207,10 @@ class FinanceLedgerController extends Controller
                 'created_by',
                 'created_at',
                 'updated_at',
-            ]);
+            ])
+            ->withQueryString();
 
-        $paymentIds = $rows
+        $paymentIds = $entries->getCollection()
             ->filter(fn ($r) => $r->reference_type === 'VOUCHER_PAYMENT' && $r->reference_id !== null)
             ->pluck('reference_id')
             ->map(fn ($id) => (int) $id)
@@ -222,7 +226,7 @@ class FinanceLedgerController extends Controller
                 ->map(fn ($id) => (int) $id)
                 ->all();
 
-        $entries = $rows->map(function (FinanceEntry $e) use ($paymentVoucherMap) {
+        $entries->through(function (FinanceEntry $e) use ($paymentVoucherMap) {
             $reference = null;
 
             if ($e->reference_type === 'TRIP' && $e->reference_id !== null) {
@@ -286,6 +290,7 @@ class FinanceLedgerController extends Controller
                 'to' => $to,
                 'direction' => $direction,
                 'category_id' => $selectedCategoryId !== null ? (string) $selectedCategoryId : 'all',
+                'per_page' => $perPage,
             ],
             'categories' => $categories,
             'can_manage_finance' => $actor->hasPermission('finance.manage'),
