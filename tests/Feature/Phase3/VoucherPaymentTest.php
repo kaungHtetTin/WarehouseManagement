@@ -84,6 +84,43 @@ class VoucherPaymentTest extends TestCase
         $this->assertSame(0, VoucherPayment::query()->where('voucher_id', $voucher->id)->count());
     }
 
+    public function test_mark_paid_records_remaining_balance_as_cash_payment(): void
+    {
+        [$user, $voucher] = $this->confirmedVoucherWithTotal('100.00');
+        $this->grantPaymentsManage($user);
+
+        $this->actingAs($user)->post(route('admin.vouchers.payments.store', $voucher), [
+            'amount' => 40,
+            'payment_method' => 'TRANSFER',
+            'paid_at' => '2026-05-10 12:00:00',
+        ]);
+
+        $response = $this->actingAs($user)
+            ->from(route('admin.vouchers.index'))
+            ->post(route('admin.vouchers.mark-paid', $voucher));
+
+        $response->assertRedirect(route('admin.vouchers.index'));
+        $this->assertSame('PAID', $voucher->fresh()->payment_status);
+        $this->assertSame(2, VoucherPayment::query()->where('voucher_id', $voucher->id)->count());
+        $this->assertDatabaseHas('voucher_payments', [
+            'voucher_id' => $voucher->id,
+            'amount' => '60.00',
+            'payment_method' => 'CASH',
+            'received_by' => $user->id,
+        ]);
+    }
+
+    public function test_mark_paid_forbidden_without_payments_manage(): void
+    {
+        [$user, $voucher] = $this->confirmedVoucherWithTotal('100.00');
+
+        $response = $this->actingAs($user)->post(route('admin.vouchers.mark-paid', $voucher));
+
+        $response->assertForbidden();
+        $this->assertSame('UNPAID', $voucher->fresh()->payment_status);
+        $this->assertSame(0, VoucherPayment::query()->where('voucher_id', $voucher->id)->count());
+    }
+
     /**
      * @return array{0: User, 1: Voucher}
      */

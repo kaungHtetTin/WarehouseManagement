@@ -152,6 +152,7 @@ export default function VouchersIndex() {
         row?.payment_status !== 'PAID' &&
         row?.payment_status !== 'WAIVED' &&
         row?.total_amount != null;
+    const canUseRowActions = (row) => canManage || canMarkAsPaid(row);
 
     const actionNeededCount = useMemo(() => vouchers.filter((r) => needsAction(r)).length, [vouchers]);
     const draftCount = useMemo(() => vouchers.filter((row) => row?.status === 'DRAFT').length, [vouchers]);
@@ -482,7 +483,7 @@ export default function VouchersIndex() {
                                             <Chip size="small" label={t('vouchers.chip.lines', { count: row.items?.length ?? 0 })} variant="outlined" />
                                         </Stack>
                                     </Box>
-                                    {canManage && (
+                                    {canUseRowActions(row) && (
                                         <IconButton
                                             size="small"
                                             onClick={(e) => handleTableActionOpen(e, row)}
@@ -574,7 +575,7 @@ export default function VouchersIndex() {
                                         </TableCell>
                                         <TableCell align="right">{row.items?.length ?? 0}</TableCell>
                                         <TableCell align="right" sx={{ width: 56 }}>
-                                            {canManage && (
+                                            {canUseRowActions(row) && (
                                                 <IconButton size="small" onClick={(e) => handleTableActionOpen(e, row)} aria-label={t('vouchers.actions.row_actions')}>
                                                     <MoreVertIcon fontSize="small" />
                                                 </IconButton>
