@@ -15,6 +15,24 @@ class WarehouseTenantIsolationTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_warehouse_can_be_created_with_only_city(): void
+    {
+        [$organization, $actingUser] = $this->createTenantUser();
+        $this->grantPermission($actingUser, 'warehouses.manage');
+
+        $this->actingAs($actingUser)
+            ->post(route('admin.warehouses.store'), [
+                'city' => 'Yangon',
+            ])
+            ->assertRedirect(route('admin.warehouses.index'));
+
+        $this->assertDatabaseHas('warehouses', [
+            'organization_id' => $organization->id,
+            'city' => 'Yangon',
+            'address' => null,
+        ]);
+    }
+
     public function test_cannot_update_warehouse_from_other_tenant(): void
     {
         [$organization, $actingUser] = $this->createTenantUser();

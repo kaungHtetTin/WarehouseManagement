@@ -265,6 +265,7 @@ export default function WarehousesIndex() {
                             label={t('master.warehouses.fields.city')}
                             value={form.city}
                             onChange={(e) => setForm((prev) => ({ ...prev, city: e.target.value }))}
+                            required
                         />
                         <TextField
                             label={t('master.warehouses.fields.address')}
