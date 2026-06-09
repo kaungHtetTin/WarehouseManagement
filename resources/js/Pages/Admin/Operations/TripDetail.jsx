@@ -73,6 +73,18 @@ const TRIP_ITEM_STATUS_COLOR = {
     RETURNED: 'error',
 };
 
+const VOUCHER_STATUS_COLOR = {
+    DRAFT: 'default',
+    CONFIRMED: 'info',
+    LOADING: 'warning',
+    IN_TRANSIT: 'primary',
+    PARTIALLY_DELIVERED: 'warning',
+    DELIVERED: 'success',
+    CLOSED: 'default',
+    CANCELLED: 'error',
+    LOADED: 'info',
+};
+
 const VOUCHER_PAYMENT_STATUS_COLOR = {
     PAID: 'success',
     PARTIAL: 'warning',
@@ -1793,7 +1805,7 @@ export default function TripDetail() {
                                                             <Chip
                                                                 size="small"
                                                                 label={row.status}
-                                                                color={TRIP_ITEM_STATUS_COLOR[row.status] ?? 'default'}
+                                                                color={VOUCHER_STATUS_COLOR[row.status] ?? 'default'}
                                                                 variant="outlined"
                                                             />
                                                             <Chip
@@ -1888,7 +1900,7 @@ export default function TripDetail() {
                                                     <Chip
                                                         size="small"
                                                         label={row.status}
-                                                        color={TRIP_ITEM_STATUS_COLOR[row.status] ?? 'default'}
+                                                        color={VOUCHER_STATUS_COLOR[row.status] ?? 'default'}
                                                         variant="outlined"
                                                     />
                                                     <IconButton

@@ -137,10 +137,14 @@ export default function VouchersIndex() {
 
     const statusColor = (status) => {
         if (status === 'DRAFT') return 'default';
-        if (status === 'CONFIRMED') return 'success';
+        if (status === 'CONFIRMED') return 'info';
+        if (status === 'LOADING') return 'warning';
+        if (status === 'IN_TRANSIT') return 'primary';
+        if (status === 'PARTIALLY_DELIVERED') return 'warning';
+        if (status === 'DELIVERED') return 'success';
+        if (status === 'CLOSED') return 'default';
         if (status === 'CANCELLED') return 'error';
-        if (status === 'DELIVERED' || status === 'CLOSED') return 'success';
-        return 'primary';
+        return 'default';
     };
 
     const voucherHref = (row) => {
