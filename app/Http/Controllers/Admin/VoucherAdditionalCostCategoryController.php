@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\VoucherAdditionalCostCategory;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redirect;
@@ -25,7 +26,7 @@ class VoucherAdditionalCostCategoryController extends Controller
             ->where('organization_id', $organizationId)
             ->orderBy('sort_order')
             ->orderBy('name')
-            ->get(['id', 'organization_id', 'name', 'status', 'sort_order', 'updated_at']);
+            ->get(['id', 'organization_id', 'name', 'status', 'sort_order', 'is_system', 'updated_at']);
 
         return Inertia::render('Admin/Master/VoucherAdditionalCostCategoriesIndex', [
             'categories' => $rows,
@@ -65,13 +66,22 @@ class VoucherAdditionalCostCategoryController extends Controller
             ->with('success', 'Category created successfully.');
     }
 
-    public function update(Request $request, string $category): RedirectResponse
+    public function update(Request $request, string $category): JsonResponse|RedirectResponse
     {
         $actor = $request->user();
         $organizationId = $actor->organization_id;
         abort_if($organizationId === null, 404);
 
         $categoryModel = $this->resolveTenantCategory($actor, $category);
+
+        if ($categoryModel->is_system) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'System category cannot be modified.'], 422);
+            }
+
+            return Redirect::route('admin.voucher-additional-cost-categories.index')
+                ->with('error', 'System category cannot be modified.');
+        }
 
         $validated = $request->validate([
             'name' => [
@@ -105,10 +115,19 @@ class VoucherAdditionalCostCategoryController extends Controller
             ->with('success', 'Category updated successfully.');
     }
 
-    public function destroy(Request $request, string $category): RedirectResponse
+    public function destroy(Request $request, string $category): JsonResponse|RedirectResponse
     {
         $actor = $request->user();
         $categoryModel = $this->resolveTenantCategory($actor, $category);
+
+        if ($categoryModel->is_system) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'System category cannot be deleted.'], 422);
+            }
+
+            return Redirect::route('admin.voucher-additional-cost-categories.index')
+                ->with('error', 'System category cannot be deleted.');
+        }
 
         $snapshot = [
             'name' => $categoryModel->name,
@@ -133,4 +152,3 @@ class VoucherAdditionalCostCategoryController extends Controller
             ->firstOrFail();
     }
 }
-

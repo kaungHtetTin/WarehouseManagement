@@ -51,6 +51,7 @@ export default function TripCreate() {
     );
     const [driverName, setDriverName] = useState('');
     const [driverPhone, setDriverPhone] = useState('');
+    const [remark, setRemark] = useState('');
 
     const vehicleDebounceRef = useRef(null);
     const lastVehicleAutofillRef = useRef(null);
@@ -200,6 +201,7 @@ export default function TripCreate() {
                 destination_warehouse_id: destinationWarehouseId ? Number(destinationWarehouseId) : null,
                 driver_name: driverName.trim() || null,
                 driver_phone: driverPhone.trim() || null,
+                remark: remark.trim() || null,
             },
             {
                 preserveScroll: true,
@@ -462,6 +464,18 @@ export default function TripCreate() {
                                     helperText="Used for dispatch coordination and trip follow-up."
                                 />
                             </Stack>
+
+                            <TextField
+                                label={t('trip_create.fields.remark')}
+                                size="small"
+                                fullWidth
+                                multiline
+                                minRows={3}
+                                value={remark}
+                                onChange={(e) => setRemark(e.target.value)}
+                                error={Boolean(errors.remark)}
+                                helperText={errors.remark || t('trip_create.fields.remark_hint')}
+                            />
                         </Stack>
                     </Stack>
                 </Paper>

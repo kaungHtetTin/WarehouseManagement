@@ -3,6 +3,7 @@ import PageHeader from '@/Components/PageHeader';
 import PaginationBar from '@/Components/PaginationBar';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
+import { voucherPaymentChipLabel, voucherPaymentStatusLabel, voucherStatusLabel } from '@/utils/statusLabels';
 import {
     Alert,
     Box,
@@ -191,19 +192,19 @@ export default function VouchersIndex() {
     const filterPresets = [
         {
             key: 'all',
-            label: 'All vouchers',
+            label: t('filters.all'),
             active: !hasActiveFilters,
             onClick: resetFilters,
         },
         {
             key: 'payments',
-            label: 'Needs payment',
+            label: t('vouchers.payment_status.unpaid'),
             active: voucherPaymentFilter === 'UNPAID' && voucherStatusFilter === 'all',
             onClick: () => applyFilters({ payment_status: 'UNPAID', status: 'all' }),
         },
         {
             key: 'confirmed',
-            label: 'Confirmed',
+            label: voucherStatusLabel('CONFIRMED', t),
             active: voucherStatusFilter === 'confirmed',
             onClick: () => applyFilters({ status: 'confirmed', payment_status: 'all' }),
         },
@@ -423,13 +424,13 @@ export default function VouchersIndex() {
                                 ) : null}
                                 {voucherPaymentFilter !== 'all' ? (
                                     <Chip
-                                        label={`Payment: ${voucherPaymentFilter}`}
+                                        label={`${t('vouchers.filters.payment')}: ${voucherPaymentStatusLabel(voucherPaymentFilter, t)}`}
                                         onDelete={() => applyFilters({ payment_status: 'all' })}
                                     />
                                 ) : null}
                                 {voucherStatusFilter !== 'all' ? (
                                     <Chip
-                                        label={`Status: ${voucherStatusFilter}`}
+                                        label={`${t('vouchers.filters.status')}: ${voucherStatusLabel(voucherStatusFilter, t)}`}
                                         onDelete={() => applyFilters({ status: 'all' })}
                                     />
                                 ) : null}
@@ -480,14 +481,14 @@ export default function VouchersIndex() {
                                             {[recipientLabel(row), row.default_to_warehouse?.display_name].filter(Boolean).join(' · ') || '—'}
                                         </Typography>
                                         <Stack direction="row" spacing={0.75} sx={{ mt: 0.75, flexWrap: 'wrap', gap: 0.5 }}>
-                                            <Chip size="small" label={row.status} color={statusColor(row.status)} variant="outlined" />
+                                            <Chip size="small" label={voucherStatusLabel(row.status, t)} color={statusColor(row.status)} variant="outlined" />
                                             {needsAction(row) ? (
                                                 <Chip
                                                     size="small"
                                                     color="warning"
                                                     variant="outlined"
                                                     icon={<NotificationsIcon fontSize="small" />}
-                                                    label={t('vouchers.chip.payment_status', { payment_status: row.payment_status })}
+                                                    label={voucherPaymentChipLabel(row.payment_status, t)}
                                                 />
                                             ) : null}
                                             <Chip size="small" label={t('vouchers.chip.lines', { count: row.items?.length ?? 0 })} variant="outlined" />
@@ -571,14 +572,14 @@ export default function VouchersIndex() {
                                         <TableCell>{row.default_to_warehouse?.display_name ?? '—'}</TableCell>
                                         <TableCell>
                                             <Stack direction="row" spacing={0.75} alignItems="center">
-                                                <Chip size="small" label={row.status} color={statusColor(row.status)} variant="outlined" />
+                                                <Chip size="small" label={voucherStatusLabel(row.status, t)} color={statusColor(row.status)} variant="outlined" />
                                                 {needsAction(row) ? (
                                                     <Chip
                                                         size="small"
                                                         color="warning"
                                                         variant="outlined"
                                                         icon={<NotificationsIcon fontSize="small" />}
-                                                        label={t('vouchers.chip.payment_status', { payment_status: row.payment_status })}
+                                                        label={voucherPaymentChipLabel(row.payment_status, t)}
                                                     />
                                                 ) : null}
                                             </Stack>

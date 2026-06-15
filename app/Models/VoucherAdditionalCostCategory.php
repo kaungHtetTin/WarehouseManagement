@@ -15,6 +15,11 @@ class VoucherAdditionalCostCategory extends Model
         'name',
         'status',
         'sort_order',
+        'is_system',
+    ];
+
+    protected $casts = [
+        'is_system' => 'boolean',
     ];
 
     public function organization(): BelongsTo
@@ -22,4 +27,3 @@ class VoucherAdditionalCostCategory extends Model
         return $this->belongsTo(Organization::class);
     }
 }
-

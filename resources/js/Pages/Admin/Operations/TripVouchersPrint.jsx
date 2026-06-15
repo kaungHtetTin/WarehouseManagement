@@ -2,8 +2,10 @@ import { Head, usePage } from '@inertiajs/react';
 import { Box, Button, Checkbox, Divider, FormControl, FormControlLabel, MenuItem, NativeSelect, Paper, Select, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography, useMediaQuery } from '@mui/material';
 import { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
+import { useT } from '@/i18n';
 import { formatPrintDate, formatPrintDateTime } from '@/utils/printing/dateFormat';
 import { getInitialPrintPaper, getPrintLayout, PRINT_PAPER_PRESETS } from '@/utils/printing/printPaperPresets';
+import { tripStatusLabel, voucherPaymentStatusLabel } from '@/utils/statusLabels';
 
 function n2(value) {
     const n = Number(value);
@@ -26,7 +28,56 @@ function safeStr(value) {
     return typeof value === 'string' ? value.trim() : '';
 }
 
-function TripOverviewSheet({ trip, overviewSlip, layout }) {
+function TripPaidSummaryStrip({ trip, summary, layout }) {
+    if (!summary) {
+        return null;
+    }
+
+    return (
+        <Paper className="print-sheet trip-summary-sheet" variant="outlined" sx={{ mx: 'auto', mb: layout.contentSpacing, p: layout.contentPadding, borderRadius: 2, bgcolor: '#fff' }}>
+            <Stack spacing={layout.contentSpacing}>
+                <Stack direction="row" spacing={layout.headerSpacing} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                    <Box sx={{ minWidth: 0 }}>
+                        <Typography variant={layout.isRoll ? 'body2' : 'subtitle1'} sx={{ fontWeight: 900, fontSize: layout.sectionTitleFontSize, lineHeight: 1.1 }}>
+                            Trip print summary
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, fontSize: layout.metaFontSize }}>
+                            {summary.trip_no || trip?.trip_no || '—'}
+                        </Typography>
+                    </Box>
+                    <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 700, fontSize: layout.metaFontSize }}>
+                            Total already paid
+                        </Typography>
+                        <Typography variant={layout.isRoll ? 'body1' : 'h6'} sx={{ fontWeight: 900, fontSize: layout.titleFontSize, lineHeight: 1.1 }}>
+                            {formatMoneyAmount(summary.paid_amount)}
+                        </Typography>
+                    </Box>
+                </Stack>
+
+                <Box className="kv">
+                    <div className="k">Loaded vouchers</div>
+                    <div className="v">{summary.voucher_count ?? 0}</div>
+
+                    <div className="k">Trip freight</div>
+                    <div className="v">{formatMoneyAmount(summary.total_amount)}</div>
+
+                    <div className="k">Loaded qty</div>
+                    <div className="v">{formatQty(summary.total_loaded_qty)}</div>
+
+                    {summary.remark ? (
+                        <>
+                            <div className="k">Remark</div>
+                            <div className="v" style={{ whiteSpace: 'pre-wrap' }}>{summary.remark}</div>
+                        </>
+                    ) : null}
+                </Box>
+            </Stack>
+        </Paper>
+    );
+}
+
+function TripOverviewSheet({ trip, overviewSlip, layout, t }) {
     if (!overviewSlip) {
         return null;
     }
@@ -57,7 +108,7 @@ function TripOverviewSheet({ trip, overviewSlip, layout }) {
 
                 <Box className="kv">
                     <div className="k">Trip status</div>
-                    <div className="v">{overviewSlip.status || trip?.status || '—'}</div>
+                    <div className="v">{tripStatusLabel(overviewSlip.status || trip?.status, t)}</div>
 
                     <div className="k">Vehicle</div>
                     <div className="v">{overviewSlip.vehicle_label || '—'}</div>
@@ -77,8 +128,15 @@ function TripOverviewSheet({ trip, overviewSlip, layout }) {
                     <div className="k">Trip freight</div>
                     <div className="v">{formatMoneyAmount(overviewSlip.total_amount)}</div>
 
-                    <div className="k">Collected</div>
+                    <div className="k">Total already paid</div>
                     <div className="v">{formatMoneyAmount(overviewSlip.paid_amount)}</div>
+
+                    {overviewSlip.remark ? (
+                        <>
+                            <div className="k">Remark</div>
+                            <div className="v" style={{ whiteSpace: 'pre-wrap' }}>{overviewSlip.remark}</div>
+                        </>
+                    ) : null}
                 </Box>
 
                 {overviewSlip.manifest_printed_at ? (
@@ -134,6 +192,9 @@ function TripOverviewSheet({ trip, overviewSlip, layout }) {
                                                     {row.destination_warehouse_label}
                                                 </Typography>
                                             ) : null}
+                                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: layout.policyFontSize }}>
+                                                Paid: {formatMoneyAmount(row.paid_amount)}
+                                            </Typography>
                                         </TableCell>
                                         <TableCell align="right">
                                             {formatQty(row.total_items_qty)}
@@ -146,6 +207,16 @@ function TripOverviewSheet({ trip, overviewSlip, layout }) {
                                             <Typography variant="body2" color="text.secondary">
                                                 No loaded vouchers.
                                             </Typography>
+                                        </TableCell>
+                                    </TableRow>
+                                ) : null}
+                                {(overviewSlip.rows || []).length > 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={2} sx={{ fontWeight: 900 }}>
+                                            Total already paid
+                                        </TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 900 }}>
+                                            {formatMoneyAmount(overviewSlip.paid_amount)}
                                         </TableCell>
                                     </TableRow>
                                 ) : null}
@@ -169,6 +240,9 @@ function TripOverviewSheet({ trip, overviewSlip, layout }) {
                                     <TableCell width={110} sx={{ fontWeight: 900 }} align="right">
                                         Amount
                                     </TableCell>
+                                    <TableCell width={110} sx={{ fontWeight: 900 }} align="right">
+                                        Paid
+                                    </TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -180,14 +254,25 @@ function TripOverviewSheet({ trip, overviewSlip, layout }) {
                                         <TableCell>{row.destination_warehouse_label || '—'}</TableCell>
                                         <TableCell align="right">{formatQty(row.total_items_qty)}</TableCell>
                                         <TableCell align="right">{formatMoneyAmount(row.total_amount)}</TableCell>
+                                        <TableCell align="right">{formatMoneyAmount(row.paid_amount)}</TableCell>
                                     </TableRow>
                                 ))}
                                 {(overviewSlip.rows || []).length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={6}>
+                                        <TableCell colSpan={7}>
                                             <Typography variant="body2" color="text.secondary">
                                                 No loaded vouchers.
                                             </Typography>
+                                        </TableCell>
+                                    </TableRow>
+                                ) : null}
+                                {(overviewSlip.rows || []).length > 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={6} align="right" sx={{ fontWeight: 900 }}>
+                                            Total already paid
+                                        </TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 900 }}>
+                                            {formatMoneyAmount(overviewSlip.paid_amount)}
                                         </TableCell>
                                     </TableRow>
                                 ) : null}
@@ -200,7 +285,7 @@ function TripOverviewSheet({ trip, overviewSlip, layout }) {
     );
 }
 
-function VoucherSheet({ voucher, template, voucherPolicy, layout, qrDataUrl, includeQr, includeVoucherPolicy }) {
+function VoucherSheet({ voucher, template, voucherPolicy, layout, qrDataUrl, includeQr, includeVoucherPolicy, t }) {
     const paymentsTotal = useMemo(() => {
         const rows = Array.isArray(voucher?.payments) ? voucher.payments : [];
         let sum = 0;
@@ -318,7 +403,7 @@ function VoucherSheet({ voucher, template, voucherPolicy, layout, qrDataUrl, inc
                     {showPaymentStatus ? (
                         <>
                             <div className="k">Payment status</div>
-                            <div className="v">{voucher?.payment_status || '—'}</div>
+                            <div className="v">{voucherPaymentStatusLabel(voucher?.payment_status, t)}</div>
                         </>
                     ) : null}
                 </Box>
@@ -438,7 +523,16 @@ function VoucherSheet({ voucher, template, voucherPolicy, layout, qrDataUrl, inc
 }
 
 export default function TripVouchersPrint() {
-    const { trip, vouchers = [], template = {}, voucher_policy: voucherPolicy = '', tracking_urls: trackingUrls = {}, overview_slip: overviewSlip = null } = usePage().props;
+    const t = useT();
+    const {
+        trip,
+        vouchers = [],
+        template = {},
+        voucher_policy: voucherPolicy = '',
+        tracking_urls: trackingUrls = {},
+        trip_print_summary: tripPrintSummary = null,
+        overview_slip: overviewSlip = null,
+    } = usePage().props;
     const [paperSize, setPaperSize] = useState(() => getInitialPrintPaper(template?.paper_size || 'A4'));
     const [qrDataUrls, setQrDataUrls] = useState({});
     const [includeQr, setIncludeQr] = useState(true);
@@ -550,7 +644,8 @@ export default function TripVouchersPrint() {
                 </Button>
             </Stack>
 
-            {overviewSlip ? <TripOverviewSheet trip={trip} overviewSlip={overviewSlip} layout={layout} /> : null}
+            {overviewSlip ? <TripOverviewSheet trip={trip} overviewSlip={overviewSlip} layout={layout} t={t} /> : null}
+            {!overviewSlip ? <TripPaidSummaryStrip trip={trip} summary={tripPrintSummary} layout={layout} /> : null}
 
             {vouchers.length === 0 ? (
                 <Paper className="print-sheet" variant="outlined" sx={{ mx: 'auto', p: 2, borderRadius: 2, bgcolor: '#fff' }}>
@@ -572,6 +667,7 @@ export default function TripVouchersPrint() {
                         qrDataUrl={qrDataUrls[voucher.id] ?? null}
                         includeQr={includeQr}
                         includeVoucherPolicy={includeVoucherPolicy}
+                        t={t}
                     />
                 ))
             )}

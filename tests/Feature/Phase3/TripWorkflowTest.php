@@ -92,6 +92,7 @@ class TripWorkflowTest extends TestCase
             'destination_warehouse_id' => $destinationWarehouse->id,
             'driver_name' => null,
             'driver_phone' => null,
+            'remark' => 'Load fragile parcels first.',
         ]);
 
         $response->assertRedirect();
@@ -99,6 +100,7 @@ class TripWorkflowTest extends TestCase
         $trip = Trip::query()->where('organization_id', $organization->id)->first();
         $this->assertNotNull($trip);
         $this->assertSame($destinationWarehouse->id, (int) $trip->source_warehouse_id);
+        $this->assertSame('Load fragile parcels first.', $trip->remark);
         $this->assertSame(1, TripStop::query()->where('trip_id', $trip->id)->count());
         $this->assertSame(
             $destinationWarehouse->id,

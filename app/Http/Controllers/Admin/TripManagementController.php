@@ -211,6 +211,7 @@ class TripManagementController extends Controller
             ],
             'driver_name' => ['nullable', 'string', 'max:255'],
             'driver_phone' => ['nullable', 'string', 'max:64'],
+            'remark' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $this->validateTripDestinationWarehouse($actor, (int) $validated['destination_warehouse_id']);
@@ -231,6 +232,9 @@ class TripManagementController extends Controller
                     'vehicle_id' => $vehicle->id,
                     'driver_name' => $validated['driver_name'] ?? null,
                     'driver_phone' => $validated['driver_phone'] ?? null,
+                    'remark' => isset($validated['remark']) && trim((string) $validated['remark']) !== ''
+                        ? trim((string) $validated['remark'])
+                        : null,
                     'source_warehouse_id' => $destinationWarehouseId,
                     'status' => 'PLANNED',
                     'created_by' => $actor->id,
@@ -2689,9 +2693,16 @@ class TripManagementController extends Controller
         }
         unset($row);
 
+        $totalPaidAmount = round(array_reduce(
+            $cargoRows,
+            fn (float $carry, array $row): float => $carry + (float) ($row['paid_amount'] ?? 0),
+            0.0
+        ), 2);
+
         return view('admin.operations.trips.manifest', [
             'trip' => $tripModel,
             'cargoRows' => $cargoRows,
+            'totalPaidAmount' => $totalPaidAmount,
             'canMarkPrinted' => $canMarkPrinted,
             'adminAppUrl' => rtrim((string) config('app.admin_app_url'), '/'),
         ]);
@@ -2814,6 +2825,8 @@ class TripManagementController extends Controller
             ]);
         }
 
+        $tripPrintSummary = $this->buildTripOverviewSlipData($tripModel, $cargoRows);
+
         return Inertia::render('Admin/Operations/TripVouchersPrint', [
             'trip' => [
                 'id' => $tripModel->id,
@@ -2821,13 +2834,15 @@ class TripManagementController extends Controller
                 'status' => $tripModel->status,
                 'driver_name' => $tripModel->driver_name,
                 'driver_phone' => $tripModel->driver_phone,
+                'remark' => $tripModel->remark,
                 'vehicle' => $tripModel->vehicle,
             ],
             'vouchers' => $vouchers,
             'template' => $template,
             'voucher_policy' => trim((string) env('VOUCHER_POLICY', '')),
             'tracking_urls' => $trackingUrls,
-            'overview_slip' => $includeOverviewSlip ? $this->buildTripOverviewSlipData($tripModel, $cargoRows) : null,
+            'trip_print_summary' => $tripPrintSummary,
+            'overview_slip' => $includeOverviewSlip ? $tripPrintSummary : null,
         ]);
     }
 
@@ -2993,6 +3008,7 @@ class TripManagementController extends Controller
             'title' => 'Trip Overview Slip',
             'trip_no' => $tripModel->trip_no,
             'status' => $tripModel->status,
+            'remark' => $tripModel->remark,
             'vehicle_label' => $tripModel->vehicle
                 ? trim(implode(' · ', array_filter([
                     $tripModel->vehicle->vehicle_no,

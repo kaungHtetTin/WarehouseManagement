@@ -1,6 +1,7 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import PageHeader from '@/Components/PageHeader';
 import { Head, useForm, usePage } from '@inertiajs/react';
+import { useT } from '@/i18n';
 import {
     Alert,
     Avatar,
@@ -37,6 +38,7 @@ import {
 } from '@mui/icons-material';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatPrintDate } from '@/utils/printing/dateFormat';
+import { voucherPaymentStatusLabel } from '@/utils/statusLabels';
 
 const sectionCardSx = {
     p: { xs: 2, sm: 2.5 },
@@ -183,6 +185,7 @@ function fmtMoney(value) {
 }
 
 function VoucherPrintLivePreview({ voucher, template }) {
+    const t = useT();
     const containerRef = useRef(null);
     const [scale, setScale] = useState(1);
     const isReceipt = String(template?.paper_size || '').toUpperCase() === 'RECEIPT_80';
@@ -356,7 +359,7 @@ function VoucherPrintLivePreview({ voucher, template }) {
                                             Payment status
                                         </Typography>
                                         <Typography variant="caption" sx={{ fontWeight: 800 }}>
-                                            {voucher?.payment_status || '-'}
+                                            {voucherPaymentStatusLabel(voucher?.payment_status, t)}
                                         </Typography>
                                     </>
                                 ) : null}

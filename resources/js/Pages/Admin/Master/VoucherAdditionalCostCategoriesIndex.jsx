@@ -11,6 +11,7 @@ import {
     DialogActions,
     DialogContent,
     DialogTitle,
+    Divider,
     Fab,
     FormControl,
     IconButton,
@@ -176,6 +177,14 @@ export default function VoucherAdditionalCostCategoriesIndex() {
                                             {row.name}
                                         </Typography>
                                         <Stack direction="row" spacing={0.75} sx={{ mt: 0.75, flexWrap: 'wrap', gap: 0.5 }}>
+                                            {row.is_system ? (
+                                                <Chip
+                                                    size="small"
+                                                    label={t('master.voucher_cost_categories.type.system')}
+                                                    color="info"
+                                                    variant="filled"
+                                                />
+                                            ) : null}
                                             <Chip size="small" label={row.status ?? 'ACTIVE'} color={statusColor(row.status)} variant="outlined" />
                                             <Chip size="small" label={t('master.voucher_cost_categories.order_chip', { order: row.sort_order ?? 0 })} variant="outlined" />
                                         </Stack>
@@ -215,7 +224,19 @@ export default function VoucherAdditionalCostCategoriesIndex() {
                             <TableBody>
                                 {sorted.map((row) => (
                                     <TableRow key={row.id} hover>
-                                        <TableCell>{row.name}</TableCell>
+                                        <TableCell>
+                                            <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                                                <Box component="span">{row.name}</Box>
+                                                {row.is_system ? (
+                                                    <Chip
+                                                        size="small"
+                                                        label={t('master.voucher_cost_categories.type.system')}
+                                                        color="info"
+                                                        variant="filled"
+                                                    />
+                                                ) : null}
+                                            </Stack>
+                                        </TableCell>
                                         <TableCell>
                                             <Chip size="small" label={row.status ?? 'ACTIVE'} color={statusColor(row.status)} variant="outlined" />
                                         </TableCell>
@@ -254,12 +275,28 @@ export default function VoucherAdditionalCostCategoriesIndex() {
                     transformOrigin={{ horizontal: 'right', vertical: 'top' }}
                     anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
                 >
-                    <MenuItem dense onClick={() => selectedRow && openEdit(selectedRow)} disabled={!canManage}>
-                        {t('ui.edit')}
-                    </MenuItem>
-                    <MenuItem dense sx={{ color: 'error.main' }} onClick={() => selectedRow && removeRow(selectedRow)} disabled={!canManage}>
-                        {t('ui.delete')}
-                    </MenuItem>
+                    {selectedRow?.is_system ? (
+                        <MenuItem dense disabled>
+                            {t('master.voucher_cost_categories.protected_system_category')}
+                        </MenuItem>
+                    ) : (
+                        <>
+                            <MenuItem
+                                dense
+                                onClick={() => {
+                                    if (selectedRow) openEdit(selectedRow);
+                                    handleTableActionClose();
+                                }}
+                                disabled={!canManage}
+                            >
+                                {t('ui.edit')}
+                            </MenuItem>
+                            <Divider />
+                            <MenuItem dense sx={{ color: 'error.main' }} onClick={() => selectedRow && removeRow(selectedRow)} disabled={!canManage}>
+                                {t('ui.delete')}
+                            </MenuItem>
+                        </>
+                    )}
                 </Menu>
 
                 <Dialog open={dialogOpen} onClose={closeDialog} fullWidth maxWidth="sm">

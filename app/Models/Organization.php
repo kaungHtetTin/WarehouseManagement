@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Tenant\VoucherAdditionalCostCategoryBootstrapper;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -26,34 +27,7 @@ class Organization extends Model
     protected static function booted(): void
     {
         static::created(function (Organization $org) {
-            $defaults = [
-                ['name' => 'Labor', 'sort_order' => 10],
-                ['name' => 'Tax', 'sort_order' => 20],
-            ];
-
-            foreach ($defaults as $row) {
-                $existing = VoucherAdditionalCostCategory::withTrashed()
-                    ->where('organization_id', $org->id)
-                    ->where('name', $row['name'])
-                    ->first();
-
-                if ($existing) {
-                    if ($existing->trashed()) {
-                        $existing->restore();
-                    }
-                    $existing->status = 'ACTIVE';
-                    $existing->sort_order = (int) $row['sort_order'];
-                    $existing->save();
-                    continue;
-                }
-
-                VoucherAdditionalCostCategory::query()->create([
-                    'organization_id' => $org->id,
-                    'name' => $row['name'],
-                    'status' => 'ACTIVE',
-                    'sort_order' => (int) $row['sort_order'],
-                ]);
-            }
+            app(VoucherAdditionalCostCategoryBootstrapper::class)->bootstrap($org->id);
 
             $financeDefaults = [
                 [

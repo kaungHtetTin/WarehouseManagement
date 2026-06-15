@@ -2,6 +2,7 @@ import AdminLayout from '@/Layouts/AdminLayout';
 import PageHeader from '@/Components/PageHeader';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
+import { voucherPaymentStatusLabel, voucherStatusLabel } from '@/utils/statusLabels';
 import {
     Alert,
     Box,
@@ -494,15 +495,6 @@ export default function VoucherDetail() {
         return Math.round(sum * 100) / 100;
     }, [voucher?.additional_costs]);
 
-    const paymentLabels = useMemo(
-        () => ({
-            UNPAID: t('vouchers.payment_status.unpaid'),
-            PARTIAL: t('vouchers.payment_status.partial'),
-            PAID: t('vouchers.payment_status.paid'),
-            WAIVED: t('vouchers.payment_status.waived'),
-        }),
-        [t],
-    );
     const paymentMethodLabels = useMemo(
         () => ({
             CASH: t('voucher_detail.payment_methods.cash'),
@@ -534,7 +526,7 @@ export default function VoucherDetail() {
         {
             label: t('voucher_detail.fields.paid'),
             value: formatMoneyAmount(paymentsTotal),
-            helper: paymentLabels[voucher?.payment_status] ?? voucher?.payment_status ?? '—',
+            helper: voucherPaymentStatusLabel(voucher?.payment_status, t),
             tone: paymentsTotal > 0 ? 'success.main' : 'text.primary',
         },
         {
@@ -603,10 +595,10 @@ export default function VoucherDetail() {
                     subtitle={t('voucher_detail.read_only_hint')}
                     actions={
                         <Stack direction="row" spacing={1} sx={{ justifyContent: { xs: 'flex-start', md: 'flex-end' }, flexWrap: 'wrap', gap: 1 }}>
-                            <Chip size="small" label={voucher.status} color={statusChipColor(voucher.status)} variant="outlined" />
+                            <Chip size="small" label={voucherStatusLabel(voucher.status, t)} color={statusChipColor(voucher.status)} variant="outlined" />
                             <Chip
                                 size="small"
-                                label={paymentLabels[voucher.payment_status] ?? voucher.payment_status}
+                                label={voucherPaymentStatusLabel(voucher.payment_status, t)}
                                 color={voucher.payment_status === 'UNPAID' || voucher.payment_status === 'PARTIAL' ? 'warning' : 'default'}
                                 variant="outlined"
                             />
@@ -724,7 +716,7 @@ export default function VoucherDetail() {
                                     </Typography>
                                     <Chip
                                         size="small"
-                                        label={paymentLabels[voucher.payment_status] ?? voucher.payment_status}
+                                        label={voucherPaymentStatusLabel(voucher.payment_status, t)}
                                         color={voucher.payment_status === 'UNPAID' || voucher.payment_status === 'PARTIAL' ? 'warning' : 'success'}
                                         variant="outlined"
                                     />

@@ -1,6 +1,8 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import PageHeader from '@/Components/PageHeader';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { useT } from '@/i18n';
+import { voucherPaymentStatusLabel } from '@/utils/statusLabels';
 import { ExpandLessOutlined as ExpandLessIcon, ExpandMoreOutlined as ExpandMoreIcon } from '@mui/icons-material';
 import {
     Alert,
@@ -125,6 +127,7 @@ function paymentStatusColor(status) {
 }
 
 export default function WarehouseFulfillmentInbox() {
+    const t = useT();
     const {
         instructions = [],
         warehouses = [],
@@ -550,7 +553,7 @@ export default function WarehouseFulfillmentInbox() {
                                                         </Stack>
                                                     </TableCell>
                                                     <TableCell sx={{ width: 96, whiteSpace: 'nowrap' }}>
-                                                        <Chip size="small" label={g.payment_status ?? 'UNPAID'} variant="outlined" color={paymentStatusColor(g.payment_status)} />
+                                                        <Chip size="small" label={voucherPaymentStatusLabel(g.payment_status, t)} variant="outlined" color={paymentStatusColor(g.payment_status)} />
                                                     </TableCell>
                                                     <TableCell align="right" sx={{ width: 140 }}>
                                                         <Stack direction="row" spacing={1} justifyContent="flex-end">
@@ -658,7 +661,7 @@ export default function WarehouseFulfillmentInbox() {
                                                         {g.merchant_name}
                                                     </Typography>
                                                 </Stack>
-                                                <Chip size="small" label={g.payment_status ?? 'UNPAID'} variant="outlined" color={paymentStatusColor(g.payment_status)} />
+                                                <Chip size="small" label={voucherPaymentStatusLabel(g.payment_status, t)} variant="outlined" color={paymentStatusColor(g.payment_status)} />
                                             </Stack>
                                             <Box>
                                                 <Chip

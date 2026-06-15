@@ -13,6 +13,7 @@ use App\Models\Voucher;
 use App\Models\VoucherItem;
 use App\Models\Warehouse;
 use App\Services\Tenant\TenantRoleBootstrapper;
+use App\Services\Tenant\VoucherAdditionalCostCategoryBootstrapper;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -42,6 +43,8 @@ class DemoDataSeeder extends Seeder
                     'default_locale' => in_array($locale, ['en', 'mm'], true) ? $locale : 'mm',
                 ]
             );
+
+            app(VoucherAdditionalCostCategoryBootstrapper::class)->bootstrap($organization->id);
 
             $roles = app(TenantRoleBootstrapper::class)->bootstrap($organization->id);
 

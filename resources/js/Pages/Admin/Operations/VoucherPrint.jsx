@@ -21,8 +21,10 @@ import {
 } from '@mui/material';
 import { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
+import { useT } from '@/i18n';
 import { formatPrintDate } from '@/utils/printing/dateFormat';
 import { getInitialPrintPaper, getPrintLayout, PRINT_PAPER_PRESETS } from '@/utils/printing/printPaperPresets';
+import { voucherPaymentStatusLabel } from '@/utils/statusLabels';
 
 function n2(value) {
     const n = Number(value);
@@ -46,6 +48,7 @@ function safeStr(value) {
 }
 
 export default function VoucherPrint() {
+    const t = useT();
     const { voucher, template = {}, voucher_policy: voucherPolicy = '', tracking_url: trackingUrl } = usePage().props;
     const [paperSize, setPaperSize] = useState(() => getInitialPrintPaper(template?.paper_size || 'A4'));
     const [qrDataUrl, setQrDataUrl] = useState(null);
@@ -287,7 +290,7 @@ export default function VoucherPrint() {
                         {showPaymentStatus ? (
                             <>
                                 <div className="k">Payment status</div>
-                                <div className="v">{voucher?.payment_status || '—'}</div>
+                                <div className="v">{voucherPaymentStatusLabel(voucher?.payment_status, t)}</div>
                             </>
                         ) : null}
                     </Box>

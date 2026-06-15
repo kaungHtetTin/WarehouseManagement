@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Divider, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
 import QRCode from 'qrcode';
+import { useT } from '@/i18n';
 import { formatPrintDate } from '@/utils/printing/dateFormat';
 import { getThermalPaperLayout } from '@/utils/printing/thermalPaper';
+import { voucherPaymentStatusLabel } from '@/utils/statusLabels';
 
 function n2(value) {
     const n = Number(value);
@@ -47,6 +49,7 @@ export default function VoucherPrintableDocument({
     thermalPaperWidth = 80,
     className = '',
 }) {
+    const t = useT();
     const isReceipt = String(paperSize || 'A4').toUpperCase() === 'RECEIPT_80';
     const thermalLayout = useMemo(() => getThermalPaperLayout(thermalPaperWidth), [thermalPaperWidth]);
     const [qrDataUrl, setQrDataUrl] = useState(null);
@@ -189,7 +192,7 @@ export default function VoucherPrintableDocument({
                     {showPaymentStatus ? (
                         <>
                             <div className="k">Payment status</div>
-                            <div className="v">{voucher?.payment_status || '—'}</div>
+                            <div className="v">{voucherPaymentStatusLabel(voucher?.payment_status, t)}</div>
                         </>
                     ) : null}
                 </Box>

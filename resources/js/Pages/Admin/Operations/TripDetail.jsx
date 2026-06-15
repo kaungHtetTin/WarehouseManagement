@@ -2,6 +2,7 @@ import AdminLayout from '@/Layouts/AdminLayout';
 import PageHeader from '@/Components/PageHeader';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
+import { tripStatusLabel, voucherPaymentChipLabel, voucherStatusLabel } from '@/utils/statusLabels';
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import {
     AddCircleOutlineOutlined as AddCircleOutlineIcon,
@@ -248,20 +249,6 @@ function formatVoucherDestination(vi) {
         bits.push(addrParts.join(', '));
     }
     return bits.length ? bits.join(' · ') : '—';
-}
-
-function voucherPaymentStatusLabel(status, t) {
-    const normalized = String(status ?? 'UNPAID').toUpperCase();
-    const translationKeys = {
-        PAID: 'vouchers.payment_status.paid',
-        PARTIAL: 'vouchers.payment_status.partial',
-        UNPAID: 'vouchers.payment_status.unpaid',
-        WAIVED: 'vouchers.payment_status.waived',
-    };
-
-    return t('vouchers.chip.payment_status', {
-        payment_status: translationKeys[normalized] ? t(translationKeys[normalized]) : normalized,
-    });
 }
 
 export default function TripDetail() {
@@ -870,7 +857,7 @@ export default function TripDetail() {
     const tripSummaryCards = [
         {
             label: 'Trip status',
-            value: trip.status ?? '—',
+            value: tripStatusLabel(trip.status, t),
             helper: trip.departed_at ? formatTripDateTime(trip.departed_at) : t('trip_detail.departure.steps.planned_loading'),
             tone: trip.status === 'COMPLETED' ? 'success.main' : trip.status === 'CANCELLED' ? 'error.main' : 'primary.main',
         },
@@ -916,7 +903,7 @@ export default function TripDetail() {
                     subtitle={t('trip_detail.summary')}
                     actions={
                         <Stack direction="row" spacing={1} sx={{ justifyContent: { xs: 'flex-start', md: 'flex-end' }, flexWrap: 'wrap', gap: 1 }}>
-                            <Chip size="small" label={trip.status} color={TRIP_STATUS_COLOR[trip.status] ?? 'default'} variant="outlined" />
+                            <Chip size="small" label={tripStatusLabel(trip.status, t)} color={TRIP_STATUS_COLOR[trip.status] ?? 'default'} variant="outlined" />
                             <Button component={Link} href={`${adminAppUrl}/operations/trips`} startIcon={<ArrowBackIcon />} variant="text" size="small">
                                 {t('trip_detail.back_to_trips')}
                             </Button>
@@ -1015,6 +1002,16 @@ export default function TripDetail() {
                                 </Box>
                             ) : null}
                         </Box>
+                        {trip.remark ? (
+                            <Box sx={{ ...OPERATIONAL_SUMMARY_CELL_SX, border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+                                <Typography variant="caption" color="text.secondary">
+                                    {t('trip_detail.labels.remark')}
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                    {trip.remark}
+                                </Typography>
+                            </Box>
+                        ) : null}
                         <Box>
                             <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
                                 <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
@@ -1804,13 +1801,13 @@ export default function TripDetail() {
                                                         <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
                                                             <Chip
                                                                 size="small"
-                                                                label={row.status}
+                                                                label={voucherStatusLabel(row.status, t)}
                                                                 color={VOUCHER_STATUS_COLOR[row.status] ?? 'default'}
                                                                 variant="outlined"
                                                             />
                                                             <Chip
                                                                 size="small"
-                                                                label={voucherPaymentStatusLabel(row.payment_status, t)}
+                                                                label={voucherPaymentChipLabel(row.payment_status, t)}
                                                                 color={VOUCHER_PAYMENT_STATUS_COLOR[row.payment_status] ?? 'default'}
                                                                 variant="outlined"
                                                             />
@@ -1899,7 +1896,7 @@ export default function TripDetail() {
                                                 <Stack direction="row" spacing={0.5} alignItems="center" flexShrink={0}>
                                                     <Chip
                                                         size="small"
-                                                        label={row.status}
+                                                        label={voucherStatusLabel(row.status, t)}
                                                         color={VOUCHER_STATUS_COLOR[row.status] ?? 'default'}
                                                         variant="outlined"
                                                     />
@@ -1937,7 +1934,7 @@ export default function TripDetail() {
                                             <Box>
                                                 <Chip
                                                     size="small"
-                                                    label={voucherPaymentStatusLabel(row.payment_status, t)}
+                                                    label={voucherPaymentChipLabel(row.payment_status, t)}
                                                     color={VOUCHER_PAYMENT_STATUS_COLOR[row.payment_status] ?? 'default'}
                                                     variant="outlined"
                                                 />

@@ -3,6 +3,7 @@ import PageHeader from '@/Components/PageHeader';
 import PaginationBar from '@/Components/PaginationBar';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
+import { tripStatusLabel } from '@/utils/statusLabels';
 import {
     Alert,
     Box,
@@ -98,11 +99,11 @@ export default function TripsIndex() {
         { label: 'Completed', value: tripSummary.completed ?? 0, helper: `${tripSummary.cancelled ?? 0} cancelled`, tone: 'success.main' },
     ];
     const statusPresets = [
-        { key: 'all', label: 'All' },
-        { key: 'PLANNED', label: 'Planned' },
-        { key: 'LOADING', label: 'Loading' },
-        { key: 'DEPARTED', label: 'Departed' },
-        { key: 'COMPLETED', label: 'Completed' },
+        { key: 'all', label: t('filters.all') },
+        { key: 'PLANNED', label: tripStatusLabel('PLANNED', t) },
+        { key: 'LOADING', label: tripStatusLabel('LOADING', t) },
+        { key: 'DEPARTED', label: tripStatusLabel('DEPARTED', t) },
+        { key: 'COMPLETED', label: tripStatusLabel('COMPLETED', t) },
     ];
     const hasActiveFilters = tripDestinationFilter !== 'all' || statusFilter !== 'all';
 
@@ -275,7 +276,12 @@ export default function TripsIndex() {
                                         onDelete={() => applyFilters({ destination_warehouse_id: 'all' })}
                                     />
                                 ) : null}
-                                {statusFilter !== 'all' ? <Chip label={`Status: ${statusFilter}`} onDelete={() => applyFilters({ status: 'all' })} /> : null}
+                                {statusFilter !== 'all' ? (
+                                    <Chip
+                                        label={`${t('trips.table.status')}: ${tripStatusLabel(statusFilter, t)}`}
+                                        onDelete={() => applyFilters({ status: 'all' })}
+                                    />
+                                ) : null}
                             </Stack>
                         ) : null}
                     </Stack>
@@ -323,7 +329,7 @@ export default function TripsIndex() {
                                         <TableCell>
                                             <Chip
                                                 size="small"
-                                                label={row.status}
+                                                label={tripStatusLabel(row.status, t)}
                                                 color={TRIP_STATUS_COLOR[row.status] ?? 'default'}
                                                 variant="outlined"
                                             />
@@ -396,7 +402,7 @@ export default function TripsIndex() {
                                         </Link>
                                         <Chip
                                             size="small"
-                                            label={row.status}
+                                            label={tripStatusLabel(row.status, t)}
                                             color={TRIP_STATUS_COLOR[row.status] ?? 'default'}
                                             variant="outlined"
                                             sx={{ flexShrink: 0 }}

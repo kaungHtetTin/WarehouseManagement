@@ -14,6 +14,7 @@ class Trip extends Model
         'vehicle_id',
         'driver_name',
         'driver_phone',
+        'remark',
         'source_warehouse_id',
         'departed_at',
         'arrived_at',

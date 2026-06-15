@@ -86,6 +86,7 @@
         table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
         th, td { border: 1px solid var(--border); padding: 0.4rem 0.45rem; text-align: left; vertical-align: top; word-break: break-word; }
         th { background: #f4f4f6; font-weight: 700; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.02em; }
+        tfoot td { background: #f8f8fa; font-weight: 700; }
         td.num { text-align: right; white-space: nowrap; }
         .muted { color: var(--muted); font-size: 0.85rem; }
         .items-cell { font-size: 0.82rem; line-height: 1.35; }
@@ -263,9 +264,18 @@
             <div class="flash">{{ session('success') }}</div>
         @endif
 
+        @php
+            $tripStatusCode = (string) ($trip->status ?? '');
+            $tripStatusKey = 'trips.status.'.strtolower($tripStatusCode);
+            $tripStatusLabel = __($tripStatusKey);
+            if ($tripStatusLabel === $tripStatusKey) {
+                $tripStatusLabel = $tripStatusCode ?: '—';
+            }
+        @endphp
+
         <header>
             <h1>Trip slip — {{ $trip->trip_no }}</h1>
-            <p class="sub">{{ $trip->organization->name ?? 'Organization' }} · Status {{ $trip->status }}</p>
+            <p class="sub">{{ $trip->organization->name ?? 'Organization' }} · Status {{ $tripStatusLabel }}</p>
         </header>
 
         <section>
@@ -287,6 +297,16 @@
                     <dt>Manifest printed</dt>
                     <dd>{{ $trip->manifest_printed_at ? $trip->manifest_printed_at->timezone(config('app.timezone'))->format('d-m-Y H:i') : '—' }}</dd>
                 </div>
+                <div>
+                    <dt>Total already paid</dt>
+                    <dd>{{ number_format((float) ($totalPaidAmount ?? 0), 0, '.', ',') }}</dd>
+                </div>
+                @if (filled($trip->remark))
+                    <div>
+                        <dt>Remark</dt>
+                        <dd style="white-space: pre-wrap;">{{ $trip->remark }}</dd>
+                    </div>
+                @endif
             </dl>
         </section>
 
@@ -354,6 +374,13 @@
                                 @endif
                             @endforeach
                         </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="5" class="num text-center">Total already paid</td>
+                                <td class="num text-center">{{ number_format((float) ($totalPaidAmount ?? 0), 0, '.', ',') }}</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
                     </table>
 
                     <!-- Vertical block layout for 4-inch paper -->
@@ -386,6 +413,12 @@
                                 @endif
                             </div>
                         @endforeach
+                        <div class="cargo-block">
+                            <div class="totals">
+                                <span>Total already paid</span>
+                                <span>{{ number_format((float) ($totalPaidAmount ?? 0), 0, '.', ',') }}</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             @endif
