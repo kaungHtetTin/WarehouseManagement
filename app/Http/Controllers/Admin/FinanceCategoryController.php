@@ -15,7 +15,7 @@ use Inertia\Response;
 
 class FinanceCategoryController extends Controller
 {
-    private const GLOBAL_SCOPE = 'GENERAL';
+    private const CATEGORY_SCOPE = 'GENERAL';
 
     public function index(Request $request): Response
     {
@@ -25,7 +25,7 @@ class FinanceCategoryController extends Controller
 
         $rows = FinanceCategory::query()
             ->where('organization_id', $organizationId)
-            ->where('scope', self::GLOBAL_SCOPE);
+            ->where('scope', self::CATEGORY_SCOPE);
 
         $rows = $rows
             ->orderBy('scope')
@@ -37,7 +37,7 @@ class FinanceCategoryController extends Controller
         return Inertia::render('Admin/Finance/FinanceCategoriesIndex', [
             'categories' => $rows,
             'filters' => [
-                'scope' => self::GLOBAL_SCOPE,
+                'scope' => self::CATEGORY_SCOPE,
             ],
         ]);
     }
@@ -57,7 +57,7 @@ class FinanceCategoryController extends Controller
                 Rule::unique('finance_categories', 'name')
                     ->where(fn ($q) => $q
                         ->where('organization_id', $organizationId)
-                        ->where('scope', self::GLOBAL_SCOPE)
+                        ->where('scope', self::CATEGORY_SCOPE)
                         ->whereNull('deleted_at')),
             ],
             'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE'])],
@@ -66,7 +66,7 @@ class FinanceCategoryController extends Controller
 
         $row = FinanceCategory::query()->create([
             'organization_id' => $organizationId,
-            'scope' => self::GLOBAL_SCOPE,
+            'scope' => self::CATEGORY_SCOPE,
             'direction' => $validated['direction'],
             'name' => trim($validated['name']),
             'status' => $validated['status'] ?? 'ACTIVE',
@@ -102,7 +102,7 @@ class FinanceCategoryController extends Controller
                     ->ignore($categoryModel->id)
                     ->where(fn ($q) => $q
                         ->where('organization_id', $organizationId)
-                        ->where('scope', self::GLOBAL_SCOPE)
+                        ->where('scope', self::CATEGORY_SCOPE)
                         ->whereNull('deleted_at')),
             ],
             'status' => ['sometimes', 'nullable', Rule::in(['ACTIVE', 'INACTIVE'])],
@@ -117,7 +117,7 @@ class FinanceCategoryController extends Controller
         }
 
         $categoryModel->fill($validated);
-        $categoryModel->scope = self::GLOBAL_SCOPE;
+        $categoryModel->scope = self::CATEGORY_SCOPE;
         $categoryModel->save();
 
         AuditLogger::record($actor, 'finance_category.update', $categoryModel, [
@@ -155,7 +155,7 @@ class FinanceCategoryController extends Controller
 
         return FinanceCategory::query()
             ->where('organization_id', $user->organization_id)
-            ->where('scope', self::GLOBAL_SCOPE)
+            ->where('scope', self::CATEGORY_SCOPE)
             ->whereKey($id)
             ->firstOrFail();
     }
