@@ -762,7 +762,7 @@ class VoucherManagementController extends Controller
             'default_recipient_name' => ['required', 'string', 'max:255'],
             'default_recipient_phone' => ['required', 'string', 'max:64'],
             'default_destination_remark' => ['nullable', 'string', 'max:2000'],
-            'total_weight' => ['nullable', 'integer', 'min:0'],
+            'total_weight' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $voucherModel = Voucher::query()
@@ -793,7 +793,7 @@ class VoucherManagementController extends Controller
                 'default_recipient_name' => trim((string) $validated['default_recipient_name']),
                 'default_recipient_phone' => trim((string) $validated['default_recipient_phone']),
                 'default_destination_remark' => $remark !== '' ? $remark : null,
-                'total_weight' => isset($validated['total_weight']) ? (int) $validated['total_weight'] : null,
+                'total_weight' => isset($validated['total_weight']) ? round((float) $validated['total_weight'], 2) : null,
             ]);
             $lockedVoucher->save();
         });
@@ -1021,7 +1021,7 @@ class VoucherManagementController extends Controller
 
         $voucher->total_qty = $totalQty;
         if ($voucher->total_weight === null) {
-            $voucher->total_weight = round((float) $totalWeight, 3);
+            $voucher->total_weight = round((float) $totalWeight, 2);
         }
 
         $computedTotal = round((float) $freightSum, 2);

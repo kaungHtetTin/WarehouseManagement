@@ -158,8 +158,7 @@ function formatFixed(value, digits) {
     if (!Number.isFinite(n)) {
         return '—';
     }
-    const rounded = Math.round(n);
-    return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(rounded);
+    return new Intl.NumberFormat(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
 }
 
 function formatInt(value) {
@@ -466,7 +465,7 @@ export default function TripDetail() {
                 knownSum += n;
             }
         }
-        knownSum = Math.round(knownSum * 1000) / 1000;
+        knownSum = Math.round(knownSum * 100) / 100;
         return { knownSum, unknownCount };
     }, [selectedVoucherIds, loadableById]);
 
@@ -484,7 +483,7 @@ export default function TripDetail() {
                 knownSum += n;
             }
         }
-        knownSum = Math.round(knownSum * 1000) / 1000;
+        knownSum = Math.round(knownSum * 100) / 100;
         return { knownSum, unknownCount };
     }, [loadableVouchers]);
 
@@ -1038,7 +1037,7 @@ export default function TripDetail() {
                                                 {t('trip_detail.labels.total_weight')}
                                             </Typography>
                                             <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
-                                                {formatFixed(tripTotalWeight, 0)}
+                                                {formatFixed(tripTotalWeight, 2)}
                                             </Typography>
                                         </Box>
                                         <Box sx={OPERATIONAL_SUMMARY_CELL_SX}>
@@ -1418,10 +1417,10 @@ export default function TripDetail() {
                             </Box>
                             <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 1, whiteSpace: { sm: 'nowrap' } }}>
                                 {t('trip_detail.load_vouchers.vehicle_max_weight')}{' '}
-                                <Box component="span" sx={{ fontWeight: 800, color: 'text.primary' }}>{vehicleMaxWeight === null ? '—' : formatFixed(vehicleMaxWeight, 0)}</Box>
+                                <Box component="span" sx={{ fontWeight: 800, color: 'text.primary' }}>{vehicleMaxWeight === null ? '—' : formatFixed(vehicleMaxWeight, 2)}</Box>
                                 {' · '}
                                 {t('trip_detail.load_vouchers.selected_weight')}{' '}
-                                <Box component="span" sx={{ fontWeight: 800, color: selectedExceedsVehicleWeight ? 'error.main' : 'text.primary' }}>{formatFixed(selectedWeightSummary.knownSum, 0)}</Box>
+                                <Box component="span" sx={{ fontWeight: 800, color: selectedExceedsVehicleWeight ? 'error.main' : 'text.primary' }}>{formatFixed(selectedWeightSummary.knownSum, 2)}</Box>
                                 {selectedWeightSummary.unknownCount > 0 ? ` (+ ${selectedWeightSummary.unknownCount} ${t('trip_detail.load_vouchers.unknown')})` : ''}
                             </Typography>
 
@@ -1513,7 +1512,7 @@ export default function TripDetail() {
                                                                         </Stack>
                                                                     </Stack>
                                                                 </TableCell>
-                                                                <TableCell align="right">{w === null || w === undefined ? '—' : formatFixed(w, 0)}</TableCell>
+                                                                <TableCell align="right">{w === null || w === undefined ? '—' : formatFixed(w, 2)}</TableCell>
                                                                 <TableCell align="right">{row.lines ?? 0}</TableCell>
                                                                 <TableCell align="right">
                                                                     <Checkbox
@@ -1661,7 +1660,7 @@ export default function TripDetail() {
                                                                 {t('trip_detail.load_vouchers.table.weight')}
                                                             </Typography>
                                                             <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                                                                {w === null || w === undefined ? '—' : formatFixed(w, 0)}
+                                                                {w === null || w === undefined ? '—' : formatFixed(w, 2)}
                                                             </Typography>
                                                         </Stack>
                                                         <Stack direction="row" justifyContent="space-between" spacing={1}>

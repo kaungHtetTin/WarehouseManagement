@@ -1,1 +1,0 @@
-import{a}from"./app-9efc33e1.js";import{e as o}from"./Stack-a8f7f357.js";const n=o(a("path",{d:"m12 8-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z"})),p=o(a("path",{d:"M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6z"}));export{n as E,p as a};

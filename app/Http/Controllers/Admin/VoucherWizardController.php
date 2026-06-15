@@ -712,7 +712,7 @@ class VoucherWizardController extends Controller
         }
 
         return [
-            'total_weight' => $validated['total_weight'] ?? null,
+            'total_weight' => isset($validated['total_weight']) ? round((float) $validated['total_weight'], 2) : null,
             'additional_costs' => $normalized === [] ? null : $normalized,
         ];
     }
@@ -778,7 +778,7 @@ class VoucherWizardController extends Controller
 
         $voucher->total_qty = $totalQty;
         if ($voucher->total_weight === null) {
-            $voucher->total_weight = round((float) $totalWeight, 3);
+            $voucher->total_weight = round((float) $totalWeight, 2);
         }
 
         $computedTotal = round((float) $freightSum, 2);

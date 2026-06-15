@@ -602,6 +602,7 @@
     "master.vehicles.fields.vehicle_type": "ယာဉ်အမျိုးအစား",
     "master.vehicles.fields.vehicle_type_placeholder": "truck, van, …",
     "master.vehicles.subtitle": "ခရီးစဉ်များနှင့် ပို့ဆောင်ရေးအတွက် မှတ်ပုံတင်ထားသော ယာဉ်တန်း။",
+    "master.vehicles.table.capacity_weight": "သယ်ဆောင်နိုင်သော အလေးချိန်",
     "master.vehicles.table.registration": "မှတ်ပုံတင်",
     "master.vehicles.table.status": "အခြေအနေ",
     "master.vehicles.table.type": "အမျိုးအစား",

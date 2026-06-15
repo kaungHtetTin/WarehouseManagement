@@ -66,7 +66,7 @@ class TripWorkflowTest extends TestCase
             ->getJson(route('admin.trips.wizard.vehicle-search', ['q' => 'YGN-9900']))
             ->assertOk()
             ->assertJsonPath('results.0.vehicle_no', 'YGN-9900')
-            ->assertJsonPath('results.0.capacity_weight', '12.000')
+            ->assertJsonPath('results.0.capacity_weight', '12.00')
             ->assertJsonPath('results.0.driver_name', 'New Driver')
             ->assertJsonPath('results.0.driver_phone', '099999999');
     }

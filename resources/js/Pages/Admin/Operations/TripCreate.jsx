@@ -3,6 +3,7 @@ import PageHeader from '@/Components/PageHeader';
 import axios from 'axios';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
+import { formatDecimalInput } from '@/utils/numberFormat';
 import {
     Alert,
     Autocomplete,
@@ -82,12 +83,12 @@ export default function TripCreate() {
     const pickVehicle = useCallback((row) => {
         setVehicleId(row.id);
         setVehicleNo(row.vehicle_no ?? '');
-        setCapacityWeight(row.capacity_weight != null && row.capacity_weight !== '' ? String(row.capacity_weight) : '');
+        setCapacityWeight(formatDecimalInput(row.capacity_weight, 2, ''));
         setDriverName(row.driver_name ?? '');
         setDriverPhone(row.driver_phone ?? '');
         lastVehicleAutofillRef.current = {
             vehicle_id: row.id ?? null,
-            capacity_weight: row.capacity_weight != null && row.capacity_weight !== '' ? String(row.capacity_weight) : '',
+            capacity_weight: formatDecimalInput(row.capacity_weight, 2, ''),
             driver_name: row.driver_name ?? '',
             driver_phone: row.driver_phone ?? '',
         };
@@ -412,9 +413,10 @@ export default function TripCreate() {
                                         size="small"
                                         fullWidth
                                         type="number"
-                                        inputProps={{ step: '1', min: '0' }}
+                                        inputProps={{ step: '0.01', min: '0' }}
                                         value={capacityWeight}
                                         onChange={(e) => setCapacityWeight(e.target.value)}
+                                        onBlur={() => setCapacityWeight((value) => formatDecimalInput(value, 2, ''))}
                                         error={Boolean(errors['vehicle.capacity_weight'])}
                                         helperText={errors['vehicle.capacity_weight'] || 'Use a recommendation above to fill, or enter manually.'}
                                     />

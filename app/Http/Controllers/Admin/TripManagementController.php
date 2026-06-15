@@ -3334,7 +3334,7 @@ class TripManagementController extends Controller
         $capW = array_key_exists('capacity_weight', $vehiclePayload)
             && $vehiclePayload['capacity_weight'] !== null
             && $vehiclePayload['capacity_weight'] !== ''
-            ? round((float) $vehiclePayload['capacity_weight'], 3)
+            ? round((float) $vehiclePayload['capacity_weight'], 2)
             : null;
         $type = array_key_exists('vehicle_type', $vehiclePayload) ? trim((string) $vehiclePayload['vehicle_type']) : '';
 

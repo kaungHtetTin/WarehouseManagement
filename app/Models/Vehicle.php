@@ -23,7 +23,7 @@ class Vehicle extends Model
     ];
 
     protected $casts = [
-        'capacity_weight' => 'decimal:3',
+        'capacity_weight' => 'decimal:2',
         'capacity_volume' => 'decimal:3',
     ];
 

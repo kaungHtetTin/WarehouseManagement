@@ -98,7 +98,7 @@ class VoucherDetailPageTest extends TestCase
             'default_recipient_name' => ' New Recipient ',
             'default_recipient_phone' => ' 09123456789 ',
             'default_destination_remark' => ' Leave at the front desk. ',
-            'total_weight' => '12',
+            'total_weight' => '12.5',
         ]);
 
         $response->assertRedirect();
@@ -107,10 +107,10 @@ class VoucherDetailPageTest extends TestCase
         $this->assertSame('New Recipient', $voucher->default_recipient_name);
         $this->assertSame('09123456789', $voucher->default_recipient_phone);
         $this->assertSame('Leave at the front desk.', $voucher->default_destination_remark);
-        $this->assertSame('12.000', $voucher->total_weight);
+        $this->assertSame('12.50', $voucher->total_weight);
     }
 
-    public function test_voucher_detail_weight_must_be_a_whole_number(): void
+    public function test_voucher_detail_weight_accepts_two_decimal_precision(): void
     {
         [$user, $voucher] = $this->confirmedVoucherWithLine();
 
@@ -118,10 +118,13 @@ class VoucherDetailPageTest extends TestCase
             'default_recipient_name' => 'Recipient',
             'default_recipient_phone' => '09123456789',
             'default_destination_remark' => null,
-            'total_weight' => '12.5',
+            'total_weight' => '12.56',
         ]);
 
-        $response->assertSessionHasErrors('total_weight');
+        $response->assertRedirect();
+
+        $voucher->refresh();
+        $this->assertSame('12.56', $voucher->total_weight);
     }
 
     /**

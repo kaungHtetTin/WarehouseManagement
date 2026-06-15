@@ -40,7 +40,7 @@ class Voucher extends Model
     protected $casts = [
         'voucher_date' => 'date',
         'total_qty' => 'decimal:3',
-        'total_weight' => 'decimal:3',
+        'total_weight' => 'decimal:2',
         'total_amount' => 'decimal:2',
         'additional_costs' => 'array',
     ];

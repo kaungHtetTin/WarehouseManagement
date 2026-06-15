@@ -2,6 +2,7 @@ import AdminLayout from '@/Layouts/AdminLayout';
 import axios from 'axios';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
+import { formatDecimalInput, roundDecimal } from '@/utils/numberFormat';
 import {
     Alert,
     Autocomplete,
@@ -131,7 +132,7 @@ const initialStep1 = () => ({
     source_warehouse_id: '',
     remark: '',
     payment_status: 'UNPAID',
-    total_weight: '0',
+    total_weight: '0.00',
     additional_costs: [],
     merchant_id: null,
     merchant: emptyMerchant(),
@@ -349,7 +350,7 @@ export default function VoucherWizard() {
             source_warehouse_id: v.source_warehouse_id != null ? String(v.source_warehouse_id) : '',
             remark: v.remark ?? '',
             payment_status: v.payment_status ?? 'UNPAID',
-            total_weight: v.total_weight != null && v.total_weight !== '' ? String(Math.round(Number(v.total_weight))) : '0',
+            total_weight: formatDecimalInput(v.total_weight, 2, '0.00'),
             additional_costs: Array.isArray(v.additional_costs)
                 ? v.additional_costs.map((c) => ({
                       category_id: c?.category_id != null ? String(c.category_id) : '',
@@ -545,7 +546,7 @@ export default function VoucherWizard() {
         (overrides = {}) => {
             const totalWeightRaw = step1.total_weight;
             const totalWeightNum = Number(totalWeightRaw);
-            const total_weight = Number.isFinite(totalWeightNum) ? Math.max(0, Math.round(totalWeightNum)) : 0;
+            const total_weight = Number.isFinite(totalWeightNum) ? Math.max(0, roundDecimal(totalWeightNum, 2) ?? 0) : 0;
             const additional_costs = buildAdditionalCostsPayload();
 
             const merchantName = step1.merchant.name?.trim() ?? '';
@@ -658,7 +659,7 @@ export default function VoucherWizard() {
 
         const totalWeightRaw = step1.total_weight;
         const totalWeightNum = Number(totalWeightRaw);
-        const total_weight = Number.isFinite(totalWeightNum) ? Math.max(0, Math.round(totalWeightNum)) : 0;
+        const total_weight = Number.isFinite(totalWeightNum) ? Math.max(0, roundDecimal(totalWeightNum, 2) ?? 0) : 0;
 
         const additional_costs = buildAdditionalCostsPayload();
 
@@ -1433,7 +1434,7 @@ export default function VoucherWizard() {
                                                     size="small"
                                                     label={t('voucher_wizard.weight.voucher_weight')}
                                                     type="number"
-                                                    inputProps={{ step: '1', min: '0' }}
+                                                    inputProps={{ step: '0.01', min: '0' }}
                                                     sx={{ width: { xs: '100%', sm: 220 } }}
                                                     value={step1.total_weight}
                                                     onChange={(e) => {
@@ -1443,11 +1444,14 @@ export default function VoucherWizard() {
                                                             return;
                                                         }
                                                         const n = Number(raw);
+                                                        setStep1((p) => ({ ...p, total_weight: Number.isFinite(n) && n >= 0 ? raw : '' }));
+                                                    }}
+                                                    onBlur={() =>
                                                         setStep1((p) => ({
                                                             ...p,
-                                                            total_weight: Number.isFinite(n) ? String(Math.max(0, Math.round(n))) : '',
-                                                        }));
-                                                    }}
+                                                            total_weight: formatDecimalInput(p.total_weight, 2, '0.00'),
+                                                        }))
+                                                    }
                                                     helperText={t('voucher_wizard.weight.default_zero')}
                                                 />
 

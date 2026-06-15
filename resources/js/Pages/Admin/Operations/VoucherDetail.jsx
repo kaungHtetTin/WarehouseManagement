@@ -2,6 +2,7 @@ import AdminLayout from '@/Layouts/AdminLayout';
 import PageHeader from '@/Components/PageHeader';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
+import { formatDecimal, formatDecimalInput } from '@/utils/numberFormat';
 import { voucherPaymentStatusLabel, voucherStatusLabel } from '@/utils/statusLabels';
 import {
     Alert,
@@ -373,7 +374,7 @@ export default function VoucherDetail() {
             default_recipient_name: voucher.default_recipient_name ?? '',
             default_recipient_phone: voucher.default_recipient_phone ?? '',
             default_destination_remark: voucher.default_destination_remark ?? '',
-            total_weight: voucher.total_weight != null ? String(Math.round(Number(voucher.total_weight))) : '',
+            total_weight: formatDecimalInput(voucher.total_weight, 2, ''),
         });
         detailsForm.clearErrors();
         setDetailsEditOpen(true);
@@ -579,7 +580,7 @@ export default function VoucherDetail() {
         },
         { label: t('voucher_detail.fields.source_warehouse'), value: voucher.source_warehouse?.display_name || '—' },
         { label: t('voucher_detail.fields.total_qty'), value: voucher.total_qty != null ? String(voucher.total_qty) : null },
-        { label: t('voucher_detail.fields.weight'), value: voucher.total_weight != null ? String(Math.round(Number(voucher.total_weight))) : null },
+        { label: t('voucher_detail.fields.weight'), value: formatDecimal(voucher.total_weight, 2, null) },
         { label: t('voucher_detail.fields.created_by'), value: voucher.creator?.name },
     ];
 
@@ -973,7 +974,7 @@ export default function VoucherDetail() {
                                 <TextField
                                     label={t('voucher_detail.fields.weight')}
                                     type="number"
-                                    inputProps={{ step: '1', min: '0' }}
+                                    inputProps={{ step: '0.01', min: '0' }}
                                     value={detailsForm.data.total_weight}
                                     onChange={(e) => {
                                         const raw = e.target.value;
@@ -982,8 +983,9 @@ export default function VoucherDetail() {
                                             return;
                                         }
                                         const n = Number(raw);
-                                        detailsForm.setData('total_weight', Number.isFinite(n) ? String(Math.max(0, Math.round(n))) : '');
+                                        detailsForm.setData('total_weight', Number.isFinite(n) && n >= 0 ? raw : '');
                                     }}
+                                    onBlur={() => detailsForm.setData('total_weight', formatDecimalInput(detailsForm.data.total_weight, 2, ''))}
                                     error={Boolean(detailsForm.errors.total_weight)}
                                     helperText={detailsForm.errors.total_weight}
                                     size="small"

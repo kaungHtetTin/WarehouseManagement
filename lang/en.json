@@ -603,6 +603,7 @@
     "master.vehicles.fields.vehicle_type": "Vehicle type",
     "master.vehicles.fields.vehicle_type_placeholder": "truck, van, …",
     "master.vehicles.subtitle": "Fleet registered for trips and deliveries.",
+    "master.vehicles.table.capacity_weight": "Capacity weight",
     "master.vehicles.table.registration": "Registration",
     "master.vehicles.table.status": "Status",
     "master.vehicles.table.type": "Type",

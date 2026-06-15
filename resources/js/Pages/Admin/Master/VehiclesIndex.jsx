@@ -2,6 +2,7 @@ import AdminLayout from '@/Layouts/AdminLayout';
 import PageHeader from '@/Components/PageHeader';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useT } from '@/i18n';
+import { formatDecimal, formatDecimalInput } from '@/utils/numberFormat';
 import {
     Alert,
     Box,
@@ -79,7 +80,7 @@ export default function VehiclesIndex() {
             warehouse_id: row.warehouse_id ?? '',
             vehicle_no: row.vehicle_no ?? '',
             vehicle_type: row.vehicle_type ?? '',
-            capacity_weight: row.capacity_weight ?? '',
+            capacity_weight: formatDecimalInput(row.capacity_weight, 2, ''),
             capacity_volume: row.capacity_volume ?? '',
             status: row.status ?? 'ACTIVE',
         });
@@ -165,6 +166,11 @@ export default function VehiclesIndex() {
                                         </Typography>
                                         <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap" sx={{ mt: 1, gap: 0.5 }}>
                                             <Chip size="small" label={row.status} variant="outlined" />
+                                            <Chip
+                                                size="small"
+                                                label={`${t('master.vehicles.table.capacity_weight')}: ${formatDecimal(row.capacity_weight, 2)}`}
+                                                variant="outlined"
+                                            />
                                         </Stack>
                                     </Box>
                                     {canManage && (
@@ -195,6 +201,7 @@ export default function VehiclesIndex() {
                                 <TableRow>
                                     <TableCell>{t('master.vehicles.table.registration')}</TableCell>
                                     <TableCell>{t('master.vehicles.table.type')}</TableCell>
+                                    <TableCell align="right">{t('master.vehicles.table.capacity_weight')}</TableCell>
                                     <TableCell>{t('master.vehicles.table.warehouse')}</TableCell>
                                     <TableCell>{t('master.vehicles.table.status')}</TableCell>
                                     <TableCell align="right">{t('ui.actions')}</TableCell>
@@ -205,6 +212,7 @@ export default function VehiclesIndex() {
                                     <TableRow key={row.id} hover>
                                         <TableCell>{row.vehicle_no}</TableCell>
                                         <TableCell>{row.vehicle_type}</TableCell>
+                                        <TableCell align="right">{formatDecimal(row.capacity_weight, 2)}</TableCell>
                                         <TableCell>{row.warehouse?.display_name || '—'}</TableCell>
                                         <TableCell>
                                             <Chip size="small" label={row.status} variant="outlined" />
@@ -220,7 +228,7 @@ export default function VehiclesIndex() {
                                 ))}
                                 {vehicles.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={5}>
+                                        <TableCell colSpan={6}>
                                             <Typography variant="body2" color="text.secondary">
                                                 {t('master.vehicles.empty')}
                                             </Typography>
@@ -290,7 +298,8 @@ export default function VehiclesIndex() {
                             type="number"
                             value={form.capacity_weight}
                             onChange={(e) => setForm((p) => ({ ...p, capacity_weight: e.target.value }))}
-                            inputProps={{ min: 0, step: 'any' }}
+                            onBlur={() => setForm((p) => ({ ...p, capacity_weight: formatDecimalInput(p.capacity_weight, 2, '') }))}
+                            inputProps={{ min: 0, step: '0.01' }}
                         />
                         <TextField
                             label={t('master.vehicles.fields.capacity_volume_optional')}

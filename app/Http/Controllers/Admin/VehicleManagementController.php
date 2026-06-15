@@ -71,6 +71,9 @@ class VehicleManagementController extends Controller
         ]);
 
         $warehouseId = $this->resolveTenantWarehouseId($actor, $validated['warehouse_id'] ?? null);
+        if (array_key_exists('capacity_weight', $validated) && $validated['capacity_weight'] !== null) {
+            $validated['capacity_weight'] = round((float) $validated['capacity_weight'], 2);
+        }
 
         $vehicle = Vehicle::query()->create([
             'organization_id' => $organizationId,
@@ -118,6 +121,9 @@ class VehicleManagementController extends Controller
 
         if (array_key_exists('vehicle_no', $validated)) {
             $validated['vehicle_no'] = strtoupper(trim($validated['vehicle_no']));
+        }
+        if (array_key_exists('capacity_weight', $validated) && $validated['capacity_weight'] !== null) {
+            $validated['capacity_weight'] = round((float) $validated['capacity_weight'], 2);
         }
 
         $vehicleModel->fill($validated);
