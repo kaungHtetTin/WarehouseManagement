@@ -84,7 +84,7 @@ const features = [
     {
         icon: <WarehouseIcon />,
         title: 'Warehouse handover flow',
-        description: 'Coordinate source and destination warehouses with dispatch, incoming receipt, fulfillment instructions, and delivery confirmation.',
+        description: 'Coordinate source and destination warehouses with dispatch, incoming receipt, and delivery confirmation.',
     },
     {
         icon: <PaymentsIcon />,

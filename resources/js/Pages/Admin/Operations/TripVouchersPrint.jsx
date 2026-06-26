@@ -62,6 +62,9 @@ function TripPaidSummaryStrip({ trip, summary, layout }) {
                     <div className="k">Trip freight</div>
                     <div className="v">{formatMoneyAmount(summary.total_amount)}</div>
 
+                    <div className="k">Total labour cost</div>
+                    <div className="v">{formatMoneyAmount(summary.labor_cost)}</div>
+
                     <div className="k">Loaded qty</div>
                     <div className="v">{formatQty(summary.total_loaded_qty)}</div>
 
@@ -127,6 +130,9 @@ function TripOverviewSheet({ trip, overviewSlip, layout, t }) {
 
                     <div className="k">Trip freight</div>
                     <div className="v">{formatMoneyAmount(overviewSlip.total_amount)}</div>
+
+                    <div className="k">Total labour cost</div>
+                    <div className="v">{formatMoneyAmount(overviewSlip.labor_cost)}</div>
 
                     <div className="k">Total already paid</div>
                     <div className="v">{formatMoneyAmount(overviewSlip.paid_amount)}</div>
@@ -213,6 +219,16 @@ function TripOverviewSheet({ trip, overviewSlip, layout, t }) {
                                 {(overviewSlip.rows || []).length > 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={2} sx={{ fontWeight: 900 }}>
+                                            Total labour cost
+                                        </TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 900 }}>
+                                            {formatMoneyAmount(overviewSlip.labor_cost)}
+                                        </TableCell>
+                                    </TableRow>
+                                ) : null}
+                                {(overviewSlip.rows || []).length > 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={2} sx={{ fontWeight: 900 }}>
                                             Total already paid
                                         </TableCell>
                                         <TableCell align="right" sx={{ fontWeight: 900 }}>
@@ -263,6 +279,16 @@ function TripOverviewSheet({ trip, overviewSlip, layout, t }) {
                                             <Typography variant="body2" color="text.secondary">
                                                 No loaded vouchers.
                                             </Typography>
+                                        </TableCell>
+                                    </TableRow>
+                                ) : null}
+                                {(overviewSlip.rows || []).length > 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={6} align="right" sx={{ fontWeight: 900 }}>
+                                            Total labour cost
+                                        </TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 900 }}>
+                                            {formatMoneyAmount(overviewSlip.labor_cost)}
                                         </TableCell>
                                     </TableRow>
                                 ) : null}

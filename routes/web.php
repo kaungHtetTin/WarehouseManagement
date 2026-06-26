@@ -17,7 +17,6 @@ use App\Http\Controllers\Admin\TripCostCategoryController;
 use App\Http\Controllers\Admin\RoleManagementController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\WarehouseManagementController;
-use App\Http\Controllers\Admin\WarehouseFulfillmentController;
 use App\Http\Controllers\Admin\OrganizationSettingsController;
 use App\Http\Controllers\PublicVoucherTrackingController;
 use App\Http\Controllers\ProfileController;
@@ -334,25 +333,6 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/operations/trips/{trip}/net-income-ledger', [TripManagementController::class, 'storeNetIncomeLedgerEntry'])
             ->middleware(['permission:trips.view', 'permission:finance.manage'])
             ->name('trips.net-income-ledger.store');
-        Route::get('/operations/fulfillment/inbox', [WarehouseFulfillmentController::class, 'index'])
-            ->middleware('permission:trips.manage')
-            ->name('fulfillment.inbox');
-        Route::get('/operations/fulfillment/incoming', [WarehouseFulfillmentController::class, 'incoming'])
-            ->middleware('permission:trips.manage')
-            ->name('fulfillment.incoming');
-        Route::post('/operations/fulfillment/instructions/{instruction}/dispatch', [WarehouseFulfillmentController::class, 'dispatchInstruction'])
-            ->middleware('permission:trips.manage')
-            ->name('fulfillment.instructions.dispatch');
-        Route::post('/operations/fulfillment/warehouses/{warehouse}/vouchers/{voucher}/dispatch', [WarehouseFulfillmentController::class, 'dispatchVoucher'])
-            ->middleware('permission:trips.manage')
-            ->name('fulfillment.vouchers.dispatch');
-        Route::post('/operations/fulfillment/vouchers/{voucher}/payments', [WarehouseFulfillmentController::class, 'storeVoucherPayment'])
-            ->middleware(['permission:trips.manage', 'permission:payments.manage'])
-            ->name('fulfillment.vouchers.payments.store');
-        Route::post('/operations/fulfillment/vouchers/{voucher}/payment-waive', [WarehouseFulfillmentController::class, 'setVoucherWaived'])
-            ->middleware(['permission:trips.manage', 'permission:payments.manage'])
-            ->name('fulfillment.vouchers.payment-waive');
-
         Route::middleware(['permission:vouchers.manage', 'permission:inventory.manage'])->group(function () {
             Route::get('/operations/vouchers/create', [VoucherWizardController::class, 'create'])->name('vouchers.wizard.create');
             Route::get('/operations/vouchers/{voucher}/edit', [VoucherWizardController::class, 'edit'])->name('vouchers.wizard.edit');

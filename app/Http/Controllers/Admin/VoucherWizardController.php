@@ -647,7 +647,7 @@ class VoucherWizardController extends Controller
                     ->whereNull('deleted_at')
                     ->where('status', 'ACTIVE')),
             ],
-            'additional_costs.*.amount' => ['required_with:additional_costs.*.category_id', 'numeric', 'min:0'],
+            'additional_costs.*.amount' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 
@@ -687,17 +687,11 @@ class VoucherWizardController extends Controller
                 }
                 $categoryIdRaw = $row['category_id'] ?? null;
                 $categoryId = $categoryIdRaw !== null && $categoryIdRaw !== '' ? (int) $categoryIdRaw : null;
+                if ($categoryId === null) {
+                    continue;
+                }
                 $amountRaw = $row['amount'] ?? null;
-
-                $hasAmount = $amountRaw !== null && $amountRaw !== '';
-                $amount = $hasAmount ? (float) $amountRaw : null;
-
-                if ($categoryId === null && $amount === null) {
-                    continue;
-                }
-                if ($categoryId === null || $amount === null) {
-                    continue;
-                }
+                $amount = $amountRaw === null || $amountRaw === '' ? 0.0 : (float) $amountRaw;
                 $categoryName = $categoryNameById[$categoryId] ?? null;
                 if ($categoryName === null || trim($categoryName) === '') {
                     continue;
@@ -711,8 +705,11 @@ class VoucherWizardController extends Controller
             }
         }
 
+        $totalWeightRaw = $validated['total_weight'] ?? null;
+        $totalWeight = $totalWeightRaw === null || $totalWeightRaw === '' ? 0.0 : (float) $totalWeightRaw;
+
         return [
-            'total_weight' => isset($validated['total_weight']) ? round((float) $validated['total_weight'], 2) : null,
+            'total_weight' => round($totalWeight, 2),
             'additional_costs' => $normalized === [] ? null : $normalized,
         ];
     }

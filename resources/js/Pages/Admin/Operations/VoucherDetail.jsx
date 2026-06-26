@@ -99,6 +99,28 @@ function formatQty(value) {
     return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(rounded);
 }
 
+function formatOptionalWeightInput(value) {
+    if (value == null || value === '') {
+        return '';
+    }
+    const n = Number(value);
+    if (!Number.isFinite(n) || n === 0) {
+        return '';
+    }
+    return formatDecimalInput(value, 2, '');
+}
+
+function formatOptionalCostAmountInput(value) {
+    if (value == null || value === '') {
+        return '';
+    }
+    const n = Number(value);
+    if (!Number.isFinite(n) || n === 0) {
+        return '';
+    }
+    return String(value);
+}
+
 function KeyValueRows({ rows }) {
     return (rows || []).map((r, idx) => {
         const raw = r?.value;
@@ -374,7 +396,7 @@ export default function VoucherDetail() {
             default_recipient_name: voucher.default_recipient_name ?? '',
             default_recipient_phone: voucher.default_recipient_phone ?? '',
             default_destination_remark: voucher.default_destination_remark ?? '',
-            total_weight: formatDecimalInput(voucher.total_weight, 2, ''),
+            total_weight: formatOptionalWeightInput(voucher.total_weight),
         });
         detailsForm.clearErrors();
         setDetailsEditOpen(true);
@@ -395,7 +417,7 @@ export default function VoucherDetail() {
                           c?.category_name ??
                           additionalCostCategories.find((row) => Number(row.id) === Number(c?.category_id))?.name ??
                           '',
-                      amount: c?.amount != null && c?.amount !== '' ? String(c.amount) : '',
+                      amount: formatOptionalCostAmountInput(c?.amount),
                   }))
                 : [],
         });
@@ -985,7 +1007,7 @@ export default function VoucherDetail() {
                                         const n = Number(raw);
                                         detailsForm.setData('total_weight', Number.isFinite(n) && n >= 0 ? raw : '');
                                     }}
-                                    onBlur={() => detailsForm.setData('total_weight', formatDecimalInput(detailsForm.data.total_weight, 2, ''))}
+                                    onBlur={() => detailsForm.setData('total_weight', formatOptionalWeightInput(detailsForm.data.total_weight))}
                                     error={Boolean(detailsForm.errors.total_weight)}
                                     helperText={detailsForm.errors.total_weight}
                                     size="small"
@@ -1140,6 +1162,7 @@ export default function VoucherDetail() {
                                             sx={{ width: 140, flexShrink: 0 }}
                                             value={row.amount ?? ''}
                                             onChange={(e) => updateAdditionalCostRow(idx, { amount: e.target.value })}
+                                            onBlur={() => updateAdditionalCostRow(idx, { amount: formatOptionalCostAmountInput(row.amount) })}
                                             error={Boolean(additionalCostError(idx, 'amount'))}
                                             helperText={additionalCostError(idx, 'amount')}
                                         />

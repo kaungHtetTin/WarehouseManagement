@@ -12,7 +12,6 @@ use App\Models\VoucherAdditionalCostCategory;
 use App\Models\Voucher;
 use App\Models\VoucherItem;
 use App\Models\VoucherPayment;
-use App\Models\WarehouseFulfillmentInstruction;
 use App\Support\VoucherLineFreight;
 use App\Services\Audit\AuditLogger;
 use App\Services\Tenant\OperationalWarehouseContext;
@@ -435,13 +434,6 @@ class VoucherManagementController extends Controller
             return Redirect::back()->with('error', 'Cannot delete this confirmed voucher because it has trip loads.');
         }
 
-        if (WarehouseFulfillmentInstruction::query()
-            ->where('organization_id', $organizationId)
-            ->whereIn('voucher_item_id', $voucherItemIds)
-            ->exists()) {
-            return Redirect::back()->with('error', 'Cannot delete this confirmed voucher because fulfillment processing has started.');
-        }
-
         $snapshot = ['voucher_no' => $voucherModel->voucher_no];
         try {
             DB::transaction(function () use ($organizationId, $voucherModel) {
@@ -485,15 +477,6 @@ class VoucherManagementController extends Controller
                     ->exists()) {
                     throw ValidationException::withMessages([
                         'voucher' => ['Voucher has trip loads and cannot be deleted.'],
-                    ]);
-                }
-
-                if (WarehouseFulfillmentInstruction::query()
-                    ->where('organization_id', $organizationId)
-                    ->whereIn('voucher_item_id', $voucherItemIds)
-                    ->exists()) {
-                    throw ValidationException::withMessages([
-                        'voucher' => ['Fulfillment processing has started for this voucher and it cannot be deleted.'],
                     ]);
                 }
 
@@ -693,12 +676,7 @@ class VoucherManagementController extends Controller
                     ->where('voucher_item_id', $item->id)
                     ->exists();
 
-                $hasFulfillment = WarehouseFulfillmentInstruction::query()
-                    ->where('organization_id', $organizationId)
-                    ->where('voucher_item_id', $item->id)
-                    ->exists();
-
-                $lockedByOperations = $hasTripLoads || $hasFulfillment;
+                $lockedByOperations = $hasTripLoads;
 
                 if ($lockedByOperations) {
                     $validated = $request->validate([
@@ -789,11 +767,13 @@ class VoucherManagementController extends Controller
             abort_if($lockedVoucher->status === 'DRAFT', 404);
 
             $remark = trim((string) ($validated['default_destination_remark'] ?? ''));
+            $totalWeightRaw = $validated['total_weight'] ?? null;
+            $totalWeight = $totalWeightRaw === null || $totalWeightRaw === '' ? 0.0 : (float) $totalWeightRaw;
             $lockedVoucher->fill([
                 'default_recipient_name' => trim((string) $validated['default_recipient_name']),
                 'default_recipient_phone' => trim((string) $validated['default_recipient_phone']),
                 'default_destination_remark' => $remark !== '' ? $remark : null,
-                'total_weight' => isset($validated['total_weight']) ? round((float) $validated['total_weight'], 2) : null,
+                'total_weight' => round($totalWeight, 2),
             ]);
             $lockedVoucher->save();
         });
@@ -1041,7 +1021,7 @@ class VoucherManagementController extends Controller
                     ->whereNull('deleted_at')
                     ->where('status', 'ACTIVE')),
             ],
-            'additional_costs.*.amount' => ['required_with:additional_costs.*.category_id', 'numeric', 'min:0'],
+            'additional_costs.*.amount' => ['nullable', 'numeric', 'min:0'],
         ]);
     }
 
@@ -1074,11 +1054,11 @@ class VoucherManagementController extends Controller
             $categoryId = isset($row['category_id']) && $row['category_id'] !== ''
                 ? (int) $row['category_id']
                 : null;
-            $amount = $row['amount'] ?? null;
-
-            if ($categoryId === null || $amount === null || $amount === '') {
+            if ($categoryId === null) {
                 continue;
             }
+            $amount = $row['amount'] ?? null;
+            $amount = $amount === null || $amount === '' ? 0.0 : (float) $amount;
 
             $categoryName = $categoryNameById->get($categoryId);
             if ($categoryName === null) {
@@ -1088,7 +1068,7 @@ class VoucherManagementController extends Controller
             $normalized[] = [
                 'category_id' => $categoryId,
                 'category_name' => $categoryName,
-                'amount' => round((float) $amount, 2),
+                'amount' => round($amount, 2),
             ];
         }
 

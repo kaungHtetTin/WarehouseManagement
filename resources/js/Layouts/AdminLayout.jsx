@@ -791,7 +791,7 @@ export default function AdminLayout({ children, title = 'Admin Panel' }) {
                         flexGrow: 1,
                         pt: { xs: 8, sm: 9 },
                         px: { xs: 1.5, sm: 2.5, lg: 3 },
-                        pb: { xs: 10, sm: 2.5, md: 3 },
+                        pb: { xs: 'calc(80px + env(safe-area-inset-bottom))', md: 3 },
                         bgcolor: 'background.default',
                         maxWidth: '100%',
                     }}

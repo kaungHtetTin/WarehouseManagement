@@ -76,8 +76,4 @@ class VoucherItem extends Model
         return $this->hasMany(TripItem::class);
     }
 
-    public function fulfillmentInstructions(): HasMany
-    {
-        return $this->hasMany(WarehouseFulfillmentInstruction::class);
-    }
 }

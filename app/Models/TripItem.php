@@ -48,8 +48,4 @@ class TripItem extends Model
         return $this->hasMany(DeliveryConfirmation::class)->orderByDesc('id');
     }
 
-    public function fulfillmentInstructions(): HasMany
-    {
-        return $this->hasMany(WarehouseFulfillmentInstruction::class);
-    }
 }

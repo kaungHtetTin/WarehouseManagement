@@ -18,7 +18,6 @@ use App\Models\Voucher;
 use App\Models\VoucherItem;
 use App\Models\VoucherPayment;
 use App\Models\Warehouse;
-use App\Models\WarehouseFulfillmentInstruction;
 use App\Services\Audit\AuditLogger;
 use App\Services\Tenant\OperationalWarehouseContext;
 use App\Services\Vouchers\VoucherOperationalStatusSync;
@@ -538,15 +537,6 @@ class TripManagementController extends Controller
                     ->exists()) {
                     throw ValidationException::withMessages([
                         'trip' => ['Trip has delivery confirmations and cannot be deleted.'],
-                    ]);
-                }
-
-                if ($tripItemIds !== [] && WarehouseFulfillmentInstruction::query()
-                    ->where('organization_id', $organizationId)
-                    ->whereIn('trip_item_id', $tripItemIds)
-                    ->exists()) {
-                    throw ValidationException::withMessages([
-                        'trip' => ['Trip has fulfillment processing records and cannot be deleted.'],
                     ]);
                 }
 
@@ -2125,14 +2115,6 @@ class TripManagementController extends Controller
 
                     $this->refreshVoucherItemDeliveredQty($voucherItem);
 
-                    $this->handleWarehouseDestinationReceipt(
-                        voucherItem: $voucherItem,
-                        tripItem: $item,
-                        confirmation: $confirmation,
-                        actor: $actor,
-                        note: $note
-                    );
-
                     AuditLogger::record($actor, 'delivery_confirmation.record', $confirmation, [
                         'trip_no' => $tripLocked->trip_no,
                         'trip_item_id' => $item->id,
@@ -2240,14 +2222,6 @@ class TripManagementController extends Controller
                         ->firstOrFail();
 
                     $this->refreshVoucherItemDeliveredQty($voucherItem);
-
-                    $this->handleWarehouseDestinationReceipt(
-                        voucherItem: $voucherItem,
-                        tripItem: $item,
-                        confirmation: $confirmation,
-                        actor: $actor,
-                        note: $note
-                    );
 
                     AuditLogger::record($actor, 'delivery_confirmation.record', $confirmation, [
                         'trip_no' => $tripLocked->trip_no,
@@ -2447,14 +2421,6 @@ class TripManagementController extends Controller
                     ->firstOrFail();
 
                 $this->refreshVoucherItemDeliveredQty($voucherItem);
-
-                $this->handleWarehouseDestinationReceipt(
-                    voucherItem: $voucherItem,
-                    tripItem: $item,
-                    confirmation: $confirmation,
-                    actor: $actor,
-                    note: isset($validated['note']) && trim((string) $validated['note']) !== '' ? trim((string) $validated['note']) : null
-                );
 
                 AuditLogger::record($actor, 'delivery_confirmation.record', $confirmation, [
                     'trip_no' => $tripLocked->trip_no,
@@ -2735,7 +2701,7 @@ class TripManagementController extends Controller
                     'tripStop:id,stop_order',
                     'voucherItem' => fn ($q2) => $q2->with([
                         'product:id,name,unit',
-                        'voucher:id,voucher_no,total_amount,payment_status,default_to_warehouse_id,default_to_city,default_to_address_line1,default_to_address_line2,default_to_township,default_to_region,default_to_postal_code,default_recipient_name,default_recipient_phone,default_destination_remark',
+                        'voucher:id,voucher_no,total_amount,payment_status,additional_costs,default_to_warehouse_id,default_to_city,default_to_address_line1,default_to_address_line2,default_to_township,default_to_region,default_to_postal_code,default_recipient_name,default_recipient_phone,default_destination_remark',
                         'voucher.defaultToWarehouse:id,city,address',
                     ]),
                 ]),
@@ -3025,6 +2991,7 @@ class TripManagementController extends Controller
             'voucher_count' => $voucherCount,
             'total_loaded_qty' => $totalLoadedQty,
             'total_amount' => round($totalAmount, 2),
+            'labor_cost' => $this->tripLaborCost($tripModel),
             'paid_amount' => round($paidAmount, 2),
             'rows' => array_map(function (array $row) {
                 $totalAmount = round((float) ($row['total_amount'] ?? 0), 2);
@@ -3066,75 +3033,6 @@ class TripManagementController extends Controller
      * Stock receipt warehouse: prefer {@see TripStop::$warehouse_id} when the trip item has a stop;
      * otherwise voucher default destination warehouse.
      */
-    private function resolveReceivingWarehouseId(TripItem $tripItem, VoucherItem $voucherItem, int $organizationId): ?int
-    {
-        if ($tripItem->trip_stop_id !== null) {
-            $stop = TripStop::query()
-                ->whereKey($tripItem->trip_stop_id)
-                ->where('organization_id', $organizationId)
-                ->where('trip_id', $tripItem->trip_id)
-                ->first();
-            if ($stop !== null && $stop->warehouse_id !== null) {
-                return (int) $stop->warehouse_id;
-            }
-        }
-
-        $voucher = $voucherItem->voucher;
-
-        return $voucher !== null && $voucher->default_to_warehouse_id !== null
-            ? (int) $voucher->default_to_warehouse_id
-            : null;
-    }
-
-    private function handleWarehouseDestinationReceipt(
-        VoucherItem $voucherItem,
-        TripItem $tripItem,
-        DeliveryConfirmation $confirmation,
-        User $actor,
-        ?string $note = null
-    ): void {
-        if ($confirmation->delivery_status === 'REJECTED' || (float) $confirmation->received_qty < 0.0001) {
-            return;
-        }
-
-        $receivingWarehouseId = $this->resolveReceivingWarehouseId($tripItem, $voucherItem, (int) $voucherItem->organization_id);
-        if ($receivingWarehouseId === null) {
-            return;
-        }
-
-        $instruction = WarehouseFulfillmentInstruction::query()
-            ->where('organization_id', $voucherItem->organization_id)
-            ->where('trip_item_id', $tripItem->id)
-            ->where('warehouse_id', $receivingWarehouseId)
-            ->where('voucher_item_id', $voucherItem->id)
-            ->lockForUpdate()
-            ->first();
-
-        if (! $instruction) {
-            $instruction = WarehouseFulfillmentInstruction::query()->create([
-                'organization_id' => $voucherItem->organization_id,
-                'warehouse_id' => $receivingWarehouseId,
-                'trip_item_id' => $tripItem->id,
-                'voucher_item_id' => $voucherItem->id,
-                'merchant_id' => $voucherItem->voucher?->merchant_id,
-                'qty_received' => 0,
-                'qty_dispatched' => 0,
-                'status' => 'PENDING_ACTION',
-                'last_updated_by' => $actor->id,
-            ]);
-        }
-
-        $instruction->qty_received = round((float) $instruction->qty_received + (float) $confirmation->received_qty, 3);
-        $instruction->status = ((float) $instruction->qty_received - (float) $instruction->qty_dispatched) > 0.0001
-            ? 'PENDING_ACTION'
-            : 'COMPLETED';
-        if ($note !== null) {
-            $instruction->note = $note;
-        }
-        $instruction->last_updated_by = $actor->id;
-        $instruction->save();
-    }
-
     /**
      * Destination warehouse receives previously delivered quantity into stock.
      */

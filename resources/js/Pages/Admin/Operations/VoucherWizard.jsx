@@ -92,6 +92,28 @@ function warehouseSelectorLabel(warehouse) {
     return city || address || '—';
 }
 
+function formatOptionalWeightInput(value) {
+    if (value == null || value === '') {
+        return '';
+    }
+    const n = Number(value);
+    if (!Number.isFinite(n) || n === 0) {
+        return '';
+    }
+    return formatDecimalInput(value, 2, '');
+}
+
+function formatOptionalCostAmountInput(value) {
+    if (value == null || value === '') {
+        return '';
+    }
+    const n = Number(value);
+    if (!Number.isFinite(n) || n === 0) {
+        return '';
+    }
+    return String(value);
+}
+
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 function WizardSection({ title, children }) {
@@ -124,22 +146,27 @@ function PreviewField({ label, value }) {
 
 const emptyMerchant = () => ({
     name: '',
-    phone: '',
+    phone: '09',
 });
+
+const defaultPhoneInput = (value) => {
+    const phone = value == null ? '' : String(value);
+    return phone.trim() === '' ? '09' : phone;
+};
 
 const initialStep1 = () => ({
     voucher_date: todayStr(),
     source_warehouse_id: '',
     remark: '',
     payment_status: 'UNPAID',
-    total_weight: '0.00',
+    total_weight: '',
     additional_costs: [],
     merchant_id: null,
     merchant: emptyMerchant(),
     default_to_warehouse_id: '',
     default_to_address_line1: '',
     default_recipient_name: '',
-    default_recipient_phone: '',
+    default_recipient_phone: '09',
     default_destination_remark: '',
 });
 
@@ -350,23 +377,23 @@ export default function VoucherWizard() {
             source_warehouse_id: v.source_warehouse_id != null ? String(v.source_warehouse_id) : '',
             remark: v.remark ?? '',
             payment_status: v.payment_status ?? 'UNPAID',
-            total_weight: formatDecimalInput(v.total_weight, 2, '0.00'),
+            total_weight: formatOptionalWeightInput(v.total_weight),
             additional_costs: Array.isArray(v.additional_costs)
                 ? v.additional_costs.map((c) => ({
                       category_id: c?.category_id != null ? String(c.category_id) : '',
                       category_name: c?.category_name ?? '',
-                      amount: c?.amount != null && c?.amount !== '' ? String(c.amount) : '',
+                      amount: formatOptionalCostAmountInput(c?.amount),
                   }))
                 : [],
             merchant_id: v.merchant_id ?? null,
             merchant: {
                 name: m.name ?? '',
-                phone: m.phone ?? '',
+                phone: defaultPhoneInput(m.phone),
             },
             default_to_warehouse_id: v.default_to_warehouse_id != null ? String(v.default_to_warehouse_id) : '',
             default_to_address_line1: v.default_to_address_line1 ?? '',
             default_recipient_name: v.default_recipient_name ?? '',
-            default_recipient_phone: v.default_recipient_phone ?? '',
+            default_recipient_phone: defaultPhoneInput(v.default_recipient_phone),
             default_destination_remark: v.default_destination_remark ?? '',
         });
         setLineForm(emptyLineForm());
@@ -1449,7 +1476,7 @@ export default function VoucherWizard() {
                                                     onBlur={() =>
                                                         setStep1((p) => ({
                                                             ...p,
-                                                            total_weight: formatDecimalInput(p.total_weight, 2, '0.00'),
+                                                            total_weight: p.total_weight === '' ? '' : formatOptionalWeightInput(p.total_weight),
                                                         }))
                                                     }
                                                     helperText={t('voucher_wizard.weight.default_zero')}
@@ -1525,6 +1552,7 @@ export default function VoucherWizard() {
                                                                         sx={{ width: 140, flexShrink: 0 }}
                                                                         value={row.amount}
                                                                         onChange={(e) => updateCostRow(idx, { amount: e.target.value })}
+                                                                        onBlur={() => updateCostRow(idx, { amount: formatOptionalCostAmountInput(row.amount) })}
                                                                     />
                                                                     <IconButton size="small" color="error" aria-label={t('voucher_wizard.costs.remove_cost')} onClick={() => removeCostRow(idx)}>
                                                                         <DeleteOutlinedIcon fontSize="small" />

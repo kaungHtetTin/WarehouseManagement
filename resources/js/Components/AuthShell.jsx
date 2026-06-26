@@ -14,7 +14,7 @@ export default function AuthShell({
     subtitle,
     eyebrow = 'Secure Access',
     sideTitle = 'Warehouse operations made easier to manage.',
-    sideDescription = 'Use the admin workspace to handle vouchers, fulfillment, finance, and delivery flow with less friction.',
+    sideDescription = 'Use the admin workspace to handle vouchers, trips, finance, and delivery flow with less friction.',
     children,
 }) {
     const { i18n } = usePage().props;
