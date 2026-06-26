@@ -62,7 +62,7 @@ function TripPaidSummaryStrip({ trip, summary, layout }) {
                     <div className="k">Trip freight</div>
                     <div className="v">{formatMoneyAmount(summary.total_amount)}</div>
 
-                    <div className="k">Total labour cost</div>
+                    <div className="k">Total labor cost</div>
                     <div className="v">{formatMoneyAmount(summary.labor_cost)}</div>
 
                     <div className="k">Loaded qty</div>
@@ -131,7 +131,7 @@ function TripOverviewSheet({ trip, overviewSlip, layout, t }) {
                     <div className="k">Trip freight</div>
                     <div className="v">{formatMoneyAmount(overviewSlip.total_amount)}</div>
 
-                    <div className="k">Total labour cost</div>
+                    <div className="k">Total labor cost</div>
                     <div className="v">{formatMoneyAmount(overviewSlip.labor_cost)}</div>
 
                     <div className="k">Total already paid</div>
@@ -219,7 +219,7 @@ function TripOverviewSheet({ trip, overviewSlip, layout, t }) {
                                 {(overviewSlip.rows || []).length > 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={2} sx={{ fontWeight: 900 }}>
-                                            Total labour cost
+                                            Total labor cost
                                         </TableCell>
                                         <TableCell align="right" sx={{ fontWeight: 900 }}>
                                             {formatMoneyAmount(overviewSlip.labor_cost)}
@@ -285,7 +285,7 @@ function TripOverviewSheet({ trip, overviewSlip, layout, t }) {
                                 {(overviewSlip.rows || []).length > 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={6} align="right" sx={{ fontWeight: 900 }}>
-                                            Total labour cost
+                                            Total labor cost
                                         </TableCell>
                                         <TableCell align="right" sx={{ fontWeight: 900 }}>
                                             {formatMoneyAmount(overviewSlip.labor_cost)}

@@ -2573,7 +2573,7 @@ class TripManagementController extends Controller
                     'tripStop:id,stop_order',
                     'voucherItem' => fn ($q2) => $q2->with([
                         'product:id,name,unit',
-                        'voucher:id,voucher_no,total_amount,payment_status,default_to_warehouse_id,default_to_city,default_to_address_line1,default_to_address_line2,default_to_township,default_to_region,default_to_postal_code,default_recipient_name,default_recipient_phone,default_destination_remark',
+                        'voucher:id,voucher_no,total_amount,payment_status,additional_costs,default_to_warehouse_id,default_to_city,default_to_address_line1,default_to_address_line2,default_to_township,default_to_region,default_to_postal_code,default_recipient_name,default_recipient_phone,default_destination_remark',
                         'voucher.defaultToWarehouse:id,city,address',
                     ]),
                 ]),
@@ -2669,6 +2669,7 @@ class TripManagementController extends Controller
             'trip' => $tripModel,
             'cargoRows' => $cargoRows,
             'totalPaidAmount' => $totalPaidAmount,
+            'totalLaborCost' => $this->tripLaborCost($tripModel),
             'canMarkPrinted' => $canMarkPrinted,
             'adminAppUrl' => rtrim((string) config('app.admin_app_url'), '/'),
         ]);

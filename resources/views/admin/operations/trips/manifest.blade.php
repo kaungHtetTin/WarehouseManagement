@@ -301,6 +301,10 @@
                     <dt>Total already paid</dt>
                     <dd>{{ number_format((float) ($totalPaidAmount ?? 0), 0, '.', ',') }}</dd>
                 </div>
+                <div>
+                    <dt>Total labor cost</dt>
+                    <dd>{{ number_format((float) ($totalLaborCost ?? 0), 0, '.', ',') }}</dd>
+                </div>
                 @if (filled($trip->remark))
                     <div>
                         <dt>Remark</dt>
@@ -376,6 +380,11 @@
                         </tbody>
                         <tfoot>
                             <tr>
+                                <td colspan="5" class="num text-center">Total labor cost</td>
+                                <td class="num text-center">{{ number_format((float) ($totalLaborCost ?? 0), 0, '.', ',') }}</td>
+                                <td></td>
+                            </tr>
+                            <tr>
                                 <td colspan="5" class="num text-center">Total already paid</td>
                                 <td class="num text-center">{{ number_format((float) ($totalPaidAmount ?? 0), 0, '.', ',') }}</td>
                                 <td></td>
@@ -413,6 +422,12 @@
                                 @endif
                             </div>
                         @endforeach
+                        <div class="cargo-block">
+                            <div class="totals">
+                                <span>Total labor cost</span>
+                                <span>{{ number_format((float) ($totalLaborCost ?? 0), 0, '.', ',') }}</span>
+                            </div>
+                        </div>
                         <div class="cargo-block">
                             <div class="totals">
                                 <span>Total already paid</span>

@@ -1,1 +1,0 @@
-import{a as o}from"./app-fa405105.js";import{e as r}from"./Stack-e71e4e80.js";const t=r(o("path",{d:"M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2m0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2"}));export{t as M};
